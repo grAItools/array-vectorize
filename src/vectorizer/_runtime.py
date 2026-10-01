@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import linecache
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 __all__ = ["compile_vectorized"]
 
@@ -23,9 +24,9 @@ def compile_vectorized(
     - sets ``.source`` and ``__wrapped__`` (the original scalar function).
     """
     filename = f"<vectorizer:{name}>"
-    code = compile(source, filename, "exec")  # noqa: S102
+    code = compile(source, filename, "exec")
     namespace: dict[str, Any] = {}
-    exec(code, namespace)  # noqa: S102
+    exec(code, namespace)
     func = namespace[f"{name}_vec"]
 
     if hidden_params:

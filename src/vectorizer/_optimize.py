@@ -104,6 +104,7 @@ def _fold_unary(op: str, lit: Literal) -> Literal | None:
 
 # ------------------------------------------------------------------ rewriting
 
+
 def _rewrite(node: Node, fn):  # type: ignore[no-untyped-def]
     """Rebuild ``node`` with ``fn`` applied to each rewritten child."""
     if isinstance(node, Literal | Ref | DType):
@@ -166,6 +167,7 @@ def const_fold(program: Program) -> Program:
 
 # ----------------------------------------------------------------------- DCE
 
+
 def _mark_live(node: Node, live: set[str]) -> None:
     if isinstance(node, Ref):
         live.add(node.name)
@@ -219,7 +221,9 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
         memo: dict[Node, str] = {}
         pending: list[Binding] = []
 
-        def rewrite(node: Node) -> Node:
+        def rewrite(
+            node: Node, *, counter: Counter = counter, memo: dict = memo, pending: list = pending
+        ) -> Node:  # type: ignore[no-untyped-def]
             node = _rewrite(node, rewrite)
             if isinstance(node, _CSE_ELIGIBLE) and counter[node] >= 2:
                 if node not in memo:

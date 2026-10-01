@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
+from ._codegen import generate_source
 from ._errors import VectorizationError
 from ._extract import extract_function
 from ._lower import lower_function
 from ._optimize import optimize
-from ._codegen import generate_source
 from ._runtime import compile_vectorized
 from ._validate import validate
 
 __version__ = "0.1.0"
 
-__all__ = ["vectorize", "VectorizationError", "get_source"]
+__all__ = ["VectorizationError", "get_source", "vectorize"]
 
 
 def vectorize(

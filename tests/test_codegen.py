@@ -4,11 +4,21 @@ from __future__ import annotations
 
 import ast
 
-import pytest
-
 from vectorizer._codegen import generate_source
 from vectorizer._extract import Param
-from vectorizer._ir import Binding, BinOp, Call, Compare, DType, Literal, Logical, Program, Ref, UnaryOp, Where
+from vectorizer._ir import (
+    Binding,
+    BinOp,
+    Call,
+    Compare,
+    DType,
+    Literal,
+    Logical,
+    Program,
+    Ref,
+    UnaryOp,
+    Where,
+)
 from vectorizer._lower import LoweredFunction
 
 
@@ -183,7 +193,10 @@ def test_generated_source_is_valid_python() -> None:
         ("x", "y"),
         (
             Binding("a", Call("sqrt", (BinOp("add", Ref("x"), Ref("y")),))),
-            Binding("b", Where(Compare("gt", Ref("a"), Literal(0, "int")), Ref("a"), Literal(0.0, "float"))),
+            Binding(
+                "b",
+                Where(Compare("gt", Ref("a"), Literal(0, "int")), Ref("a"), Literal(0.0, "float")),
+            ),
         ),
         BinOp("add", Ref("b"), Literal(1, "int")),
     )

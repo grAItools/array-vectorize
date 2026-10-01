@@ -4,7 +4,18 @@ from __future__ import annotations
 
 import math
 
-from vectorizer._ir import Binding, BinOp, Call, Compare, DType, Literal, Logical, Program, Ref, SSAEnv, UnaryOp, Where
+from vectorizer._ir import (
+    Binding,
+    BinOp,
+    Call,
+    Compare,
+    Literal,
+    Program,
+    Ref,
+    SSAEnv,
+    UnaryOp,
+    Where,
+)
 from vectorizer._optimize import const_fold, cse, dce, optimize
 
 
@@ -15,6 +26,7 @@ def lit(v: float | int, kind: str = "auto") -> Literal:
 
 
 # ---------------------------------------------------------------- const-fold
+
 
 def test_fold_arithmetic() -> None:
     folded = const_fold(Program((), (), BinOp("add", lit(2), lit(3))))
@@ -80,6 +92,7 @@ def test_fold_does_not_touch_calls() -> None:
 
 # ----------------------------------------------------------------------- DCE
 
+
 def test_dce_drops_unreachable_bindings() -> None:
     p = Program(
         ("x",),
@@ -118,6 +131,7 @@ def test_dce_single_reverse_pass_handles_late_uses() -> None:
 
 
 # ----------------------------------------------------------------------- CSE
+
 
 def test_cse_hoists_duplicated_call() -> None:
     inner = Call("sqrt", (Ref("x"),))
@@ -176,6 +190,7 @@ def test_cse_temp_inserted_before_first_user() -> None:
 
 
 # ----------------------------------------------------------------- composite
+
 
 def test_optimize_pipeline() -> None:
     # (x + (2*3)) duplicated, dead binding present

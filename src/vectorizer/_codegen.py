@@ -11,7 +11,6 @@ import ast
 import math
 
 from ._ir import (
-    Binding,
     BinOp,
     Call,
     Compare,
@@ -114,7 +113,9 @@ def _gen_expr(node: Node) -> ast.expr:
             folded = _xp_call(fn, [folded, _gen_expr(part)])
         return folded
     if isinstance(node, Where):
-        return _xp_call("where", [_gen_expr(node.cond), _gen_expr(node.then), _gen_expr(node.other)])
+        return _xp_call(
+            "where", [_gen_expr(node.cond), _gen_expr(node.then), _gen_expr(node.other)]
+        )
     if isinstance(node, Call):
         return _xp_call(node.fn, [_gen_expr(a) for a in node.args])
     raise TypeError(f"unexpected IR node {type(node).__name__}")
@@ -157,9 +158,7 @@ def _build_signature(lowered: LoweredFunction) -> ast.arguments:
         arg = ast.arg(arg=emitted, annotation=None)
         if param.kind == "kwonly":
             kwonly.append(arg)
-            kw_defaults.append(
-                ast.Constant(value=param.default) if param.has_default else None
-            )
+            kw_defaults.append(ast.Constant(value=param.default) if param.has_default else None)
             continue
         if param.kind == "posonly":
             posonly.append(arg)

@@ -319,7 +319,9 @@ def test_early_return_top_level() -> None:
 
 
 def test_sequential_same_condition_first_return_wins() -> None:
-    p = lower("    if x < 0:\n        return 1.0\n    if x < 0:\n        return 2.0\n    return 3.0")
+    p = lower(
+        "    if x < 0:\n        return 1.0\n    if x < 0:\n        return 2.0\n    return 3.0"
+    )
     inner = Where(
         Compare("lt", Ref("x"), Literal(0, "int")), Literal(2.0, "float"), Literal(3.0, "float")
     )
@@ -349,7 +351,14 @@ def test_nested_both_return_with_outer_pending() -> None:
 
 
 def test_then_return_with_inner_else_pending() -> None:
-    p = lower("    if x > 0:\n        return 1.0\n    else:\n        if x < -1:\n            return 2.0\n    return 3.0")
+    p = lower(
+        "    if x > 0:\n"
+        "        return 1.0\n"
+        "    else:\n"
+        "        if x < -1:\n"
+        "            return 2.0\n"
+        "    return 3.0"
+    )
     inner = Where(
         Compare("lt", Ref("x"), UnaryOp("neg", Literal(1, "int"))),
         Literal(2.0, "float"),
