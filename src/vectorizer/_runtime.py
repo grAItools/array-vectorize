@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import linecache
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 __all__ = ["compile_vectorized"]
 
@@ -27,7 +27,7 @@ def compile_vectorized(
     code = compile(source, filename, "exec")
     namespace: dict[str, Any] = {}
     exec(code, namespace)
-    func = namespace[f"{name}_vec"]
+    func: Any = namespace[f"{name}_vec"]
 
     if hidden_params:
         func.__kwdefaults__ = {param: value for param, value in hidden_params}
@@ -37,5 +37,5 @@ def compile_vectorized(
     func.__name__ = original.__name__
     func.__qualname__ = getattr(original, "__qualname__", original.__name__)
     func.__wrapped__ = original
-    func.source = source  # type: ignore[attr-defined]
-    return func
+    func.source = source
+    return cast(Callable[..., Any], func)

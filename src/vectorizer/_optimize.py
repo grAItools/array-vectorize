@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
+from typing import Any
 
 from ._ir import (
     Binding,
@@ -48,7 +50,8 @@ def _fold_binop(op: str, left: Literal, right: Literal) -> Literal | None:
         return None
     if op in _ZERO_RISK_OPS and right.value == 0:
         return None
-    a, b = left.value, right.value
+    a: Any = left.value
+    b: Any = right.value
     try:
         if op == "add":
             result: object = a + b
@@ -82,13 +85,13 @@ def _fold_binop(op: str, left: Literal, right: Literal) -> Literal | None:
 
 
 def _fold_unary(op: str, lit: Literal) -> Literal | None:
-    v = lit.value
+    v: Any = lit.value
     if op == "not":
         # exact per D2: logical_not(NaN) is False, Python `not nan` is False
         return Literal(not v, "bool")
     try:
         if op == "neg":
-            result: object = -v
+            result: Any = -v
         elif op == "pos":
             result = +v
         elif op == "invert":
@@ -105,7 +108,7 @@ def _fold_unary(op: str, lit: Literal) -> Literal | None:
 # ------------------------------------------------------------------ rewriting
 
 
-def _rewrite(node: Node, fn):  # type: ignore[no-untyped-def]
+def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
     """Rebuild ``node`` with ``fn`` applied to each rewritten child."""
     if isinstance(node, Literal | Ref | DType):
         return node
@@ -193,7 +196,7 @@ def dce(program: Program) -> Program:
 _CSE_ELIGIBLE = (Call, Where)
 
 
-def _count_eligible(node: Node, counter: Counter) -> None:  # type: ignore[no-untyped-def]
+def _count_eligible(node: Node, counter: Counter[Node]) -> None:
     if isinstance(node, _CSE_ELIGIBLE):
         counter[node] += 1
     for child in _children(node):
@@ -211,7 +214,7 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
     """
     current = program
     for _ in range(8):
-        counter: Counter = Counter()  # type: ignore[var-annotated]
+        counter: Counter[Node] = Counter()
         for binding in current.bindings:
             _count_eligible(binding.expr, counter)
         _count_eligible(current.result, counter)
@@ -222,8 +225,12 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
         pending: list[Binding] = []
 
         def rewrite(
-            node: Node, *, counter: Counter = counter, memo: dict = memo, pending: list = pending
-        ) -> Node:  # type: ignore[no-untyped-def]
+            node: Node,
+            *,
+            counter: Counter[Node] = counter,
+            memo: dict[Node, str] = memo,
+            pending: list[Binding] = pending,
+        ) -> Node:
             node = _rewrite(node, rewrite)
             if isinstance(node, _CSE_ELIGIBLE) and counter[node] >= 2:
                 if node not in memo:
