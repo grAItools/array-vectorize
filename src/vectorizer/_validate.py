@@ -167,6 +167,8 @@ class _Validator:
         if isinstance(node, ast.Constant):
             if type(node.value) not in (int, float, bool):
                 self.error(node, f"{type(node.value).__name__!r} literals are not supported")
+            elif type(node.value) is int and not (-(2**63) <= node.value < 2**63):
+                self.error(node, "int literals outside the int64 range are not supported")
         elif isinstance(node, ast.Name):
             return
         elif isinstance(node, ast.BinOp):

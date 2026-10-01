@@ -90,8 +90,9 @@ class _Lowerer:
         self.definite: dict[str, str] = {}
         #: vars that may be unbound on the current path (assigned in one branch only)
         self.maybe: set[str] = set()
-        #: pending early returns on the current path: (condition, value)
-        self.deferred: list[tuple[Node, Node]] = []
+        #: pending early returns: (condition, value, push_depth) in divergence
+        #: order; folds nest earlier entries outermost
+        self.deferred: list[tuple[Node, Node, int]] = []
         #: nesting depth inside branches (branch-local bindings always suffix)
         self.branch_depth = 0
         self.assigned_names: set[str] = {
@@ -210,23 +211,39 @@ class _Lowerer:
         self.branch_depth -= 1
         else_definite, else_maybe = dict(self.definite), set(self.maybe)
         else_deferred = self.deferred
-        then_len = len(self.bindings)  # else branch bindings appended after then's
+        pre_len = len(pre_deferred)
 
         if then_result is not None and else_result is not None:
-            # both branches return: this if is a terminator
+            # Both branches return: this if terminates the block. Branch folds
+            # applied their own entries; re-fold the merged value to apply
+            # entries pending at this block's depth (they fire earlier in
+            # program order, so they wrap the merged where from outside).
             self.deferred = list(pre_deferred)
-            return Where(cond, then_result, else_result)
+            merged: Node = Where(cond, then_result, else_result)
+            return self.fold_returns(merged)
 
         if then_result is not None:
-            # then returns, else falls through: continue on the else path
+            # then returns, else falls through: continue on the else path.
+            # The if's own divergence encloses the else branch's pending
+            # entries, so it is inserted before them (but after entries
+            # pending from before this if).
             self.definite, self.maybe = else_definite, else_maybe
-            self.deferred = [*else_deferred, (cond, then_result)]
+            self.deferred = [
+                *else_deferred[:pre_len],
+                (cond, then_result, self.branch_depth),
+                *else_deferred[pre_len:],
+            ]
             self._mark_then_only_unbound(pre_definite, then_definite, else_definite)
             return None
         if else_result is not None:
-            # else returns, then falls through: continue on the then path
+            # else returns, then falls through: continue on the then path.
             self.definite, self.maybe = then_definite, then_maybe
-            self.deferred = [*then_deferred, (UnaryOp("not", cond), else_result)]
+            not_cond = UnaryOp("not", cond)
+            self.deferred = [
+                *then_deferred[:pre_len],
+                (not_cond, else_result, self.branch_depth),
+                *then_deferred[pre_len:],
+            ]
             self._mark_then_only_unbound(pre_definite, else_definite, then_definite)
             return None
 
@@ -234,13 +251,12 @@ class _Lowerer:
         self._merge_envs(cond, pre_definite, then_definite, else_definite, then_maybe, else_maybe)
         # qualify branch-pending returns with their branch conditions
         not_cond = UnaryOp("not", cond)
-        qualified: list[tuple[Node, Node]] = []
-        for c, v in then_deferred[len(pre_deferred) :]:
-            qualified.append((Logical("and", (cond, c)), v))
-        for c, v in else_deferred[len(pre_deferred) :]:
-            qualified.append((Logical("and", (not_cond, c)), v))
-        self.deferred = list(pre_deferred) + qualified
-        del then_len
+        qualified: list[tuple[Node, Node, int]] = []
+        for c, v, p in then_deferred[pre_len:]:
+            qualified.append((Logical("and", (cond, c)), v, p))
+        for c, v, p in else_deferred[pre_len:]:
+            qualified.append((Logical("and", (not_cond, c)), v, p))
+        self.deferred = [*pre_deferred, *qualified]
         return None
 
     def _mark_then_only_unbound(
@@ -285,10 +301,24 @@ class _Lowerer:
                 self.definite[var] = then_def[var]
 
     def fold_returns(self, value: Node) -> Node:
+        """Fold pending early returns around ``value``.
+
+        Entries pushed at the current branch depth or deeper belong to this
+        block: they are applied here (list order is divergence order, so the
+        fold nests earlier returns outermost). Entries pushed at shallower
+        depths belong to enclosing blocks and are retained for their folds;
+        each branch copy carries them, and mixed ifs insert their own
+        divergence before enclosed entries.
+        """
         result = value
-        for cond, early in reversed(self.deferred):
-            result = Where(cond, early, result)
-        self.deferred = []
+        retained: list[tuple[Node, Node, int]] = []
+        for cond, early, depth in reversed(self.deferred):
+            if depth < self.branch_depth:
+                retained.append((cond, early, depth))
+            else:
+                result = Where(cond, early, result)
+        retained.reverse()
+        self.deferred = retained
         return result
 
     # --------------------------------------------------------- expressions

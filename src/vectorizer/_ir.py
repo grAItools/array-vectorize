@@ -28,8 +28,9 @@ __all__ = [
 ]
 
 #: Names the generated code uses for itself; user variables with these base
-#: names are mangled with a trailing underscore.
-RESERVED_NAMES = frozenset({"xp", "array_namespace"})
+#: names are mangled with a trailing underscore. ``hasattr`` is used by the
+#: namespace-detection comprehension and must not be shadowed by a parameter.
+RESERVED_NAMES = frozenset({"xp", "array_namespace", "hasattr"})
 
 
 @dataclass(frozen=True)
