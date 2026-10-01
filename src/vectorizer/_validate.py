@@ -132,7 +132,7 @@ class _Validator:
             return
         if isinstance(target, ast.Tuple | ast.List):
             self.error(stmt, "tuple/list assignment is not supported (single name targets only)")
-        elif isinstance(target, ast.Starred):
+        elif isinstance(target, ast.Starred):  # pragma: no cover - syntax error in Python
             self.error(stmt, "starred assignment is not supported")
         elif isinstance(target, ast.Subscript):
             self.error(stmt, "subscript assignment is not supported")

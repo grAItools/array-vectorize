@@ -280,7 +280,7 @@ class _Lowerer:
         then_maybe: set[str],
         else_maybe: set[str],
     ) -> None:
-        for var in then_def.keys() | else_def.keys():
+        for var in dict.fromkeys([*then_def, *else_def]):  # deterministic order
             nt, ne = then_def.get(var), else_def.get(var)
             if nt == ne:
                 continue

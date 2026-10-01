@@ -147,6 +147,12 @@ def _classify_closures(target: types.FunctionType, info: FunctionInfo) -> None:
 def extract_function(func: Callable[..., Any]) -> FunctionInfo:
     """Unwrap, read source, parse, and capture closures (plan §4)."""
     target = inspect.unwrap(func)
+    # follow our own marker: vectorize(vectorize(f)) re-extracts the original
+    while True:
+        original = getattr(target, "_vectorized_original", None)
+        if not isinstance(original, types.FunctionType):
+            break
+        target = original
     if not isinstance(target, types.FunctionType):
         if inspect.isbuiltin(target):
             _reject(

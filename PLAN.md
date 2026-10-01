@@ -263,6 +263,11 @@ Program(params, bindings, result)            # single return value in M1
   `.source` attribute and `__wrapped__` → original. `inspect.unwrap` follows
   `__wrapped__`, so `inspect.getsource` must be checked/tested to return the
   **generated** source, not the original's.
+  **Implementation note (deviation):** CPython's `inspect.getsourcelines`
+  unwraps `__wrapped__` unconditionally, so setting it would hide the generated
+  source. Instead the runtime sets `__signature__` (signature/defaults/kwarg
+  names preserved) and a `_vectorized_original` marker (plan §4's "detect its
+  own marker" option) used for `vectorize(vectorize(f))` idempotence.
 
 ---
 
@@ -271,8 +276,8 @@ Program(params, bindings, result)            # single return value in M1
 | M | Scope | Acceptance criteria | Status |
 |---|---|---|---|
 | **M0** | Scaffolding: `src/` layout, `pyproject.toml`, ruff + mypy(strict) + pytest + coverage + pre-commit, GitHub Actions (py 3.10–3.13), empty package | `make check` green in CI | **done** |
-| **M1** | MVP pipeline: extraction, validation, expressions (§5 minus control flow) + straight-line assignments, codegen, `linecache` inspectability, golden harness, differential (Hypothesis) on NumPy | 20 golden cases exact-match; `inspect.getsource` works; differential green | not started |
-| **M2** | Statement semantics: `if/elif/else` merges, early returns, full reject diagnostics polish | `relu/clamp/piecewise/psi`-class functions pass behavioral + differential; error tests complete | not started |
+| **M1** | MVP pipeline: extraction, validation, expressions (§5 minus control flow) + straight-line assignments, codegen, `linecache` inspectability, golden harness, differential (Hypothesis) on NumPy | 20 golden cases exact-match; `inspect.getsource` works; differential green | **done** (34 goldens) |
+| **M2** | Statement semantics: `if/elif/else` merges, early returns, full reject diagnostics polish | `relu/clamp/piecewise/psi`-class functions pass behavioral + differential; error tests complete | **done** |
 | **M3** | Composition: constant-trip loops, recursive helper vectorization, closures/defaults, `fallback` mode | composition tests complete; backend matrix green | not started |
 | **M4** | Safety & polish: `protect_domains`, `verify=` option, README with semantics table + divergence docs, examples, fuzzer CLI | divergence tests complete; docs reviewed | not started |
 | **M5** (stretch) | on-disk source cache keyed by (source hash, py version), `scipy.special` maps, fuzzer hardening | nightly fuzz 24h clean | not started |

@@ -42,6 +42,7 @@ packages = ["src/vectorizer"]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+extend-exclude = ["tests/golden"]
 
 [tool.ruff.lint]
 select = [
@@ -69,8 +70,7 @@ source = ["src/vectorizer"]
 branch = true
 
 [tool.coverage.report]
-# TODO(M1): ratchet back to 95 once golden/integration tests land
-fail_under = 90
+fail_under = 95
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

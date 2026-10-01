@@ -25,7 +25,13 @@ from ._ir import (
 )
 from ._lower import LoweredFunction
 
-__all__ = ["generate_source"]
+__all__ = ["generate_source", "generated_name"]
+
+
+def generated_name(name: str) -> str:
+    """The generated function's name; lambdas (``<lambda>``) are not identifiers."""
+    return f"{name}_vec" if name.isidentifier() else "lambda_vec"
+
 
 _BINOP_AST: dict[str, type[ast.operator]] = {
     "add": ast.Add,
@@ -186,7 +192,7 @@ def _build_signature(lowered: LoweredFunction) -> ast.arguments:
 
 def generate_source(lowered: LoweredFunction, program: Program) -> str:
     """Generate the vectorized function source (plan §9)."""
-    func_name = f"{lowered.name}_vec"
+    func_name = generated_name(lowered.name)
     all_params = lowered.param_names + [name for name, _ in lowered.hidden_params]
 
     body: list[ast.stmt] = [
