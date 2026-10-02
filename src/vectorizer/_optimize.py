@@ -197,13 +197,13 @@ def _mark_live(node: Node, live: set[str]) -> None:
         _mark_live(child, live)
 
 
-def _mark_live_stmt(stmt: Stmt, live: set[str]) -> Stmt | Literal[False]:
-    """Mark liveness from a statement; returns the kept statement or False."""
+def _mark_live_stmt(stmt: Stmt, live: set[str]) -> Stmt | None:
+    """Mark liveness from a statement; returns the kept statement or None."""
     if isinstance(stmt, Binding):
         if stmt.name in live:
             _mark_live(stmt.expr, live)
             return stmt
-        return False
+        return None
     # Loop: process body in reverse; keep if any body statement is kept or
     # the loop variable is live afterwards.
     kept_any = False
@@ -218,7 +218,7 @@ def _mark_live_stmt(stmt: Stmt, live: set[str]) -> Stmt | Literal[False]:
     _mark_live(stmt.step, live)
     if kept_any or stmt.var in live:
         return Loop(stmt.var, stmt.start, stmt.stop, stmt.step, tuple(kept))
-    return False
+    return None
 
 
 def dce(program: Program) -> Program:
@@ -228,7 +228,7 @@ def dce(program: Program) -> Program:
     # single reverse pass suffices: SSA uses only earlier bindings
     for stmt in reversed(program.bindings):
         kept_stmt = _mark_live_stmt(stmt, live)
-        if kept_stmt is not False:
+        if kept_stmt is not None:
             kept.append(kept_stmt)
     kept.reverse()
     return Program(program.params, tuple(kept), program.result)
@@ -273,8 +273,9 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
         return current
     for _ in range(8):
         counter: Counter[Node] = Counter()
-        for binding in current.bindings:
-            _count_eligible(binding.expr, counter)
+        for stmt in current.bindings:
+            assert isinstance(stmt, Binding)  # CSE skips loop programs
+            _count_eligible(stmt.expr, counter)
         _count_eligible(current.result, counter)
         if not any(count >= 2 for count in counter.values()):
             return current
@@ -298,12 +299,13 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
                 return Ref(memo[node])
             return node
 
-        rewritten: list[Binding] = []
-        for binding in current.bindings:
+        rewritten: list[Stmt] = []
+        for stmt in current.bindings:
+            assert isinstance(stmt, Binding)  # CSE skips loop programs
             start = len(pending)
-            expr = rewrite(binding.expr)
+            expr = rewrite(stmt.expr)
             rewritten.extend(pending[start:])
-            rewritten.append(Binding(binding.name, expr))
+            rewritten.append(Binding(stmt.name, expr))
         result_start = len(pending)
         result = rewrite(current.result)
         rewritten.extend(pending[result_start:])  # temps first used by the result go last

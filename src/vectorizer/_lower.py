@@ -324,21 +324,20 @@ class _Lowerer:
 
     def _loop_bounds(self, call: ast.Call) -> tuple[Node, Node, Node]:
         args = list(call.args)
-        if len(args) == 1:
-            start, stop, step = (
-                Literal(0, "int"),
-                self._const_int(args[0], "loop bound"),
-                Literal(1, "int"),
-            )
-        elif len(args) == 2:
-            start, stop = (self._const_int(a, "loop bound") for a in args)
-            step = Literal(1, "int")
+        bounds: list[Node] = [self._const_int(a, "loop bound") for a in args]
+        if len(bounds) == 1:
+            start_n: Node = Literal(0, "int")
+            stop_n: Node = bounds[0]
+            step_n: Node = Literal(1, "int")
+        elif len(bounds) == 2:
+            start_n, stop_n = bounds
+            step_n = Literal(1, "int")
         else:
-            start, stop, step = (self._const_int(a, "loop bound") for a in args)
-        assert isinstance(step, Literal)
-        if step.value == 0:
+            start_n, stop_n, step_n = bounds
+        assert isinstance(step_n, Literal)
+        if step_n.value == 0:
             raise self.error(call, "range step cannot be zero")
-        return start, stop, step
+        return start_n, stop_n, step_n
 
     def _body_assigned_names(self, stmts: list[ast.stmt]) -> set[str]:
         """Names assigned via ``=``/augmented assignment in a statement list.
@@ -375,12 +374,14 @@ class _Lowerer:
         assert isinstance(iter_call, ast.Call)  # validator guarantees range(...)
         start, stop, step = self._loop_bounds(iter_call)
 
+        assert isinstance(stmt.target, ast.Name)  # validator guarantees
         loop_var = stmt.target.id
         loop_name = self.ssa.bind(loop_var)
 
         pre_definite = dict(self.definite)
         body_assigned = self._body_assigned_names(stmt.body)
-        carried = {v: pre_definite[v] for v in body_assigned if v in pre_definite}
+        # iterate pre_definite (insertion order) for deterministic phi order
+        carried = {v: pre_definite[v] for v in pre_definite if v in body_assigned}
         if loop_var in body_assigned:
             raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
 
