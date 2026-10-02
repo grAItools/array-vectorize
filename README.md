@@ -108,8 +108,10 @@ assignments, non-literal defaults, `str`/`None`/`complex` literals, bare
   `xp.where(c, f(x), g(x))`: both branches evaluate on all lanes. Values are
   correct; NaN/warnings from dead lanes are discarded by `where`.
   `protect_domains=True` clamps partial-function arguments (`sqrt`, `log`,
-  `asin`, ...) inside where-branches so dead lanes never leave the domain —
-  results never change, warnings disappear.
+  `asin`, ...) on lanes that are provably dead (discarded by their enclosing
+  where-select) and out of domain — live lanes are never touched (subnormals
+  and signed zeros stay exact), warnings on dead lanes disappear. Loop bodies
+  and cross-function (helper) dead lanes are not tracked (conservative).
 - **`and`/`or`/`not` are exact.** Numeric operands lower to value-selects
   (`x and y` → `xp.where(x != 0, y, x)`), including NaN truthiness
   (`not nan` is `False` in both Python and `xp.logical_not`). When both
