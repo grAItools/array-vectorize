@@ -124,6 +124,14 @@ class _Lowerer:
         #: None when unknown). Names are unique (SSA), so entries never go
         #: stale; this lets _numeric_kind see through Ref nodes.
         self.name_kinds: dict[str, str | None] = {}
+        #: emitted name -> its Literal value, for bindings of plain literals
+        #: (lets later uses substitute the value instead of emitting casts on
+        #: runtime plain scalars, which would crash xp.astype/xp.sqrt)
+        self.name_literals: dict[str, Literal] = {}
+        #: per active loop: {loop-carried name -> kinds assigned in the body}.
+        #: A carried variable's runtime kind is the union of its phi kind and
+        #: every body assignment; mixed kinds need conservative handling.
+        self._carried_assign_kinds: list[dict[str, set[str | None]]] = []
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -236,7 +244,17 @@ class _Lowerer:
             name = self.ssa.bind(var, force_suffix=self.branch_depth > 0)
         self.bindings.append(Binding(name, value))
         self.definite[var] = name
-        self.name_kinds[name] = self._numeric_kind(value)
+        kind = self._numeric_kind(value)
+        self.name_kinds[name] = kind
+        if isinstance(value, Literal):
+            self.name_literals[name] = value
+        else:
+            self.name_literals.pop(name, None)
+        if self.active_carried:
+            for carried, _depth in self.active_carried:
+                if var in carried:
+                    for frame in self._carried_assign_kinds:
+                        frame.setdefault(carried[var], set()).add(kind)
         self.maybe.discard(var)
 
     def lower_if(self, stmt: ast.If) -> Node | None:
@@ -391,6 +409,7 @@ class _Lowerer:
         if loop_var in body_assigned:
             raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
 
+        phi_kinds: dict[str, str | None] = {}
         # a pre-bound loop variable keeps its value on zero-trip loops:
         # emit a phi (the for-statement overwrites it on real iterations)
         if loop_var in pre_definite:
@@ -403,14 +422,16 @@ class _Lowerer:
             carried[var] = loop_carried_name
             self.bindings.append(Binding(loop_carried_name, Ref(pre_name)))
             self.definite[var] = loop_carried_name
+            phi_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
             self.name_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
 
         phi_end = len(self.bindings)
+        self._carried_assign_kinds.append({})
         self.loop_depth += 1
         self.loop_vars.add(loop_var)
         self.active_carried.append((dict(carried), self.branch_depth))
         self.definite[loop_var] = loop_name
-        self.name_kinds.setdefault(loop_name, None)
+        self.name_kinds.setdefault(loop_name, "int")  # loop vars are Python ints
         self.maybe.discard(loop_var)
         try:
             result = self.lower_stmts(stmt.body, loop_body=True)
@@ -418,6 +439,22 @@ class _Lowerer:
             self.loop_depth -= 1
             self.loop_vars.discard(loop_var)
             self.active_carried.pop()
+            frame = self._carried_assign_kinds.pop()
+        # a carried variable's kind across iterations is the union of its
+        # phi kind and all body-assignment kinds; when they mix, label it
+        # 'bool' so exact-arithmetic intify (* 1, safe for every numeric
+        # kind) kicks in, and float casts treat it conservatively
+        for loop_carried_name in carried.values():
+            kinds = {phi_kinds.get(loop_carried_name)} | frame.get(
+                loop_carried_name, set()
+            )
+            unique = {k for k in kinds if k is not None}
+            if (None in kinds and unique) or len(unique) > 1:
+                # mixed (or unknown-mixed) kinds across iterations: label
+                # conservatively so exact-arithmetic intify kicks in
+                self.name_kinds[loop_carried_name] = "bool"
+            elif unique:
+                self.name_kinds[loop_carried_name] = unique.pop()
         if result is not None:  # pragma: no cover - returns rejected in bodies
             raise self.error(stmt, "returns inside loop bodies are not supported")
         body_stmts = tuple(self.bindings[phi_end:])
@@ -518,7 +555,7 @@ class _Lowerer:
             operand = self.lower_expr(node.operand)
             if isinstance(node.op, ast.USub) and self._numeric_kind(operand) == "bool":
                 # -True is -1 in Python; numpy cannot negate bool arrays
-                operand = self._as_int_arg(operand)
+                operand = self._intify(operand)
             return UnaryOp(_UNARY[type(node.op)], operand)
         if isinstance(node, ast.Compare):
             return self._lower_compare(node)
@@ -593,12 +630,13 @@ class _Lowerer:
             )
         if name in BUILTIN_UNARY:
             self._check_arity(node, name, args, 1, 1)
-            return Call(BUILTIN_UNARY[name], tuple(args))
+            return Call(BUILTIN_UNARY[name], tuple(self._sanitize_xp_arg(a) for a in args))
         if name in BUILTIN_FOLDS:
             if len(args) < 2:
                 raise self.error(node, f"{name}() needs at least 2 arguments in vectorized code")
-            folded: Node = Call(BUILTIN_FOLDS[name], (args[0], args[1]))
-            for arg in args[2:]:
+            clean = [self._sanitize_xp_arg(a) for a in args]
+            folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
+            for arg in clean[2:]:
                 folded = Call(BUILTIN_FOLDS[name], (folded, arg))
             return folded
         if name in BUILTIN_CASTS:
@@ -613,10 +651,10 @@ class _Lowerer:
         if attr in MATH_FUNCS:
             xp_name, lo, hi = MATH_FUNCS[attr]
             self._check_arity(node, attr, args, lo, hi)
-            # Array API elementwise math requires floating-point inputs;
-            # provably int/bool arguments are cast (plan D9 backend neutrality)
-            floated = tuple(self._as_float_arg(a) for a in args)
-            return Call(xp_name, floated)
+            # Array API elementwise math requires floating-point array
+            # inputs; sanitize literal/int/bool/possibly-scalar args
+            sanitized = tuple(self._sanitize_xp_arg(a) for a in args)
+            return Call(xp_name, sanitized)
         raise self.error(func, f"math.{attr} cannot be called")
 
     @staticmethod
@@ -638,6 +676,11 @@ class _Lowerer:
             return node.kind
         if isinstance(node, Ref):
             return self.name_kinds.get(node.name)
+        if isinstance(node, Logical):
+            return "bool"
+        if isinstance(node, Where):
+            kt, ke = self._numeric_kind(node.then), self._numeric_kind(node.other)
+            return kt if kt == ke else None
         if is_bool(node):
             return "bool"
         if (
@@ -660,25 +703,58 @@ class _Lowerer:
             and self._numeric_kind(left) == "bool"
             and self._numeric_kind(right) == "bool"
         ):
-            left = self._as_int_arg(left)
-            right = self._as_int_arg(right)
+            left = self._intify(left)
+            right = self._intify(right)
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
             # Cast provably-int bases so the common literal case matches.
             left = self._as_float_arg(left)
         return BinOp(_BINOPS[type(op)], left, right)
 
-    def _as_int_arg(self, arg: Node) -> Node:
+    def _intify(self, arg: Node) -> Node:
+        """Make boolean arithmetic exact: Python's True + True is 2, but array
+        bool arithmetic saturates. ``arg * 1`` promotes bools to integers and
+        is a no-op for int/float (unlike astype, which truncates floats and
+        would break when a loop-carried variable changes kind across
+        iterations)."""
         if isinstance(arg, Literal):
             return Literal(int(arg.value), "int")
-        return Call("astype", (arg, DType("int64")))
+        return BinOp("mul", arg, Literal(1, "int"))
+
+    def _literal_value(self, arg: Node) -> Literal | None:
+        """The literal behind an arg: directly, or via a literal binding."""
+        if isinstance(arg, Literal):
+            return arg
+        if isinstance(arg, Ref):
+            return self.name_literals.get(arg.name)
+        return None
+
+    def _sanitize_xp_arg(self, arg: Node) -> Node:
+        """Make an argument safe for xp.* elementwise functions.
+
+        The Array API requires floating-point ARRAY inputs: plain Python
+        scalars are rejected by strict backends, int/bool arrays are rejected
+        by every backend's math functions, and xp.astype crashes on plain
+        scalars. Literal-backed args become float literals (const-folded
+        away); provably int/bool args get asarray+astype(float64); unknown
+        Refs get asarray (no-op for arrays, wraps runtime scalars).
+        """
+        lit = self._literal_value(arg)
+        if lit is not None:
+            return Literal(float(lit.value), "float")
+        kind = self._numeric_kind(arg)
+        if kind in ("int", "bool"):
+            return Call("astype", (Call("asarray", (arg,)), DType("float64")))
+        if isinstance(arg, Ref):
+            return Call("asarray", (arg,))
+        return arg
 
     def _as_float_arg(self, arg: Node) -> Node:
         kind = self._numeric_kind(arg)
         if kind in ("int", "bool"):
             if isinstance(arg, Literal):
                 return Literal(float(arg.value), "float")
-            return Call("astype", (arg, DType("float64")))
+            return Call("astype", (Call("asarray", (arg,)), DType("float64")))
         return arg
 
     def _call_helper(self, node: ast.Call, name: str, args: list[Node]) -> Node:
@@ -707,27 +783,23 @@ class _Lowerer:
             raise self.error(node, f"{name}() takes {expected} argument(s), got {len(args)}")
 
 
-def _namespace_var(info: FunctionInfo) -> str:
-    """Pick the namespace variable name: ``xp`` unless the user uses it."""
-    if "xp" not in info.user_names:
-        return "xp"
-    i = 1
-    while f"xp_{i}" in info.user_names:
-        i += 1
-    return f"xp_{i}"
-
-
 def lower_function(
     info: FunctionInfo,
     helper_vectorizer: HelperVectorizer | None = None,
 ) -> LoweredFunction:
     """Lower a validated FunctionInfo to IR (plan §5/§6/§7)."""
     lowerer = _Lowerer(info, helper_vectorizer=helper_vectorizer)
-    # (5) the caller's own generated name is reserved so a same-named helper
-    # cannot collide with it in the runtime namespace
-    lowerer.ssa.reserve(generated_name(info.name))
     # bind parameter names in order (first bind keeps the name, mangling reserved)
+    # the namespace variable: `xp` unless the user uses that name; allocated
+    # through the shared SSA env (and reserved) so rebinding a user `xp`
+    # can never collide with it
+    ns = "xp" if lowerer.ssa.is_free("xp") else lowerer.ssa.bind("xp", force_suffix=True)
+    lowerer.ssa.reserve(ns)
     param_names = [lowerer.ssa.bind(p.name) for p in info.params]
+    # after params take their names, block the caller's own generated name so
+    # a same-named helper must pick a different name (emitted-only: user
+    # parameters keep their names and keyword calls keep working)
+    lowerer.ssa.emitted.add(generated_name(info.name))
     for param, emitted in zip(info.params, param_names, strict=True):
         lowerer.definite[param.name] = emitted
     hidden: list[tuple[str, Any]] = []
@@ -761,6 +833,6 @@ def lower_function(
         hidden_params=hidden,
         source=info.source,
         helpers=lowerer.helpers,
-        namespace_var=_namespace_var(info),
+        namespace_var=ns,
         emitted_names=frozenset(lowerer.ssa.emitted),
     )

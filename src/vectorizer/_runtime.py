@@ -32,9 +32,11 @@ def compile_vectorized(
     code = compile(source, filename, "exec")
     namespace: dict[str, Any] = {}
     exec(code, namespace)
+    # retrieve the entry point BEFORE injecting helpers, so a helper whose
+    # generated name collides can never shadow the function itself
+    func: Any = namespace[generated_name(name)]
     for helper_name, helper_fn in helpers or []:
         namespace[helper_name] = helper_fn
-    func: Any = namespace[generated_name(name)]
 
     if hidden_params:
         # merge: replacing __kwdefaults__ would erase the function's own

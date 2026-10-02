@@ -16,4 +16,4 @@ def loop_two_carried_vec(x):
     for i in range(0, 3):
         a_1 = a_1 + x
         b_1 = b_1 * 2.0
-    return a_1 + b_1
+    return a_1 * 1 + b_1 * 1

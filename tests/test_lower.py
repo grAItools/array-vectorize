@@ -103,16 +103,18 @@ def test_bool_literals_typed() -> None:
 
 
 def test_math_attribute_call() -> None:
-    assert lower("    return math.sqrt(x)").result == Call("sqrt", (Ref("x"),))
-    assert lower("    return math.atan2(x, y)").result == Call("atan2", (Ref("x"), Ref("y")))
+    assert lower("    return math.sqrt(x)").result == Call("sqrt", (Call("asarray", (Ref("x"),)),))
+    assert lower("    return math.atan2(x, y)").result == Call(
+        "atan2", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))
+    )
     assert lower("    return math.trunc(x)").result == Call("astype", (Ref("x"), DType("int64")))
     assert lower("    return math.pow(x, 2)").result == Call(
-        "pow", (Ref("x"), Literal(2.0, "float"))
+        "pow", (Call("asarray", (Ref("x"),)), Literal(2.0, "float"))
     )
 
 
 def test_from_math_import_call() -> None:
-    assert lower("    return exp(x)").result == Call("exp", (Ref("x"),))
+    assert lower("    return exp(x)").result == Call("exp", (Call("asarray", (Ref("x"),)),))
 
 
 def test_math_constants() -> None:
@@ -121,11 +123,14 @@ def test_math_constants() -> None:
 
 
 def test_builtins() -> None:
-    assert lower("    return abs(x)").result == Call("abs", (Ref("x"),))
-    assert lower("    return round(x)").result == Call("round", (Ref("x"),))
-    assert lower("    return min(x, y)").result == Call("minimum", (Ref("x"), Ref("y")))
+    assert lower("    return abs(x)").result == Call("abs", (Call("asarray", (Ref("x"),)),))
+    assert lower("    return round(x)").result == Call("round", (Call("asarray", (Ref("x"),)),))
+    assert lower("    return min(x, y)").result == Call(
+        "minimum", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))
+    )
     assert lower("    return max(x, y, 2.0)").result == Call(
-        "maximum", (Call("maximum", (Ref("x"), Ref("y"))), Literal(2.0, "float"))
+        "maximum",
+        (Call("maximum", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))), Literal(2.0, "float")),
     )
     assert lower("    return int(x)").result == Call("astype", (Ref("x"), DType("int64")))
     assert lower("    return float(x)").result == Call("astype", (Ref("x"), DType("float64")))
