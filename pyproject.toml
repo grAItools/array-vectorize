@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "vectorizer"
 version = "0.1.0"
 description = "Source-to-source array vectorization: scalar Python functions compiled to Array API (NumPy/PyTorch/JAX/CuPy) functions"
+readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [

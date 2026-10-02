@@ -1,6 +1,7 @@
 # Implementation Plan: `vectorizer` — source-to-source array vectorization
 
-Status: **plan only — no code written yet.** Milestone statuses in §10.
+Status: **implemented — milestones M0–M4 complete, all checks green.**
+Milestone statuses in §10; M5 is optional stretch scope.
 
 ## 1. Goal
 
