@@ -75,30 +75,66 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
     # A lambda passed directly, e.g. vectorize(lambda x: x + 1): its source
     # line contains the lambda nested in an expression. When several lambdas
     # share the line, identify the right one by comparing compiled bytecode
-    # with the target's code object.
+    # (code, constants, AND referenced names) plus default values with the
+    # target's code object; reject when identification is ambiguous.
     candidates = [n for n in ast.walk(tree) if isinstance(n, ast.Lambda)]
     if not candidates:
         _reject(name, "could not locate the function definition in its source")
     if len(candidates) == 1:
         return candidates[0]
-    line = getattr(target, "__code__", None)
-    if line is not None:
-        same_line = [n for n in candidates if n.lineno == line.co_firstlineno]
-        for node in same_line or candidates:
-            try:
-                probe = compile(ast.Expression(node), "<lambda-probe>", "eval")
-            except SyntaxError:
-                continue
-            # the expression wraps the lambda in MAKE_FUNCTION; the lambda's
-            # own code object is nested in the probe's constants
-            inner = next((c for c in probe.co_consts if isinstance(c, types.CodeType)), None)
-            if (
-                inner is not None
-                and inner.co_code == line.co_code
-                and inner.co_consts == line.co_consts
-            ):
-                return node
-    return candidates[0]
+    code = getattr(target, "__code__", None)
+    if code is None:
+        return candidates[0]
+    matches: list[ast.Lambda] = []
+    for node in candidates:
+        # NOTE: no line-number pre-filter: getsource returns a block whose
+        # linenos are relative to the block, not the original file
+        try:
+            probe = compile(ast.Expression(node), "<lambda-probe>", "eval")
+        except SyntaxError:
+            continue
+        # the expression wraps the lambda in MAKE_FUNCTION; the lambda's own
+        # code object is nested in the probe's constants
+        inner = next((c for c in probe.co_consts if isinstance(c, types.CodeType)), None)
+        if inner is None:
+            continue
+        if (
+            inner.co_code != code.co_code
+            or inner.co_consts != code.co_consts
+            or inner.co_names != code.co_names
+            or inner.co_varnames != code.co_varnames
+        ):
+            continue
+        # compare default values: bytecode alone cannot distinguish
+        # `lambda x, y=1: ...` from `lambda x, y=2: ...` (defaults live on
+        # the function object, not the code object)
+        sentinel = object()
+        ast_defaults = tuple(
+            d.value if isinstance(d, ast.Constant) else sentinel for d in node.args.defaults
+        )
+        ast_kw_defaults = tuple(
+            d.value if isinstance(d, ast.Constant) else sentinel
+            for d in node.args.kw_defaults
+            if d is not None
+        )
+        fn_defaults = tuple(getattr(target, "__defaults__", None) or ())
+        fn_kw_defaults = tuple(
+            v for k, v in (getattr(target, "__kwdefaults__", None) or {}).items()
+        )
+        if ast_defaults != fn_defaults or ast_kw_defaults != fn_kw_defaults:
+            continue
+        matches.append(node)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        _reject(
+            name,
+            "multiple lambdas share this source line and the intended one "
+            "could not be identified; assign the lambda to a variable on its "
+            "own line",
+        )
+    # several identical lambdas: semantically interchangeable
+    return matches[0]
 
 
 def _check_default(param: str, node: ast.expr) -> int | float | bool:

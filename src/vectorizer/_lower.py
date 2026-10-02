@@ -363,26 +363,32 @@ class _Lowerer:
             raise self.error(call, "range step cannot be zero")
         return start_n, stop_n, step_n
 
-    def _body_assigned_names(self, stmts: list[ast.stmt]) -> set[str]:
-        """Names assigned via ``=``/augmented assignment in a statement list.
+    def _body_bound_names(self, stmts: list[ast.stmt], *, include_for_targets: bool) -> set[str]:
+        """Names bound in a statement list.
 
-        ``for`` targets are excluded: nested loops bind their own variable.
+        With ``include_for_targets``: also the targets of NESTED ``for``
+        statements - Python loop targets bind in the enclosing scope, so a
+        nested loop rebinding an outer variable is a loop-carried dependency
+        of the outer loop. Without: only ``=``/augmented assignments (used
+        for the cannot-assign-the-loop-variable check).
         """
-        assigned: set[str] = set()
+        bound: set[str] = set()
         for stmt in stmts:
             if isinstance(stmt, ast.Assign):
                 for t in stmt.targets:
                     if isinstance(t, ast.Name):
-                        assigned.add(t.id)
+                        bound.add(t.id)
             elif isinstance(stmt, ast.AugAssign):
                 if isinstance(stmt.target, ast.Name):
-                    assigned.add(stmt.target.id)
+                    bound.add(stmt.target.id)
             elif isinstance(stmt, ast.If):
-                assigned |= self._body_assigned_names(stmt.body)
-                assigned |= self._body_assigned_names(stmt.orelse)
+                bound |= self._body_bound_names(stmt.body, include_for_targets=include_for_targets)
+                bound |= self._body_bound_names(stmt.orelse, include_for_targets=include_for_targets)
             elif isinstance(stmt, ast.For):
-                assigned |= self._body_assigned_names(stmt.body)
-        return assigned
+                if include_for_targets and isinstance(stmt.target, ast.Name):
+                    bound.add(stmt.target.id)
+                bound |= self._body_bound_names(stmt.body, include_for_targets=include_for_targets)
+        return bound
 
     def lower_for(self, stmt: ast.For) -> None:
         """Lower a constant-trip ``for i in range(...)`` (plan D6).
@@ -403,9 +409,12 @@ class _Lowerer:
         loop_name = self.ssa.bind(loop_var)
 
         pre_definite = dict(self.definite)
-        body_assigned = self._body_assigned_names(stmt.body)
-        # iterate pre_definite (insertion order) for deterministic phi order
-        carried = {v: pre_definite[v] for v in pre_definite if v in body_assigned}
+        body_assigned = self._body_bound_names(stmt.body, include_for_targets=False)
+        body_bound = self._body_bound_names(stmt.body, include_for_targets=True)
+        # iterate pre_definite (insertion order) for deterministic phi order;
+        # carried includes nested for-targets (they bind in the enclosing
+        # scope, so rebinding them is a cross-iteration dependency)
+        carried = {v: pre_definite[v] for v in pre_definite if v in body_bound}
         if loop_var in body_assigned:
             raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
 
