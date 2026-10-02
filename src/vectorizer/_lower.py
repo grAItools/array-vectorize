@@ -437,35 +437,74 @@ class _Lowerer:
             self.name_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
 
         phi_end = len(self.bindings)
-        self._carried_assign_kinds.append({})
-        self.loop_depth += 1
-        self.loop_vars.add(loop_var)
-        self.active_carried.append((dict(carried), self.branch_depth))
-        self.definite[loop_var] = loop_name
-        self.name_kinds.setdefault(loop_name, "int")  # loop vars are Python ints
-        self.maybe.discard(loop_var)
-        try:
-            result = self.lower_stmts(stmt.body, loop_body=True)
-        finally:
-            self.loop_depth -= 1
-            self.loop_vars.discard(loop_var)
-            self.active_carried.pop()
-            frame = self._carried_assign_kinds.pop()
-        # a carried variable's kind across iterations is the union of its
-        # phi kind and all body-assignment kinds; when they mix, label it
-        # 'bool' so exact-arithmetic intify (* 1, safe for every numeric
-        # kind) kicks in, and float casts treat it conservatively
+
+        def union_labels(
+            frame: dict[str, set[str | None]],
+        ) -> tuple[dict[str, str | None], list[str]]:
+            """Per carried name: the final kind (union of the phi kind and
+            all body-assignment kinds), plus the names whose kinds MIX
+            across iterations."""
+            labels: dict[str, str | None] = {}
+            mixed: list[str] = []
+            for loop_carried_name in carried.values():
+                kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
+                unique = {k for k in kinds if k is not None}
+                if (None in kinds and unique) or len(unique) > 1:
+                    # mixed (or unknown-mixed) kinds across iterations:
+                    # label 'bool' so exact-arithmetic intify kicks in at
+                    # uses inside the body
+                    labels[loop_carried_name] = "bool"
+                    mixed.append(loop_carried_name)
+                else:
+                    labels[loop_carried_name] = unique.pop() if unique else None
+            return labels, mixed
+
+        # The body is lowered up to twice. If a carried variable's kind
+        # mixes across iterations (int entry, bool body assignment, ...),
+        # the first pass emitted uses with the entry kind only; re-lower
+        # with the mixed labels pre-applied so those uses intify.
+        labels: dict[str, str | None] = {}
+        for attempt in range(2):
+            pre_body = (
+                dict(self.definite),
+                set(self.maybe),
+                list(self.deferred),
+                dict(self.name_kinds),
+                dict(self.name_literals),
+            )
+            self._carried_assign_kinds.append({})
+            self.loop_depth += 1
+            self.loop_vars.add(loop_var)
+            self.active_carried.append((dict(carried), self.branch_depth))
+            self.definite[loop_var] = loop_name
+            self.name_kinds.setdefault(loop_name, "int")  # loop vars are Python ints
+            self.maybe.discard(loop_var)
+            try:
+                result = self.lower_stmts(stmt.body, loop_body=True)
+            finally:
+                self.loop_depth -= 1
+                self.loop_vars.discard(loop_var)
+                self.active_carried.pop()
+                frame = self._carried_assign_kinds.pop()
+            if result is not None:  # pragma: no cover - returns rejected in bodies
+                raise self.error(stmt, "returns inside loop bodies are not supported")
+            labels, mixed = union_labels(frame)
+            if not mixed or attempt == 1:
+                break
+            # restore the pre-body state and re-lower with mixed labels
+            (definite, maybe, deferred, name_kinds, name_literals) = pre_body
+            del self.bindings[phi_end:]
+            self.definite, self.maybe, self.deferred = definite, maybe, deferred
+            self.name_kinds, self.name_literals = name_kinds, name_literals
+            for mixed_name in mixed:
+                self.name_kinds[mixed_name] = "bool"
+        for loop_carried_name, kind in labels.items():
+            self.name_kinds[loop_carried_name] = kind
+        # literal facts are invalid across the loop boundary: the phi feeds
+        # pre-loop values on zero-trip loops, and body assignments feed
+        # later iterations — neither is the recorded literal
         for loop_carried_name in carried.values():
-            kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
-            unique = {k for k in kinds if k is not None}
-            if (None in kinds and unique) or len(unique) > 1:
-                # mixed (or unknown-mixed) kinds across iterations: label
-                # conservatively so exact-arithmetic intify kicks in
-                self.name_kinds[loop_carried_name] = "bool"
-            elif unique:
-                self.name_kinds[loop_carried_name] = unique.pop()
-        if result is not None:  # pragma: no cover - returns rejected in bodies
-            raise self.error(stmt, "returns inside loop bodies are not supported")
+            self.name_literals.pop(loop_carried_name, None)
         body_stmts = tuple(self.bindings[phi_end:])
         del self.bindings[phi_end:]
         self.bindings.append(Loop(loop_name, start, stop, step, body_stmts))
@@ -483,6 +522,7 @@ class _Lowerer:
                     self.bindings.append(Binding(loop_name, Ref(current)))
                     self.definite[var] = loop_name
                     self.name_kinds[loop_name] = self.name_kinds.get(current)
+                    self.name_literals.pop(loop_name, None)
 
     def _mark_then_only_unbound(
         self,
@@ -639,30 +679,76 @@ class _Lowerer:
             )
         if name in BUILTIN_UNARY:
             self._check_arity(node, name, args, 1, 1)
-            return Call(BUILTIN_UNARY[name], tuple(self._sanitize_xp_arg(a) for a in args))
+            sanitized = tuple(self._sanitize_xp_arg(a, force_float=False) for a in args)
+            return Call(BUILTIN_UNARY[name], sanitized)
         if name in BUILTIN_FOLDS:
             if len(args) < 2:
                 raise self.error(node, f"{name}() needs at least 2 arguments in vectorized code")
-            clean = [self._sanitize_xp_arg(a) for a in args]
+            # min/max literals must MATCH the dtype of their array siblings
+            # (strict backends reject mixed-dtype array-array promotion), so
+            # a literal adopts int64 only when a sibling is provably
+            # int/bool; otherwise float64 (values are exact either way).
+            # All-literal calls keep plain literals so const-folding fires.
+            if all(self._literal_value(a) is not None for a in args):
+                clean = list(args)
+            else:
+                sibling_int = any(
+                    self._numeric_kind(a) in ("int", "bool")
+                    for a in args
+                    if self._literal_value(a) is None
+                )
+                clean = [self._sanitize_minmax_arg(a, prefer_int=sibling_int) for a in args]
             folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
             for arg in clean[2:]:
                 folded = Call(BUILTIN_FOLDS[name], (folded, arg))
             return folded
         if name in BUILTIN_CASTS:
             self._check_arity(node, name, args, 1, 1)
-            return Call("astype", (args[0], DType(BUILTIN_CASTS[name])))
+            return self._cast_call(args[0], BUILTIN_CASTS[name])
         raise self.error(node, f"unsupported function {name!r}")
+
+    def _sanitize_minmax_arg(self, arg: Node, *, prefer_int: bool) -> Node:
+        """min/max argument sanitization: literal args become arrays whose
+        dtype matches provably-int siblings (strict backends reject
+        mixed-dtype promotion between arrays); everything else passes
+        through unchanged (params are preamble-normalized, loop variables
+        are handled by the int/bool kind branch below)."""
+        lit = self._literal_value(arg)
+        if lit is not None:
+            if prefer_int:
+                return Call("asarray", (lit,))
+            return Call("asarray", (Literal(float(lit.value), "float"),))
+        kind = self._numeric_kind(arg)
+        if kind in ("int", "bool"):
+            return Call("asarray", (arg,))
+        return arg
+
+    def _cast_call(self, arg: Node, dtype: str) -> Node:
+        """int()/float()/bool()/math.trunc-style casts: fold literal args
+        (exact), wrap raw loop-variable ints in asarray, pass arrays
+        through (params are preamble-normalized)."""
+        lit = self._literal_value(arg)
+        if lit is not None:
+            try:
+                if dtype == "bool":
+                    return Literal(bool(lit.value), "bool")
+                if dtype == "int64":
+                    return Literal(int(lit.value), "int")
+                return Literal(float(lit.value), "float")
+            except (ValueError, OverflowError):
+                pass  # inf/nan literals: leave the cast to runtime astype
+        return Call("astype", (self._sanitize_xp_arg(arg, force_float=False), DType(dtype)))
 
     def _call_math(self, func: ast.AST, attr: str, args: list[Node], node: ast.AST) -> Node:
         if attr in MATH_SPECIAL:
             self._check_arity(node, attr, args, 1, 1)
-            return Call("astype", (args[0], DType(MATH_SPECIAL[attr])))
+            return self._cast_call(args[0], MATH_SPECIAL[attr])
         if attr in MATH_FUNCS:
             xp_name, lo, hi = MATH_FUNCS[attr]
             self._check_arity(node, attr, args, lo, hi)
             # Array API elementwise math requires floating-point array
             # inputs; sanitize literal/int/bool/possibly-scalar args
-            sanitized = tuple(self._sanitize_xp_arg(a) for a in args)
+            sanitized = tuple(self._sanitize_xp_arg(a, force_float=True) for a in args)
             return Call(xp_name, sanitized)
         raise self.error(func, f"math.{attr} cannot be called")
 
@@ -705,15 +791,18 @@ class _Lowerer:
     def _lower_binop(self, op: ast.operator, left: Node, right: Node) -> Node:
         """Build a BinOp with the exactness fixes shared by `a op b` and `a op= b`."""
         # Python bool arithmetic is integer (True + True == 2), but array
-        # bool arithmetic saturates (True + True == True): cast provably-bool
-        # operands to int64 for exact semantics.
-        if (
-            isinstance(op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod)
-            and self._numeric_kind(left) == "bool"
-            and self._numeric_kind(right) == "bool"
+        # backends either saturate (bool + bool == True) or reject bools in
+        # arithmetic outright (strict backends). Cast bool-typed operands to
+        # float64: exact for bools (0/1) and ints up to 2**53, and a no-op
+        # for floats — so loop-carried variables whose kind changes across
+        # iterations stay correct too.
+        if isinstance(op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod) and (
+            "bool" in (self._numeric_kind(left), self._numeric_kind(right))
         ):
-            left = self._intify(left)
-            right = self._intify(right)
+            if self._numeric_kind(left) == "bool":
+                left = self._intify(left)
+            if self._numeric_kind(right) == "bool":
+                right = self._intify(right)
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
             # Cast provably-int bases so the common literal case matches.
@@ -721,14 +810,16 @@ class _Lowerer:
         return BinOp(_BINOPS[type(op)], left, right)
 
     def _intify(self, arg: Node) -> Node:
-        """Make boolean arithmetic exact: Python's True + True is 2, but array
-        bool arithmetic saturates. ``arg * 1`` promotes bools to integers and
-        is a no-op for int/float (unlike astype, which truncates floats and
-        would break when a loop-carried variable changes kind across
-        iterations)."""
+        """Make boolean arithmetic exact and backend-safe: Python's
+        True + True is 2, but array backends saturate bool arithmetic (or
+        reject it, like strict backends). ``astype(asarray(arg), float64)``
+        converts bools to exact 0/1 floats, passes ints through exactly up
+        to 2**53, and is a no-op for floats — unlike an int64 cast, which
+        would truncate floats, and unlike ``* 1``, which strict backends
+        reject for boolean arrays."""
         if isinstance(arg, Literal):
-            return Literal(int(arg.value), "int")
-        return BinOp("mul", arg, Literal(1, "int"))
+            return Literal(float(arg.value), "float")
+        return Call("astype", (Call("asarray", (arg,)), DType("float64")))
 
     def _literal_value(self, arg: Node) -> Literal | None:
         """The literal behind an arg: directly, or via a literal binding."""
@@ -738,23 +829,31 @@ class _Lowerer:
             return self.name_literals.get(arg.name)
         return None
 
-    def _sanitize_xp_arg(self, arg: Node) -> Node:
-        """Make an argument safe for xp.* elementwise functions.
+    def _sanitize_xp_arg(self, arg: Node, *, force_float: bool) -> Node:
+        """Make an argument safe for xp.* calls.
 
-        The Array API requires floating-point ARRAY inputs: plain Python
-        scalars are rejected by strict backends, int/bool arrays are rejected
-        by every backend's math functions, and xp.astype crashes on plain
-        scalars. Literal-backed args become float literals (const-folded
-        away); provably int/bool args get asarray+astype(float64); unknown
-        Refs get asarray (no-op for arrays, wraps runtime scalars).
+        Parameters are normalized to arrays in the generated preamble, so
+        plain scalars only reach call sites as literals or as the raw Python
+        ints a ``for`` loop variable takes per iteration.
+
+        ``force_float`` (math functions): scalar semantics convert to double,
+        so literals become float literals (const-folded away) and provably
+        int/bool args are cast to float64 — every backend's elementwise math
+        requires floating-point arrays.
+
+        Otherwise (polymorphic builtins such as abs/min/max and dtype casts):
+        keep values exact — literals and raw loop-variable ints are wrapped
+        in asarray (a no-op for arrays), with no dtype conversion.
         """
         lit = self._literal_value(arg)
         if lit is not None:
-            return Literal(float(lit.value), "float")
+            if force_float:
+                return Literal(float(lit.value), "float")
+            return Call("asarray", (lit,))
         kind = self._numeric_kind(arg)
         if kind in ("int", "bool"):
-            return Call("astype", (Call("asarray", (arg,)), DType("float64")))
-        if isinstance(arg, Ref):
+            if force_float:
+                return Call("astype", (Call("asarray", (arg,)), DType("float64")))
             return Call("asarray", (arg,))
         return arg
 

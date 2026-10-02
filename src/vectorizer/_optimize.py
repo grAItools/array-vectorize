@@ -459,11 +459,31 @@ def _and_ctx(ctx: Node | None, cond: Node) -> Node:
     return cond if ctx is None else Logical("and", (ctx, cond))
 
 
-def _clamp_dead(arg: Node, dead: Node, spec: tuple) -> Node:
+def _free_names(node: Node) -> set[str]:
+    """All Ref names appearing in a node tree."""
+    names: set[str] = set()
+
+    def walk(n: Node) -> None:
+        if isinstance(n, Ref):
+            names.add(n.name)
+            return
+        for child in _children(n):
+            walk(child)
+
+    walk(node)
+    return names
+
+
+def _clamp_dead(
+    arg: Node,
+    dead: Node,
+    spec: tuple[float, bool, float | None, bool, float, float | None],
+) -> Node:
     """Clamp ``arg`` to the domain, but only where ``dead`` holds."""
     lo, lo_open, hi, hi_open, safe_lo, safe_hi = spec
     clamped: Node = arg
     if hi is not None:
+        assert safe_hi is not None
         op = "ge" if hi_open else "gt"
         clamped = Where(
             Logical("and", (dead, Compare(op, arg, Literal(hi, "float")))),
@@ -490,27 +510,33 @@ def protect_domains(program: Program) -> Program:
     (conservative) and their reads mark bindings fully live.
     """
     live: dict[str, Node | None] = {}
-    _unrecorded = object()
 
     def or_live(name: str, ctx: Node | None) -> None:
-        cur = live.get(name, _unrecorded)  # type: ignore[arg-type]
-        if cur is _unrecorded:
+        if name not in live:
             live[name] = ctx
-        elif cur is None or ctx is None:
+            return
+        cur = live[name]
+        if cur is None or ctx is None:
             live[name] = None
         else:
             live[name] = Logical("or", (cur, ctx))
 
-    def record_uses(node: Node, ctx: Node | None) -> None:
+    def record_uses(node: Node, ctx: Node | None, skip: frozenset[str] = frozenset()) -> None:
         if isinstance(node, Ref):
-            or_live(node.name, ctx)
+            if node.name not in skip:
+                or_live(node.name, ctx)
         elif isinstance(node, Where):
-            record_uses(node.cond, ctx)
-            record_uses(node.then, _and_ctx(ctx, node.cond))
-            record_uses(node.other, _and_ctx(ctx, UnaryOp("not", node.cond)))
+            record_uses(node.cond, ctx, skip)
+            # the cond evaluates on every lane, so every name it reads is
+            # already live under the full ctx; re-recording those names
+            # under the narrowed branch ctx would only add redundant —
+            # and possibly self-referential — disjuncts to their liveness
+            cond_names = frozenset(n for n in _free_names(node.cond) if n not in skip)
+            record_uses(node.then, _and_ctx(ctx, node.cond), skip | cond_names)
+            record_uses(node.other, _and_ctx(ctx, UnaryOp("not", node.cond)), skip | cond_names)
         else:
             for child in _children(node):
-                record_uses(child, ctx)
+                record_uses(child, ctx, skip)
 
     def rewrite(node: Node, ctx: Node | None) -> Node:
         if isinstance(node, Ref):
@@ -536,11 +562,21 @@ def protect_domains(program: Program) -> Program:
             for child in _children(node):
                 mark_fully_live(child)
 
-    def rewrite_stmt(stmt: Stmt) -> Stmt:
+    def rewrite_stmt(stmt: Stmt, ahead: set[str]) -> Stmt:
+        """Rewrite one binding; ``ahead`` holds the names bound AFTER this
+        statement (they are not yet assigned where this statement runs)."""
         if isinstance(stmt, Binding):
             ctx = live.pop(stmt.name, None)
+            record_ctx = ctx
+            if ctx is not None and _free_names(ctx) & (ahead | {stmt.name}):
+                # the liveness condition references names not bound at
+                # this point (forward or self references), so it cannot be
+                # evaluated here; skip the clamp (fully live) but keep the
+                # liveness fact for upstream bindings
+                ctx = None
             expr = rewrite(stmt.expr, ctx)
-            record_uses(expr, ctx)
+            record_uses(expr, record_ctx)
+            ahead.add(stmt.name)
             return Binding(stmt.name, expr)
         assert isinstance(stmt, Loop)
         # conservative: loop bodies are not rewritten; every name they read
@@ -551,10 +587,12 @@ def protect_domains(program: Program) -> Program:
         for inner in stmt.body:
             if isinstance(inner, Binding):
                 mark_fully_live(inner.expr)
+        ahead.add(stmt.var)
         return stmt
 
     new_result = rewrite(program.result, None)
     record_uses(new_result, None)
-    rewritten = [rewrite_stmt(stmt) for stmt in reversed(program.bindings)]
+    ahead: set[str] = set()
+    rewritten = [rewrite_stmt(stmt, ahead) for stmt in reversed(program.bindings)]
     rewritten.reverse()
     return Program(program.params, tuple(rewritten), new_result)

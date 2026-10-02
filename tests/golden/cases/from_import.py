@@ -4,4 +4,5 @@ def from_import_vec(x):
     """def from_import(x):
     return fexp(x)"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
-    return xp.exp(xp.asarray(x))
+    x = xp.asarray(x)
+    return xp.exp(x)

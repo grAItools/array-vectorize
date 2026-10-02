@@ -7,6 +7,7 @@ def ssa_rebind_vec(x):
     y += 3
     return y"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    x = xp.asarray(x)
     y = x + 1
     y_1 = y * 2
     y_2 = y_1 + 3

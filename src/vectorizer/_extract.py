@@ -100,7 +100,7 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
             continue
         if (
             inner.co_code != code.co_code
-            or inner.co_consts != code.co_consts
+            or _const_key(inner.co_consts) != _const_key(code.co_consts)
             or inner.co_names != code.co_names
             or inner.co_varnames != code.co_varnames
         ):
@@ -121,7 +121,9 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
         fn_kw_defaults = tuple(
             v for k, v in (getattr(target, "__kwdefaults__", None) or {}).items()
         )
-        if ast_defaults != fn_defaults or ast_kw_defaults != fn_kw_defaults:
+        if _const_key(ast_defaults) != _const_key(fn_defaults) or _const_key(
+            ast_kw_defaults
+        ) != _const_key(fn_kw_defaults):
             continue
         matches.append(node)
     if len(matches) == 1:
@@ -135,6 +137,27 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
         )
     # several identical lambdas: semantically interchangeable
     return matches[0]
+
+
+def _const_key(value: Any) -> Any:
+    """Type- and sign-precise comparison key for constants.
+
+    Plain equality merges values that are semantically distinct: ``0.0 ==
+    -0.0`` (copysign differs), ``True == 1``, and ``1 == 1.0``. Key each
+    constant by its exact type, and zero floats by their sign bit. Recurses
+    into tuples (co_consts nests constants in tuples).
+    """
+    if isinstance(value, bool):
+        return ("bool", value)
+    if isinstance(value, int):
+        return ("int", value)
+    if isinstance(value, float):
+        if value == 0.0:
+            return ("zero-float", math.copysign(1.0, value) < 0)
+        return ("float", value)
+    if isinstance(value, tuple):
+        return tuple(_const_key(v) for v in value)
+    return value
 
 
 def _check_default(param: str, node: ast.expr) -> int | float | bool:

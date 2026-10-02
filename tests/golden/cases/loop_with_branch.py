@@ -10,11 +10,12 @@ def loop_with_branch_vec(x):
             s = s - 1.0
     return s"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    x = xp.asarray(x)
     s = 0.0
     s_1 = s
     for i in range(0, 4):
-        s_2 = s_1 + x
-        s_3 = s_1 - 1.0
-        s_4 = xp.where(x > 0, s_2, s_3)
-        s_1 = s_4
+        s_5 = xp.astype(xp.asarray(s_1), xp.float64) + x
+        s_6 = xp.astype(xp.asarray(s_1), xp.float64) - 1.0
+        s_7 = xp.where(x > 0, s_5, s_6)
+        s_1 = s_7
     return s_1

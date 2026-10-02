@@ -4,4 +4,5 @@ def reserved_param_vec(xp):
     """def reserved_param(xp):
     return xp + 1"""
     xp_1 = array_namespace(*[a for a in (xp,) if hasattr(a, '__array_namespace__')])
+    xp = xp_1.asarray(xp)
     return xp + 1

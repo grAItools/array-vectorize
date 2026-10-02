@@ -4,6 +4,6 @@ def cse_opportunity_vec(x):
     """def cse_opportunity(x):
     return math.sqrt(x) * math.sqrt(x) + math.sqrt(x)"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
-    t_1 = xp.asarray(x)
-    t_2 = xp.sqrt(t_1)
-    return t_2 * t_2 + t_2
+    x = xp.asarray(x)
+    t_1 = xp.sqrt(x)
+    return t_1 * t_1 + t_1
