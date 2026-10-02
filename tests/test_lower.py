@@ -130,7 +130,10 @@ def test_builtins() -> None:
     )
     assert lower("    return max(x, y, 2.0)").result == Call(
         "maximum",
-        (Call("maximum", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))), Literal(2.0, "float")),
+        (
+            Call("maximum", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))),
+            Literal(2.0, "float"),
+        ),
     )
     assert lower("    return int(x)").result == Call("astype", (Ref("x"), DType("int64")))
     assert lower("    return float(x)").result == Call("astype", (Ref("x"), DType("float64")))

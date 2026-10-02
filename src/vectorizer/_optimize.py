@@ -436,91 +436,125 @@ def optimize(program: Program, user_names: set[str] | None = None) -> Program:
 
 # ------------------------------------------------------- protect_domains
 
-#: Partial functions and their domains (plan D1, M4). Clamping args to the
-#: domain only happens inside ``Where`` branches, where out-of-domain lanes
-#: are discarded; live lanes are always in domain (or the scalar code would
-#: have raised), so results never change.
-#:
-#: Boundaries: closed bounds clamp to the bound itself. Open bounds (poles)
-#: clamp to a tiny inset so the call never warns: log(0) is a divide-by-zero,
-#: so log clamps to a small positive value. All clamps are where-selects,
-#: NOT maximum/minimum: IEEE max turns -0.0 into +0.0, which would flip
-#: copysign-observable live values (sqrt(-0.0) is -0.0, in domain).
-_TINY = 1e-300
-_PARTIAL_DOMAINS: dict[str, tuple[float, float | None]] = {
-    "sqrt": (0.0, None),
-    "log": (_TINY, None),
-    "log2": (_TINY, None),
-    "log10": (_TINY, None),
-    "log1p": (-1.0 + _TINY, None),
-    "asin": (-1.0, 1.0),
-    "acos": (-1.0, 1.0),
-    "acosh": (1.0, None),
-    "atanh": (-1.0 + _TINY, 1.0 - _TINY),
+#: Partial functions: (lo, lo_open, hi, hi_open, safe_lo, safe_hi).
+#: Protection clamps a partial call's argument ONLY on lanes that are dead
+#: (discarded by the enclosing where-select) AND out of domain; live lanes
+#: are never touched, so results never change (plan D1, M4). Open bounds
+#: (poles such as log(0)) clamp dead lanes to an interior constant, so no
+#: warnings are produced and float32 is safe.
+_PARTIAL_DOMAINS: dict[str, tuple[float, bool, float | None, bool, float, float | None]] = {
+    "sqrt": (0.0, False, None, False, 0.0, None),
+    "log": (0.0, True, None, False, 1.0, None),
+    "log2": (0.0, True, None, False, 1.0, None),
+    "log10": (0.0, True, None, False, 1.0, None),
+    "log1p": (-1.0, True, None, False, 0.0, None),
+    "asin": (-1.0, False, 1.0, False, -1.0, 1.0),
+    "acos": (-1.0, False, 1.0, False, -1.0, 1.0),
+    "acosh": (1.0, False, None, False, 1.0, None),
+    "atanh": (-1.0, True, 1.0, True, 0.0, 0.0),
 }
 
 
-def _clamp_arg(node: Node, lo: float, hi: float | None) -> Node:
-    """Where-based clamp: preserves -0.0 and NaN, unlike maximum/minimum."""
-    clamped: Node = node
+def _and_ctx(ctx: Node | None, cond: Node) -> Node:
+    return cond if ctx is None else Logical("and", (ctx, cond))
+
+
+def _clamp_dead(arg: Node, dead: Node, spec: tuple) -> Node:
+    """Clamp ``arg`` to the domain, but only where ``dead`` holds."""
+    lo, lo_open, hi, hi_open, safe_lo, safe_hi = spec
+    clamped: Node = arg
     if hi is not None:
-        clamped = Where(Compare("gt", clamped, Literal(hi, "float")), Literal(hi, "float"), clamped)
-    if lo is not None:
-        clamped = Where(Compare("lt", clamped, Literal(lo, "float")), Literal(lo, "float"), clamped)
+        op = "ge" if hi_open else "gt"
+        clamped = Where(
+            Logical("and", (dead, Compare(op, arg, Literal(hi, "float")))),
+            Literal(safe_hi, "float"),
+            clamped,
+        )
+    op = "le" if lo_open else "lt"
+    clamped = Where(
+        Logical("and", (dead, Compare(op, arg, Literal(lo, "float")))),
+        Literal(safe_lo, "float"),
+        clamped,
+    )
     return clamped
 
 
-def _protect_branch(node: Node) -> Node:
-    """Clamp partial-function arguments inside a where-branch.
-
-    Conditions of nested ``Where`` nodes are never clamped: they select
-    branches on live lanes, and clamping a partial call inside a condition
-    could change which branch is taken.
-    """
-
-    def rec(n: Node) -> Node:
-        n = _rewrite(n, rec)
-        if isinstance(n, Where):
-            return Where(n.cond, _protect_branch(n.then), _protect_branch(n.other))
-        if isinstance(n, Call) and n.fn in _PARTIAL_DOMAINS:
-            lo, hi = _PARTIAL_DOMAINS[n.fn]
-            return Call(n.fn, tuple(_clamp_arg(a, lo, hi) for a in n.args))
-        return n
-
-    return rec(node)
-
-
-def _protect_expr(node: Node) -> Node:
-    def rec(n: Node) -> Node:
-        n = _rewrite(n, rec)
-        if isinstance(n, Where):
-            return Where(n.cond, _protect_branch(n.then), _protect_branch(n.other))
-        return n
-
-    return rec(node)
-
-
 def protect_domains(program: Program) -> Program:
-    """Clamp partial-function arguments in dead lanes (plan D1, M4).
+    """Clamp partial-function arguments on dead lanes only (plan D1, M4).
 
-    Only calls inside ``Where`` branches are clamped: those lanes' values are
-    discarded by the where, so results never change - but partial functions
-    no longer produce NaN/inf warnings there.
+    A single reverse pass propagates liveness conditions: each binding's
+    value is live under the disjunction of the conditions governing its uses
+    (where-branch guards, conjunction-nested). A partial call's argument is
+    clamped only where the value is dead AND out of domain, so live results
+    never change and dead lanes never warn. Loop bodies are left unprotected
+    (conservative) and their reads mark bindings fully live.
     """
+    live: dict[str, Node | None] = {}
+    _unrecorded = object()
 
-    def protect_stmt(stmt: Stmt) -> Stmt:
+    def or_live(name: str, ctx: Node | None) -> None:
+        cur = live.get(name, _unrecorded)  # type: ignore[arg-type]
+        if cur is _unrecorded:
+            live[name] = ctx
+        elif cur is None or ctx is None:
+            live[name] = None
+        else:
+            live[name] = Logical("or", (cur, ctx))
+
+    def record_uses(node: Node, ctx: Node | None) -> None:
+        if isinstance(node, Ref):
+            or_live(node.name, ctx)
+        elif isinstance(node, Where):
+            record_uses(node.cond, ctx)
+            record_uses(node.then, _and_ctx(ctx, node.cond))
+            record_uses(node.other, _and_ctx(ctx, UnaryOp("not", node.cond)))
+        else:
+            for child in _children(node):
+                record_uses(child, ctx)
+
+    def rewrite(node: Node, ctx: Node | None) -> Node:
+        if isinstance(node, Ref):
+            return node
+        if isinstance(node, Where):
+            cond = rewrite(node.cond, ctx)
+            then = rewrite(node.then, _and_ctx(ctx, cond))
+            other = rewrite(node.other, _and_ctx(ctx, UnaryOp("not", cond)))
+            return Where(cond, then, other)
+        if isinstance(node, Call) and node.fn in _PARTIAL_DOMAINS:
+            args = [rewrite(a, ctx) for a in node.args]
+            if ctx is not None:
+                dead = UnaryOp("not", ctx)
+                spec = _PARTIAL_DOMAINS[node.fn]
+                args = [_clamp_dead(a, dead, spec) for a in args]
+            return Call(node.fn, tuple(args))
+        return _rewrite(node, lambda n: rewrite(n, ctx))
+
+    def mark_fully_live(node: Node) -> None:
+        if isinstance(node, Ref):
+            live[node.name] = None
+        else:
+            for child in _children(node):
+                mark_fully_live(child)
+
+    def rewrite_stmt(stmt: Stmt) -> Stmt:
         if isinstance(stmt, Binding):
-            return Binding(stmt.name, _protect_expr(stmt.expr))
-        return Loop(
-            stmt.var,
-            _protect_expr(stmt.start),
-            _protect_expr(stmt.stop),
-            _protect_expr(stmt.step),
-            tuple(protect_stmt(s) for s in stmt.body),
-        )
+            ctx = live.pop(stmt.name, None)
+            expr = rewrite(stmt.expr, ctx)
+            record_uses(expr, ctx)
+            return Binding(stmt.name, expr)
+        assert isinstance(stmt, Loop)
+        # conservative: loop bodies are not rewritten; every name they read
+        # is marked fully live (later iterations may consume any binding)
+        mark_fully_live(stmt.start)
+        mark_fully_live(stmt.stop)
+        mark_fully_live(stmt.step)
+        for inner in stmt.body:
+            if isinstance(inner, Binding):
+                mark_fully_live(inner.expr)
+        return stmt
 
-    return Program(
-        program.params,
-        tuple(protect_stmt(s) for s in program.bindings),
-        _protect_expr(program.result),
-    )
+    new_result = rewrite(program.result, None)
+    record_uses(new_result, None)
+    rewritten = [rewrite_stmt(stmt) for stmt in reversed(program.bindings)]
+    rewritten.reverse()
+    return Program(program.params, tuple(rewritten), new_result)

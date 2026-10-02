@@ -35,7 +35,11 @@ def _vectorize_strict(
     """The core pipeline: extract -> validate -> lower -> optimize -> codegen -> compile."""
     info = extract_function(func)
     validate(info)
-    lowered = lower_function(info, helper_vectorizer=_vectorize_helper)
+    lowered = lower_function(
+        info,
+        # helpers inherit the caller's protect_domains setting
+        helper_vectorizer=lambda callee: _vectorize_helper(callee, protect=protect),
+    )
     program = optimize(lowered.program, user_names=info.user_names | lowered.emitted_names)
     if protect:
         program = protect_domains(program)
@@ -48,7 +52,7 @@ def _vectorize_strict(
     return vec
 
 
-def _vectorize_helper(callee: Callable[..., Any]) -> Callable[..., Any]:
+def _vectorize_helper(callee: Callable[..., Any], *, protect: bool = False) -> Callable[..., Any]:
     if callee in _HELPER_CACHE:
         return _HELPER_CACHE[callee]
     if callee in _ACTIVE_HELPERS:
@@ -57,7 +61,7 @@ def _vectorize_helper(callee: Callable[..., Any]) -> Callable[..., Any]:
         )
     _ACTIVE_HELPERS.add(callee)
     try:
-        vec = _vectorize_strict(callee)
+        vec = _vectorize_strict(callee, protect=protect)
     finally:
         _ACTIVE_HELPERS.discard(callee)
     _HELPER_CACHE[callee] = vec

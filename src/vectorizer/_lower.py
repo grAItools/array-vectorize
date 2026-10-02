@@ -383,7 +383,9 @@ class _Lowerer:
                     bound.add(stmt.target.id)
             elif isinstance(stmt, ast.If):
                 bound |= self._body_bound_names(stmt.body, include_for_targets=include_for_targets)
-                bound |= self._body_bound_names(stmt.orelse, include_for_targets=include_for_targets)
+                bound |= self._body_bound_names(
+                    stmt.orelse, include_for_targets=include_for_targets
+                )
             elif isinstance(stmt, ast.For):
                 if include_for_targets and isinstance(stmt.target, ast.Name):
                     bound.add(stmt.target.id)
@@ -454,9 +456,7 @@ class _Lowerer:
         # 'bool' so exact-arithmetic intify (* 1, safe for every numeric
         # kind) kicks in, and float casts treat it conservatively
         for loop_carried_name in carried.values():
-            kinds = {phi_kinds.get(loop_carried_name)} | frame.get(
-                loop_carried_name, set()
-            )
+            kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
             unique = {k for k in kinds if k is not None}
             if (None in kinds and unique) or len(unique) > 1:
                 # mixed (or unknown-mixed) kinds across iterations: label

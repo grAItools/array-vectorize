@@ -27,9 +27,23 @@ def _is_array(value: Any) -> bool:
 
 
 def _py_scalar(value: Any) -> Any:
-    """Backend scalar -> plain Python scalar (preserves int/bool/float type)."""
+    """Backend element -> plain Python scalar (scalar code expects scalars).
+
+    NumPy/Torch/JAX elements have ``.item()``; array-api-strict elements do
+    not, so convert by dtype name instead.
+    """
     item = getattr(value, "item", None)
-    return item() if item is not None else value
+    if item is not None:
+        return item()
+    dtype = getattr(value, "dtype", None)
+    if hasattr(value, "__array_namespace__") and dtype is not None:
+        name = str(dtype)
+        if "bool" in name:
+            return bool(value)
+        if "int" in name:
+            return int(value)
+        return float(value)
+    return value
 
 
 def verify_match(
