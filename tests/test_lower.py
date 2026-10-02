@@ -106,7 +106,9 @@ def test_math_attribute_call() -> None:
     assert lower("    return math.sqrt(x)").result == Call("sqrt", (Ref("x"),))
     assert lower("    return math.atan2(x, y)").result == Call("atan2", (Ref("x"), Ref("y")))
     assert lower("    return math.trunc(x)").result == Call("astype", (Ref("x"), DType("int64")))
-    assert lower("    return math.pow(x, 2)").result == Call("pow", (Ref("x"), Literal(2, "int")))
+    assert lower("    return math.pow(x, 2)").result == Call(
+        "pow", (Ref("x"), Literal(2.0, "float"))
+    )
 
 
 def test_from_math_import_call() -> None:

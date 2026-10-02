@@ -11,9 +11,10 @@ from ._errors import VectorizationError
 from ._extract import extract_function
 from ._fallback import make_fallback
 from ._lower import lower_function
-from ._optimize import optimize
+from ._optimize import optimize, protect_domains
 from ._runtime import compile_vectorized
 from ._validate import validate
+from ._verify import verify_match
 
 __version__ = "0.1.0"
 
@@ -25,16 +26,26 @@ _HELPER_CACHE: dict[Callable[..., Any], Callable[..., Any]] = {}
 _ACTIVE_HELPERS: set[Callable[..., Any]] = set()
 
 
-def _vectorize_strict(func: Callable[..., Any]) -> Callable[..., Any]:
+def _vectorize_strict(
+    func: Callable[..., Any],
+    *,
+    protect: bool = False,
+    verify_args: tuple[Any, ...] | None = None,
+) -> Callable[..., Any]:
     """The core pipeline: extract -> validate -> lower -> optimize -> codegen -> compile."""
     info = extract_function(func)
     validate(info)
     lowered = lower_function(info, helper_vectorizer=_vectorize_helper)
     program = optimize(lowered.program, user_names=info.user_names)
+    if protect:
+        program = protect_domains(program)
     source = generate_source(lowered, program)
-    return compile_vectorized(
+    vec = compile_vectorized(
         source, lowered.name, lowered.hidden_params, original=func, helpers=lowered.helpers
     )
+    if verify_args is not None:
+        verify_match(vec, func, verify_args)
+    return vec
 
 
 def _vectorize_helper(callee: Callable[..., Any]) -> Callable[..., Any]:
@@ -58,6 +69,8 @@ def vectorize(
     *,
     strict: bool = True,
     fallback: bool = False,
+    protect_domains: bool = False,
+    verify: tuple[Any, ...] | None = None,
 ) -> Callable[..., Any]:
     """Compile an inspectable scalar function into a vectorized one.
 
@@ -69,9 +82,16 @@ def vectorize(
     function uses constructs outside the supported subset. With
     ``fallback=True`` (or ``strict=False``), a failing function is instead
     wrapped in an element-wise loop with a ``UserWarning``.
+
+    ``protect_domains=True`` clamps partial-function arguments (sqrt, log,
+    asin, ...) inside where-branches so dead lanes never leave the domain:
+    results never change, warnings disappear, a few extra ops are added.
+
+    ``verify=example_args`` differentially checks the generated function
+    against the scalar original on the given inputs at generation time.
     """
     try:
-        return _vectorize_strict(func)
+        return _vectorize_strict(func, protect=protect_domains, verify_args=verify)
     except VectorizationError as exc:
         if fallback or not strict:
             reason = str(exc).splitlines()[0]

@@ -493,11 +493,29 @@ class _Lowerer:
         if isinstance(node, ast.Name):
             return self.load_name(node)
         if isinstance(node, ast.BinOp):
-            return BinOp(
-                _BINOPS[type(node.op)], self.lower_expr(node.left), self.lower_expr(node.right)
-            )
+            left = self.lower_expr(node.left)
+            right = self.lower_expr(node.right)
+            # Python bool arithmetic is integer (True + True == 2), but
+            # array bool arithmetic saturates (True + True == True): cast
+            # provably-bool operands to int64 for exact semantics.
+            if (
+                isinstance(node.op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod)
+                and self._numeric_kind(left) == "bool"
+                and self._numeric_kind(right) == "bool"
+            ):
+                left = self._as_int_arg(left)
+                right = self._as_int_arg(right)
+            if isinstance(node.op, ast.Pow) and self._is_negative_int(right):
+                # Python promotes int ** negative-int to float; NumPy raises.
+                # Cast provably-int bases so the common literal case matches.
+                left = self._as_float_arg(left)
+            return BinOp(_BINOPS[type(node.op)], left, right)
         if isinstance(node, ast.UnaryOp):
-            return UnaryOp(_UNARY[type(node.op)], self.lower_expr(node.operand))
+            operand = self.lower_expr(node.operand)
+            if isinstance(node.op, ast.USub) and self._numeric_kind(operand) == "bool":
+                # -True is -1 in Python; numpy cannot negate bool arrays
+                operand = self._as_int_arg(operand)
+            return UnaryOp(_UNARY[type(node.op)], operand)
         if isinstance(node, ast.Compare):
             return self._lower_compare(node)
         if isinstance(node, ast.BoolOp):
@@ -591,8 +609,53 @@ class _Lowerer:
         if attr in MATH_FUNCS:
             xp_name, lo, hi = MATH_FUNCS[attr]
             self._check_arity(node, attr, args, lo, hi)
-            return Call(xp_name, tuple(args))
+            # Array API elementwise math requires floating-point inputs;
+            # provably int/bool arguments are cast (plan D9 backend neutrality)
+            floated = tuple(self._as_float_arg(a) for a in args)
+            return Call(xp_name, floated)
         raise self.error(func, f"math.{attr} cannot be called")
+
+    @staticmethod
+    def _is_negative_int(node: Node) -> bool:
+        """True for literal negative ints (including UnaryOp(neg, lit))."""
+        if isinstance(node, Literal) and node.kind == "int":
+            return node.value < 0
+        return (
+            isinstance(node, UnaryOp)
+            and node.op == "neg"
+            and isinstance(node.operand, Literal)
+            and node.operand.kind == "int"
+        )
+
+    @staticmethod
+    def _numeric_kind(node: Node) -> str | None:
+        """Best-effort numeric kind: literals, casts, and bools are provable."""
+        if isinstance(node, Literal):
+            return node.kind
+        if is_bool(node):
+            return "bool"
+        if (
+            isinstance(node, Call)
+            and node.fn == "astype"
+            and len(node.args) == 2
+            and isinstance(node.args[1], DType)
+        ):
+            name = node.args[1].name
+            return "bool" if name == "bool" else "int" if name == "int64" else "float"
+        return None
+
+    def _as_int_arg(self, arg: Node) -> Node:
+        if isinstance(arg, Literal):
+            return Literal(int(arg.value), "int")
+        return Call("astype", (arg, DType("int64")))
+
+    def _as_float_arg(self, arg: Node) -> Node:
+        kind = self._numeric_kind(arg)
+        if kind in ("int", "bool"):
+            if isinstance(arg, Literal):
+                return Literal(float(arg.value), "float")
+            return Call("astype", (arg, DType("float64")))
+        return arg
 
     def _call_helper(self, node: ast.Call, name: str, args: list[Node]) -> Node:
         """Vectorize and call another scalar function (plan D7)."""

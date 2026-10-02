@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import operator
 from collections import Counter
 from collections.abc import Callable
 from typing import Any
@@ -108,6 +109,24 @@ def _fold_unary(op: str, lit: Literal) -> Literal | None:
     return Literal(result, _literal_kind(result))
 
 
+_CMPOP_PY: dict[str, Any] = {
+    "eq": operator.eq,
+    "ne": operator.ne,
+    "lt": operator.lt,
+    "le": operator.le,
+    "gt": operator.gt,
+    "ge": operator.ge,
+}
+
+
+def _fold_compare(op: str, left: Literal, right: Literal) -> Literal | None:
+    try:
+        result = _CMPOP_PY[op](left.value, right.value)
+    except (ArithmeticError, ValueError, TypeError):
+        return None
+    return Literal(bool(result), "bool")
+
+
 # ------------------------------------------------------------------ rewriting
 
 
@@ -167,7 +186,38 @@ def _const_fold_expr(node: Node) -> Node:
             if folded is not None:
                 return folded
         return node
-    return _rewrite(node, _const_fold_expr)
+    if isinstance(node, Compare):
+        node = Compare(node.op, _const_fold_expr(node.left), _const_fold_expr(node.right))
+        if isinstance(node.left, Literal) and isinstance(node.right, Literal):
+            folded = _fold_compare(node.op, node.left, node.right)
+            if folded is not None:
+                return folded
+        return node
+    node = _rewrite(node, _const_fold_expr)
+    # constant casts: int(3.14) -> 3 (also keeps plain-float astype out of
+    # generated code, where xp.astype would fail on non-arrays)
+    if (
+        isinstance(node, Call)
+        and node.fn == "astype"
+        and len(node.args) == 2
+        and isinstance(node.args[0], Literal)
+        and isinstance(node.args[1], DType)
+    ):
+        value, dtype = node.args[0].value, node.args[1].name
+        try:
+            if dtype == "bool":
+                return Literal(bool(value), "bool")
+            if dtype == "float64":
+                return Literal(float(value), "float")
+            if _int64_ok(int(value)):
+                return Literal(int(value), "int")
+        except (ValueError, OverflowError):
+            pass
+        # int(inf)/int(nan) cannot fold (scalar Python raises Overflow/
+        # ValueError): keep the cast but wrap the literal so xp.astype gets
+        # an array, not a plain float (backend-defined result, plan D3)
+        return Call("astype", (Call("asarray", (node.args[0],)), node.args[1]))
+    return node
 
 
 def _fold_stmt(stmt: Stmt) -> Stmt:
@@ -319,3 +369,87 @@ def optimize(program: Program, user_names: set[str] | None = None) -> Program:
     ssa = SSAEnv(user_names or set())
     deduped = cse(folded, ssa)
     return dce(deduped)
+
+
+# ------------------------------------------------------- protect_domains
+
+#: Partial functions and their domains (plan D1, M4). Clamping args to the
+#: domain only happens inside ``Where`` branches, where out-of-domain lanes
+#: are discarded; live lanes are always in domain (or the scalar code would
+#: have raised), so results never change.
+_PARTIAL_DOMAINS: dict[str, tuple[float, float | None]] = {
+    "sqrt": (0.0, None),
+    "log": (0.0, None),
+    "log2": (0.0, None),
+    "log10": (0.0, None),
+    "log1p": (-1.0, None),
+    "asin": (-1.0, 1.0),
+    "acos": (-1.0, 1.0),
+    "acosh": (1.0, None),
+    "atanh": (-1.0, 1.0),
+}
+
+
+def _clamp_arg(node: Node, lo: float, hi: float | None) -> Node:
+    clamped: Node = node
+    if lo is not None:
+        clamped = Call("maximum", (clamped, Literal(lo, "float")))
+    if hi is not None:
+        clamped = Call("minimum", (clamped, Literal(hi, "float")))
+    return clamped
+
+
+def _protect_branch(node: Node) -> Node:
+    """Clamp partial-function arguments inside a where-branch.
+
+    Conditions of nested ``Where`` nodes are never clamped: they select
+    branches on live lanes, and clamping a partial call inside a condition
+    could change which branch is taken.
+    """
+
+    def rec(n: Node) -> Node:
+        n = _rewrite(n, rec)
+        if isinstance(n, Where):
+            return Where(n.cond, _protect_branch(n.then), _protect_branch(n.other))
+        if isinstance(n, Call) and n.fn in _PARTIAL_DOMAINS:
+            lo, hi = _PARTIAL_DOMAINS[n.fn]
+            return Call(n.fn, tuple(_clamp_arg(a, lo, hi) for a in n.args))
+        return n
+
+    return rec(node)
+
+
+def _protect_expr(node: Node) -> Node:
+    def rec(n: Node) -> Node:
+        n = _rewrite(n, rec)
+        if isinstance(n, Where):
+            return Where(n.cond, _protect_branch(n.then), _protect_branch(n.other))
+        return n
+
+    return rec(node)
+
+
+def protect_domains(program: Program) -> Program:
+    """Clamp partial-function arguments in dead lanes (plan D1, M4).
+
+    Only calls inside ``Where`` branches are clamped: those lanes' values are
+    discarded by the where, so results never change - but partial functions
+    no longer produce NaN/inf warnings there.
+    """
+
+    def protect_stmt(stmt: Stmt) -> Stmt:
+        if isinstance(stmt, Binding):
+            return Binding(stmt.name, _protect_expr(stmt.expr))
+        return Loop(
+            stmt.var,
+            _protect_expr(stmt.start),
+            _protect_expr(stmt.stop),
+            _protect_expr(stmt.step),
+            tuple(protect_stmt(s) for s in stmt.body),
+        )
+
+    return Program(
+        program.params,
+        tuple(protect_stmt(s) for s in program.bindings),
+        _protect_expr(program.result),
+    )

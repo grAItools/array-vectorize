@@ -185,6 +185,15 @@ Program(params, bindings, result)            # single return value in M1
   of `ZeroDivisionError`; `x % 0` → NaN; int `// 0` → backend-defined (NumPy: 0 +
   warning). `(-8) ** 0.5` → NaN, not complex (Python scalar returns complex).
   Documented divergences, inherent to vectorization.
+  **Found during M4 fuzzing and handled:** bool arithmetic is integer in Python
+  (`True + True == 2`) but saturating in array libraries — provably-bool operands
+  of `+ - * / // %` (and unary `-`) are cast to int64 for exact semantics; provably
+  int/bool arguments to `xp.*` math functions are cast to float64 (the standard
+  requires floating inputs; NumPy otherwise returns float16 for bools); `min`/`max`
+  propagate NaN in `xp.minimum/maximum` but not in Python's `min`/`max` (documented);
+  `round(-0.0)` keeps its sign in `xp.round` (Python returns int 0); `xp.where`
+  promotes branch dtypes (scalar ternary keeps the taken branch's type);
+  `int(nan)`/`int(inf)` casts route through `xp.asarray` (backend-defined).
 - **D4 — Bare truthiness** (`if x:`) rejected (ambiguous per-lane) [M2]; suggest
   `if x != 0:`. Ternary with numeric condition is fine: coerced via `!= 0`.
 - **D5 — Reject list**: `while`, `break`/`continue`, side-effecting calls
@@ -278,8 +287,8 @@ Program(params, bindings, result)            # single return value in M1
 | **M0** | Scaffolding: `src/` layout, `pyproject.toml`, ruff + mypy(strict) + pytest + coverage + pre-commit, GitHub Actions (py 3.10–3.13), empty package | `make check` green in CI | **done** |
 | **M1** | MVP pipeline: extraction, validation, expressions (§5 minus control flow) + straight-line assignments, codegen, `linecache` inspectability, golden harness, differential (Hypothesis) on NumPy | 20 golden cases exact-match; `inspect.getsource` works; differential green | **done** (34 goldens) |
 | **M2** | Statement semantics: `if/elif/else` merges, early returns, full reject diagnostics polish | `relu/clamp/piecewise/psi`-class functions pass behavioral + differential; error tests complete | **done** |
-| **M3** | Composition: constant-trip loops, recursive helper vectorization, closures/defaults, `fallback` mode | composition tests complete; backend matrix green | not started |
-| **M4** | Safety & polish: `protect_domains`, `verify=` option, README with semantics table + divergence docs, examples, fuzzer CLI | divergence tests complete; docs reviewed | not started |
+| **M3** | Composition: constant-trip loops, recursive helper vectorization, closures/defaults, `fallback` mode | composition tests complete; backend matrix green | **done** |
+| **M4** | Safety & polish: `protect_domains`, `verify=` option, README with semantics table + divergence docs, examples, fuzzer CLI | divergence tests complete; docs reviewed | **done** |
 | **M5** (stretch) | on-disk source cache keyed by (source hash, py version), `scipy.special` maps, fuzzer hardening | nightly fuzz 24h clean | not started |
 
 ---
