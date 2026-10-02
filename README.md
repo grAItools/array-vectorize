@@ -134,8 +134,9 @@ values. These are deliberate, tested (T8), and inherent:
 | `min(a, nan)` returns `a` | `xp.minimum` propagates `NaN` |
 | `round(-0.0)` returns int `0` (sign dropped) | `xp.round` keeps `-0.0` |
 | branch-taken type kept (`0 if c else False`) | `xp.where` promotes branch dtypes |
-| bool arithmetic is integer (`True + True == 2`) | exact: bool operands are cast to int64 |
+| bool arithmetic is integer (`True + True == 2`) | exact: bool operands are cast to float64 (strict backends reject bool arithmetic) |
 | scalar exceptions inside `verify=` | expected `NaN` lanes |
+| mixed int/float `min`/`max` siblings | strict backends require matching array dtypes; literals adopt a provably-int sibling's dtype, else float64 |
 
 ## Development
 
