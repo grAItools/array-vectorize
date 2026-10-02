@@ -153,8 +153,8 @@ class _Validator:
             and iter_.func.id == "range"
             and not iter_.keywords
             and 1 <= len(iter_.args) <= 3
-            and all(isinstance(a, ast.Name | ast.Constant) for a in iter_.args)
         ):
+            # bound constancy is a semantic property, checked in lowering
             for a in iter_.args:
                 self.validate_expr(a)
         else:

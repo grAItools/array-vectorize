@@ -124,6 +124,31 @@ def test_compare_chain_diff(xs: np.ndarray) -> None:
     assert np.array_equal(got, expected)
 
 
+@given(arrays(small))
+def test_loop_accumulate_diff(xs: np.ndarray) -> None:
+    check(CORPUS.loop_accumulate, xs)
+
+
+@given(arrays(small))
+def test_loop_with_branch_diff(xs: np.ndarray) -> None:
+    check(CORPUS.loop_with_branch, xs)
+
+
+@given(arrays(small))
+def test_nested_loops_diff(xs: np.ndarray) -> None:
+    check(CORPUS.nested_loops, xs)
+
+
+@given(arrays(small))
+def test_helper_outer_diff(xs: np.ndarray) -> None:
+    check(CORPUS.helper_outer, xs)
+
+
+@given(arrays(small))
+def test_loop_helper_caller_diff(xs: np.ndarray) -> None:
+    check(CORPUS.loop_helper_caller, xs)
+
+
 @given(arrays(small), arrays(small))
 def test_second_oracle_np_vectorize(xs: np.ndarray, ys: np.ndarray) -> None:
     """T5: differential vs np.vectorize of the original."""

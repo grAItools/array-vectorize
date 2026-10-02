@@ -10,20 +10,30 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+
+def generated_name(name: str) -> str:
+    """The generated function's name; lambdas (``<lambda>``) are not identifiers."""
+    return f"{name}_vec" if name.isidentifier() else "lambda_vec"
+
+
 __all__ = [
     "BinOp",
     "Binding",
     "Call",
     "Compare",
     "DType",
+    "FuncCall",
     "Literal",
     "Logical",
+    "Loop",
     "Node",
     "Program",
     "Ref",
     "SSAEnv",
+    "Stmt",
     "UnaryOp",
     "Where",
+    "generated_name",
     "is_bool",
 ]
 
@@ -98,7 +108,15 @@ class DType:
     name: str
 
 
-Node = Literal | Ref | BinOp | UnaryOp | Compare | Logical | Where | Call | DType
+@dataclass(frozen=True)
+class FuncCall:
+    """Call to a vectorized helper function by its emitted name (plan D7)."""
+
+    fn: str
+    args: tuple[Node, ...]
+
+
+Node = Literal | Ref | BinOp | UnaryOp | Compare | Logical | Where | Call | DType | FuncCall
 
 
 @dataclass(frozen=True)
@@ -110,9 +128,28 @@ class Binding:
 
 
 @dataclass(frozen=True)
+class Loop:
+    """Constant-trip ``for`` loop emitted as a real loop (plan D6).
+
+    ``start``/``stop``/``step`` are const int nodes (step ``Literal(1)`` when
+    absent). Loop-carried variables are handled with explicit phi bindings
+    emitted just before the loop (see _lower).
+    """
+
+    var: str
+    start: Node
+    stop: Node
+    step: Node
+    body: tuple[Stmt, ...]
+
+
+Stmt = Binding | Loop
+
+
+@dataclass(frozen=True)
 class Program:
     params: tuple[str, ...]
-    bindings: tuple[Binding, ...]
+    bindings: tuple[Stmt, ...]
     result: Node
 
 
@@ -190,3 +227,7 @@ class SSAEnv:
         """Mark ``name`` as taken (e.g. a generated helper function name)."""
         self.emitted.add(name)
         self._user = self._user | {name}
+
+    def is_free(self, name: str) -> bool:
+        """True if ``name`` is neither emitted nor used by the user."""
+        return name not in self.emitted and name not in self._user

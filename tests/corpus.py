@@ -184,7 +184,70 @@ def complex_expr(x, y):
     return t / (1.0 + t)
 
 
+def loop_accumulate(x):
+    s = 0.0
+    for i in range(4):  # noqa: B007
+        s = s + x
+    return s
+
+
+def loop_start_stop_step(x):
+    s = 1.0
+    for i in range(2, 8, 3):
+        s = s * i
+    return s + x
+
+
+def loop_two_carried(x):
+    a = 0.0
+    b = 1.0
+    for i in range(3):  # noqa: B007
+        a = a + x
+        b = b * 2.0
+    return a + b
+
+
+def loop_with_branch(x):
+    s = 0.0
+    for i in range(4):  # noqa: B007
+        if x > 0:  # noqa: SIM108
+            s = s + x
+        else:
+            s = s - 1.0
+    return s
+
+
+def nested_loops(x):
+    s = 0.0
+    for i in range(3):  # noqa: B007
+        for j in range(2):  # noqa: B007  # noqa: B007
+            s = s + x
+    return s
+
+
+def helper_inner(y):
+    return y * y + 1.0
+
+
+def helper_outer(x):
+    return helper_inner(x) + helper_inner(x * 2.0)
+
+
+def loop_helper_caller(x):
+    s = 0.0
+    for i in range(3):  # noqa: B007
+        s = s + helper_inner(x)
+    return s
+
+
 GOLDEN_NAMES = [
+    "loop_accumulate",
+    "loop_start_stop_step",
+    "loop_two_carried",
+    "loop_with_branch",
+    "nested_loops",
+    "helper_outer",
+    "loop_helper_caller",
     "add",
     "arith_ops",
     "floor_mod_ops",

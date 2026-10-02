@@ -1,12 +1,14 @@
 """AST -> IR lowering (plan §5 translation rules, §6 IR, §7 semantics).
 
-Handles straight-line code (M1) and if/elif/else with early returns (M2).
-Loops and helper calls are gated pending M3.
+Handles straight-line code (M1), if/elif/else with early returns (M2),
+constant-trip loops with loop-carried phis (M3, D6) and calls to other
+vectorizable scalar functions (M3, D7).
 """
 
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,14 +28,18 @@ from ._ir import (
     Call,
     Compare,
     DType,
+    FuncCall,
     Literal,
     Logical,
+    Loop,
     Node,
     Program,
     Ref,
     SSAEnv,
+    Stmt,
     UnaryOp,
     Where,
+    generated_name,
     is_bool,
 )
 
@@ -79,13 +85,24 @@ class LoweredFunction:
     param_names: list[str]  # emitted names, aligned with params
     hidden_params: list[tuple[str, Any]]  # (emitted name, array default)
     source: str  # original scalar source (embedded verbatim in the docstring)
+    helpers: list[tuple[str, Any]]  # (emitted name, vectorized helper callable)
+
+
+HelperVectorizer = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 
 class _Lowerer:
-    def __init__(self, info: FunctionInfo) -> None:
+    def __init__(
+        self,
+        info: FunctionInfo,
+        helper_vectorizer: HelperVectorizer | None = None,
+    ) -> None:
         self.info = info
+        self.helper_vectorizer = helper_vectorizer
+        self.helpers: list[tuple[str, Any]] = []
+        self._helper_names: dict[Callable[..., Any], str] = {}
         self.ssa = SSAEnv(info.user_names)
-        self.bindings: list[Binding] = []
+        self.bindings: list[Stmt] = []
         #: definite locals: var -> current emitted name
         self.definite: dict[str, str] = {}
         #: vars that may be unbound on the current path (assigned in one branch only)
@@ -95,6 +112,12 @@ class _Lowerer:
         self.deferred: list[tuple[Node, Node, int]] = []
         #: nesting depth inside branches (branch-local bindings always suffix)
         self.branch_depth = 0
+        #: nesting depth inside loop bodies (returns are rejected there)
+        self.loop_depth = 0
+        #: source names of active loop variables (assignment to them rejected)
+        self.loop_vars: set[str] = set()
+        #: stack of ({var: loop-carried emitted name}, entry branch depth) per loop
+        self.active_carried: list[tuple[dict[str, str], int]] = []
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -149,12 +172,21 @@ class _Lowerer:
 
     # --------------------------------------------------------- statements
 
-    def lower_stmts(self, stmts: list[ast.stmt]) -> Node | None:
-        """Lower a statement list; returns the merged result if a return was hit."""
+    def lower_stmts(self, stmts: list[ast.stmt], *, loop_body: bool = False) -> Node | None:
+        """Lower a statement list; returns the merged result if a return was hit.
+
+        With ``loop_body=True`` (a loop body), loop-carried variables are
+        synchronized back to their loop names after every statement, so the
+        real generated loop feeds the right values across iterations.
+        """
         for stmt in stmts:
             if isinstance(stmt, ast.Assign | ast.AugAssign):
                 self.lower_assign(stmt)
             elif isinstance(stmt, ast.Return):
+                if self.loop_depth > 0:
+                    raise self.error(
+                        stmt, "returns inside loop bodies are not supported (no early loop exit)"
+                    )
                 assert stmt.value is not None  # validator rejects bare returns
                 return self.fold_returns(self.lower_expr(stmt.value))
             elif isinstance(stmt, ast.If):
@@ -162,11 +194,15 @@ class _Lowerer:
                 if merged is not None:
                     return merged
             elif isinstance(stmt, ast.For):
-                raise self.error(stmt, "for loops are not supported yet (milestone M3)")
+                self.lower_for(stmt)
             elif isinstance(stmt, ast.Expr | ast.Pass):
+                if loop_body:
+                    self._sync_loop_carried()
                 continue  # docstring / pass
             else:
                 raise self.error(stmt, f"{type(stmt).__name__} statements are not supported")
+            if loop_body:
+                self._sync_loop_carried()
         return None
 
     def lower_assign(self, stmt: ast.Assign | ast.AugAssign) -> None:
@@ -179,10 +215,23 @@ class _Lowerer:
             assert isinstance(target, ast.Name)
             op = _BINOPS[type(stmt.op)]
             value = BinOp(op, self.load_name(target), self.lower_expr(stmt.value))
-        name = self.ssa.bind(target.id, force_suffix=self.branch_depth > 0)
+        var = target.id
+        if var in self.loop_vars:
+            raise self.error(stmt, f"cannot assign the loop variable {var!r} inside its loop")
+        name: str | None = None
+        if self.active_carried:
+            carried, entry_depth = self.active_carried[-1]
+            if var in carried and self.branch_depth == entry_depth:
+                # loop-carried by the innermost active loop, assigned at the
+                # loop body's own level: write the loop name directly.
+                # (Inside nested branches, normal suffixing + merge + the
+                # post-statement sync keep the loop name consistent.)
+                name = carried[var]
+        if name is None:
+            name = self.ssa.bind(var, force_suffix=self.branch_depth > 0)
         self.bindings.append(Binding(name, value))
-        self.definite[target.id] = name
-        self.maybe.discard(target.id)
+        self.definite[var] = name
+        self.maybe.discard(var)
 
     def lower_if(self, stmt: ast.If) -> Node | None:
         cond = self.lower_expr(stmt.test)
@@ -258,6 +307,120 @@ class _Lowerer:
             qualified.append((Logical("and", (not_cond, c)), v, p))
         self.deferred = [*pre_deferred, *qualified]
         return None
+
+    # ------------------------------------------------------------- loops
+
+    def _const_int(self, node: ast.expr, what: str) -> Node:
+        from ._optimize import _const_fold_expr
+
+        folded = _const_fold_expr(self.lower_expr(node))
+        if (
+            isinstance(folded, Literal)
+            and folded.kind == "int"
+            and -(2**63) <= folded.value < 2**63
+        ):
+            return folded
+        raise self.error(node, f"{what} must be constant ints known at generation time (plan D6)")
+
+    def _loop_bounds(self, call: ast.Call) -> tuple[Node, Node, Node]:
+        args = list(call.args)
+        if len(args) == 1:
+            start, stop, step = (
+                Literal(0, "int"),
+                self._const_int(args[0], "loop bound"),
+                Literal(1, "int"),
+            )
+        elif len(args) == 2:
+            start, stop = (self._const_int(a, "loop bound") for a in args)
+            step = Literal(1, "int")
+        else:
+            start, stop, step = (self._const_int(a, "loop bound") for a in args)
+        assert isinstance(step, Literal)
+        if step.value == 0:
+            raise self.error(call, "range step cannot be zero")
+        return start, stop, step
+
+    def _body_assigned_names(self, stmts: list[ast.stmt]) -> set[str]:
+        """Names assigned via ``=``/augmented assignment in a statement list.
+
+        ``for`` targets are excluded: nested loops bind their own variable.
+        """
+        assigned: set[str] = set()
+        for stmt in stmts:
+            if isinstance(stmt, ast.Assign):
+                for t in stmt.targets:
+                    if isinstance(t, ast.Name):
+                        assigned.add(t.id)
+            elif isinstance(stmt, ast.AugAssign):
+                if isinstance(stmt.target, ast.Name):
+                    assigned.add(stmt.target.id)
+            elif isinstance(stmt, ast.If):
+                assigned |= self._body_assigned_names(stmt.body)
+                assigned |= self._body_assigned_names(stmt.orelse)
+            elif isinstance(stmt, ast.For):
+                assigned |= self._body_assigned_names(stmt.body)
+        return assigned
+
+    def lower_for(self, stmt: ast.For) -> None:
+        """Lower a constant-trip ``for i in range(...)`` (plan D6).
+
+        Loop-carried variables (bound before the loop and reassigned in the
+        body) get a fresh loop name with an explicit phi binding
+        ``s_loop = s_pre`` just before the loop; body assignments write the
+        loop name directly, so the real generated loop feeds values across
+        iterations. Constructs that rebind a carried variable (branch merges,
+        inner loops) are synchronized back after each body statement.
+        """
+        iter_call = stmt.iter
+        assert isinstance(iter_call, ast.Call)  # validator guarantees range(...)
+        start, stop, step = self._loop_bounds(iter_call)
+
+        loop_var = stmt.target.id
+        loop_name = self.ssa.bind(loop_var)
+
+        pre_definite = dict(self.definite)
+        body_assigned = self._body_assigned_names(stmt.body)
+        carried = {v: pre_definite[v] for v in body_assigned if v in pre_definite}
+        if loop_var in body_assigned:
+            raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
+
+        # phis for loop-carried variables, emitted just before the loop
+        for var, pre_name in carried.items():
+            loop_carried_name = self.ssa.bind(var)
+            carried[var] = loop_carried_name
+            self.bindings.append(Binding(loop_carried_name, Ref(pre_name)))
+            self.definite[var] = loop_carried_name
+
+        phi_end = len(self.bindings)
+        self.loop_depth += 1
+        self.loop_vars.add(loop_var)
+        self.active_carried.append((dict(carried), self.branch_depth))
+        self.definite[loop_var] = loop_name
+        self.maybe.discard(loop_var)
+        try:
+            result = self.lower_stmts(stmt.body, loop_body=True)
+        finally:
+            self.loop_depth -= 1
+            self.loop_vars.discard(loop_var)
+            self.active_carried.pop()
+        if result is not None:  # pragma: no cover - returns rejected in bodies
+            raise self.error(stmt, "returns inside loop bodies are not supported")
+        body_stmts = tuple(self.bindings[phi_end:])
+        del self.bindings[phi_end:]
+        self.bindings.append(Loop(loop_name, start, stop, step, body_stmts))
+
+        # loop-local variables (assigned in body, not bound before) keep their
+        # body names: zero-trip loops raise NameError exactly like Python.
+        # The loop variable stays bound after the loop (last iteration value).
+
+    def _sync_loop_carried(self) -> None:
+        """Copy rebound values back to their active loop-carried names."""
+        for carried, _entry_depth in reversed(self.active_carried):
+            for var, loop_name in carried.items():
+                current = self.definite.get(var)
+                if current is not None and current != loop_name:
+                    self.bindings.append(Binding(loop_name, Ref(current)))
+                    self.definite[var] = loop_name
 
     def _mark_then_only_unbound(
         self,
@@ -397,9 +560,7 @@ class _Lowerer:
         if name in info.math_funcs:
             return self._call_math(func, info.math_funcs[name], args, node)
         if name in info.user_funcs:
-            raise self.error(
-                node, f"calls to other functions ({name!r}) are not supported yet (milestone M3)"
-            )
+            return self._call_helper(node, name, args)
         if name in info.math_modules:
             raise self.error(node, "the math module cannot be called")
         if name == "round" and len(args) != 1:
@@ -432,15 +593,38 @@ class _Lowerer:
             return Call(xp_name, tuple(args))
         raise self.error(func, f"math.{attr} cannot be called")
 
+    def _call_helper(self, node: ast.Call, name: str, args: list[Node]) -> Node:
+        """Vectorize and call another scalar function (plan D7)."""
+        if self.helper_vectorizer is None:
+            raise self.error(
+                node,
+                f"call to {name!r} requires the vectorize pipeline "
+                "(helper functions are only supported through vectorize())",
+            )
+        callee = self.info.user_funcs[name]
+        if callee in self._helper_names:
+            return FuncCall(self._helper_names[callee], tuple(args))
+        base = generated_name(callee.__name__)
+        while not self.ssa.is_free(base):
+            base += "_"
+        self.ssa.reserve(base)
+        vec = self.helper_vectorizer(callee)
+        self.helpers.append((base, vec))
+        self._helper_names[callee] = base
+        return FuncCall(base, tuple(args))
+
     def _check_arity(self, node: ast.AST, name: str, args: list[Node], lo: int, hi: int) -> None:
         if not lo <= len(args) <= hi:
             expected = str(lo) if lo == hi else f"{lo}-{hi}"
             raise self.error(node, f"{name}() takes {expected} argument(s), got {len(args)}")
 
 
-def lower_function(info: FunctionInfo) -> LoweredFunction:
+def lower_function(
+    info: FunctionInfo,
+    helper_vectorizer: HelperVectorizer | None = None,
+) -> LoweredFunction:
     """Lower a validated FunctionInfo to IR (plan §5/§6/§7)."""
-    lowerer = _Lowerer(info)
+    lowerer = _Lowerer(info, helper_vectorizer=helper_vectorizer)
     # bind parameter names in order (first bind keeps the name, mangling reserved)
     param_names = [lowerer.ssa.bind(p.name) for p in info.params]
     for param, emitted in zip(info.params, param_names, strict=True):
@@ -475,4 +659,5 @@ def lower_function(info: FunctionInfo) -> LoweredFunction:
         param_names=param_names,
         hidden_params=hidden,
         source=info.source,
+        helpers=lowerer.helpers,
     )

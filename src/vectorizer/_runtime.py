@@ -7,7 +7,7 @@ import linecache
 from collections.abc import Callable
 from typing import Any, cast
 
-from ._codegen import generated_name
+from ._ir import generated_name
 
 __all__ = ["compile_vectorized"]
 
@@ -17,19 +17,23 @@ def compile_vectorized(
     name: str,
     hidden_params: list[tuple[str, Any]],
     original: Callable[..., Any],
+    helpers: list[tuple[str, Any]] | None = None,
 ) -> Callable[..., Any]:
     """Compile the generated module and return the callable itself.
 
     - compiles as ``<vectorizer:{name}>`` and registers the source in
       ``linecache`` with ``mtime=None`` (survives ``checkcache``), so
       ``inspect.getsource`` and tracebacks show the real generated lines;
-    - injects closure-array defaults into ``__kwdefaults__``;
-    - sets ``.source`` and ``__wrapped__`` (the original scalar function).
+    - injects closure-array defaults into ``__kwdefaults__`` and vectorized
+      helper functions into the module namespace;
+    - sets ``.source`` and the ``_vectorized_original`` marker.
     """
     filename = f"<vectorizer:{name}>"
     code = compile(source, filename, "exec")
     namespace: dict[str, Any] = {}
     exec(code, namespace)
+    for helper_name, helper_fn in helpers or []:
+        namespace[helper_name] = helper_fn
     func: Any = namespace[generated_name(name)]
 
     if hidden_params:

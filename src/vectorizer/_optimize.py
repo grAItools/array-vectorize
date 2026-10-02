@@ -12,12 +12,15 @@ from ._ir import (
     Call,
     Compare,
     DType,
+    FuncCall,
     Literal,
     Logical,
+    Loop,
     Node,
     Program,
     Ref,
     SSAEnv,
+    Stmt,
     UnaryOp,
     Where,
 )
@@ -124,6 +127,8 @@ def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
         return Where(fn(node.cond), fn(node.then), fn(node.other))
     if isinstance(node, Call):
         return Call(node.fn, tuple(fn(a) for a in node.args))
+    if isinstance(node, FuncCall):
+        return FuncCall(node.fn, tuple(fn(a) for a in node.args))
     raise TypeError(f"unexpected IR node {type(node).__name__}")
 
 
@@ -141,6 +146,8 @@ def _children(node: Node) -> tuple[Node, ...]:
     if isinstance(node, Where):
         return (node.cond, node.then, node.other)
     if isinstance(node, Call):
+        return node.args
+    if isinstance(node, FuncCall):
         return node.args
     raise TypeError(f"unexpected IR node {type(node).__name__}")
 
@@ -163,8 +170,20 @@ def _const_fold_expr(node: Node) -> Node:
     return _rewrite(node, _const_fold_expr)
 
 
+def _fold_stmt(stmt: Stmt) -> Stmt:
+    if isinstance(stmt, Binding):
+        return Binding(stmt.name, _const_fold_expr(stmt.expr))
+    return Loop(
+        stmt.var,
+        _const_fold_expr(stmt.start),
+        _const_fold_expr(stmt.stop),
+        _const_fold_expr(stmt.step),
+        tuple(_fold_stmt(s) for s in stmt.body),
+    )
+
+
 def const_fold(program: Program) -> Program:
-    bindings = tuple(Binding(b.name, _const_fold_expr(b.expr)) for b in program.bindings)
+    bindings = tuple(_fold_stmt(s) for s in program.bindings)
     return Program(program.params, bindings, _const_fold_expr(program.result))
 
 
@@ -178,15 +197,39 @@ def _mark_live(node: Node, live: set[str]) -> None:
         _mark_live(child, live)
 
 
+def _mark_live_stmt(stmt: Stmt, live: set[str]) -> Stmt | Literal[False]:
+    """Mark liveness from a statement; returns the kept statement or False."""
+    if isinstance(stmt, Binding):
+        if stmt.name in live:
+            _mark_live(stmt.expr, live)
+            return stmt
+        return False
+    # Loop: process body in reverse; keep if any body statement is kept or
+    # the loop variable is live afterwards.
+    kept_any = False
+    kept: list[Stmt] = []
+    for inner in reversed(stmt.body):
+        if _mark_live_stmt(inner, live):
+            kept.append(inner)
+            kept_any = True
+    kept.reverse()
+    _mark_live(stmt.start, live)
+    _mark_live(stmt.stop, live)
+    _mark_live(stmt.step, live)
+    if kept_any or stmt.var in live:
+        return Loop(stmt.var, stmt.start, stmt.stop, stmt.step, tuple(kept))
+    return False
+
+
 def dce(program: Program) -> Program:
     live: set[str] = set()
     _mark_live(program.result, live)
-    kept: list[Binding] = []
+    kept: list[Stmt] = []
     # single reverse pass suffices: SSA uses only earlier bindings
-    for binding in reversed(program.bindings):
-        if binding.name in live:
-            kept.append(binding)
-            _mark_live(binding.expr, live)
+    for stmt in reversed(program.bindings):
+        kept_stmt = _mark_live_stmt(stmt, live)
+        if kept_stmt is not False:
+            kept.append(kept_stmt)
     kept.reverse()
     return Program(program.params, tuple(kept), program.result)
 
@@ -203,6 +246,15 @@ def _count_eligible(node: Node, counter: Counter[Node]) -> None:
         _count_eligible(child, counter)
 
 
+def _has_loop(stmts: tuple[Stmt, ...] | list[Stmt]) -> bool:
+    for stmt in stmts:
+        if isinstance(stmt, Loop):
+            if _has_loop(stmt.body):
+                return True
+            return True
+    return False
+
+
 def cse(program: Program, ssa: SSAEnv) -> Program:
     """Hoist duplicated Call/Where subtrees into temps ``t_1, t_2, ...``.
 
@@ -213,6 +265,12 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
     the next pass, hence the fixpoint loop.
     """
     current = program
+    if _has_loop(list(program.bindings)):
+        # CSE hoists temps before their first use, which is unsafe across
+        # loop boundaries (zero-trip loops would skip the temp). Loops are
+        # rare; skip CSE entirely for loop-containing programs (plan §8:
+        # CSE is not needed for correctness).
+        return current
     for _ in range(8):
         counter: Counter[Node] = Counter()
         for binding in current.bindings:

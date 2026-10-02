@@ -29,6 +29,7 @@ def make_lowered(params: list[Param], program: Program, name: str = "f") -> Lowe
         params=params,
         param_names=[p.name for p in params],
         hidden_params=[],
+        helpers=[],
         source="def f(x):\n    return x",
     )
 
@@ -159,6 +160,7 @@ def test_hidden_params_kwonly_none() -> None:
         params=[Param("x", "arg")],
         param_names=["x"],
         hidden_params=[("ARR", "placeholder")],
+        helpers=[],
         source="def f(x):\n    return ARR",
     )
     src = generate_source(lowered, lowered.program)
@@ -181,6 +183,7 @@ def test_reserved_param_mangled_in_signature() -> None:
         params=params,
         param_names=["xp_"],
         hidden_params=[],
+        helpers=[],
         source="def f(xp):\n    return xp",
     )
     src = generate_source(lowered, lowered.program)

@@ -11,26 +11,26 @@ import ast
 import math
 
 from ._ir import (
+    Binding,
     BinOp,
     Call,
     Compare,
     DType,
+    FuncCall,
     Literal,
     Logical,
+    Loop,
     Node,
     Program,
     Ref,
+    Stmt,
     UnaryOp,
     Where,
+    generated_name,  # re-export helper
 )
 from ._lower import LoweredFunction
 
-__all__ = ["generate_source", "generated_name"]
-
-
-def generated_name(name: str) -> str:
-    """The generated function's name; lambdas (``<lambda>``) are not identifiers."""
-    return f"{name}_vec" if name.isidentifier() else "lambda_vec"
+__all__ = ["generate_source"]
 
 
 _BINOP_AST: dict[str, type[ast.operator]] = {
@@ -124,6 +124,8 @@ def _gen_expr(node: Node) -> ast.expr:
         )
     if isinstance(node, Call):
         return _xp_call(node.fn, [_gen_expr(a) for a in node.args])
+    if isinstance(node, FuncCall):
+        return ast.Call(func=_load(node.fn), args=[_gen_expr(a) for a in node.args], keywords=[])
     raise TypeError(f"unexpected IR node {type(node).__name__}")
 
 
@@ -190,6 +192,29 @@ def _build_signature(lowered: LoweredFunction) -> ast.arguments:
     )
 
 
+def _gen_range_call(loop: Loop) -> ast.Call:
+    step_one = isinstance(loop.step, Literal) and loop.step.value == 1
+    args = [_gen_expr(loop.start), _gen_expr(loop.stop)]
+    if not step_one:
+        args.append(_gen_expr(loop.step))
+    return ast.Call(func=_load("range"), args=args, keywords=[])
+
+
+def _gen_stmt(stmt: Stmt) -> ast.stmt:
+    if isinstance(stmt, Binding):
+        return ast.Assign(
+            targets=[ast.Name(id=stmt.name, ctx=ast.Store())],
+            value=_gen_expr(stmt.expr),
+        )
+    assert isinstance(stmt, Loop)
+    return ast.For(
+        target=ast.Name(id=stmt.var, ctx=ast.Store()),
+        iter=_gen_range_call(stmt),
+        body=[_gen_stmt(s) for s in stmt.body],
+        orelse=[],
+    )
+
+
 def generate_source(lowered: LoweredFunction, program: Program) -> str:
     """Generate the vectorized function source (plan §9)."""
     func_name = generated_name(lowered.name)
@@ -199,13 +224,8 @@ def generate_source(lowered: LoweredFunction, program: Program) -> str:
         ast.Expr(value=ast.Constant(value=lowered.source)),  # original source, verbatim
         _namespace_line(all_params),
     ]
-    for binding in program.bindings:
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id=binding.name, ctx=ast.Store())],
-                value=_gen_expr(binding.expr),
-            )
-        )
+    for stmt in program.bindings:
+        body.append(_gen_stmt(stmt))
     body.append(ast.Return(value=_gen_expr(program.result)))
 
     module = ast.Module(
