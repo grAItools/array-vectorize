@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Source-to-source array vectorization: scalar Python functions compiled to Array API (NumPy/PyTorch/JAX/CuPy) functions"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "BSD-3-Clause" }
 dependencies = [
     "array-api-compat>=1.7",
 ]
@@ -16,7 +16,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
