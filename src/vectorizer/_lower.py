@@ -86,6 +86,8 @@ class LoweredFunction:
     hidden_params: list[tuple[str, Any]]  # (emitted name, array default)
     source: str  # original scalar source (embedded verbatim in the docstring)
     helpers: list[tuple[str, Any]]  # (emitted name, vectorized helper callable)
+    namespace_var: str  # the generated code's ``xp`` (renamed on collision)
+    emitted_names: frozenset[str]  # every binding/param name the lowering emitted
 
 
 HelperVectorizer = Callable[[Callable[..., Any]], Callable[..., Any]]
@@ -118,6 +120,10 @@ class _Lowerer:
         self.loop_vars: set[str] = set()
         #: stack of ({var: loop-carried emitted name}, entry branch depth) per loop
         self.active_carried: list[tuple[dict[str, str], int]] = []
+        #: emitted name -> provable numeric kind ('int'/'float'/'bool' or
+        #: None when unknown). Names are unique (SSA), so entries never go
+        #: stale; this lets _numeric_kind see through Ref nodes.
+        self.name_kinds: dict[str, str | None] = {}
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -213,8 +219,7 @@ class _Lowerer:
         else:
             target = stmt.target
             assert isinstance(target, ast.Name)
-            op = _BINOPS[type(stmt.op)]
-            value = BinOp(op, self.load_name(target), self.lower_expr(stmt.value))
+            value = self._lower_binop(stmt.op, self.load_name(target), self.lower_expr(stmt.value))
         var = target.id
         if var in self.loop_vars:
             raise self.error(stmt, f"cannot assign the loop variable {var!r} inside its loop")
@@ -231,6 +236,7 @@ class _Lowerer:
             name = self.ssa.bind(var, force_suffix=self.branch_depth > 0)
         self.bindings.append(Binding(name, value))
         self.definite[var] = name
+        self.name_kinds[name] = self._numeric_kind(value)
         self.maybe.discard(var)
 
     def lower_if(self, stmt: ast.If) -> Node | None:
@@ -385,18 +391,26 @@ class _Lowerer:
         if loop_var in body_assigned:
             raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
 
+        # a pre-bound loop variable keeps its value on zero-trip loops:
+        # emit a phi (the for-statement overwrites it on real iterations)
+        if loop_var in pre_definite:
+            self.bindings.append(Binding(loop_name, Ref(pre_definite[loop_var])))
+            self.name_kinds.setdefault(loop_name, self.name_kinds.get(pre_definite[loop_var]))
+
         # phis for loop-carried variables, emitted just before the loop
         for var, pre_name in carried.items():
             loop_carried_name = self.ssa.bind(var)
             carried[var] = loop_carried_name
             self.bindings.append(Binding(loop_carried_name, Ref(pre_name)))
             self.definite[var] = loop_carried_name
+            self.name_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
 
         phi_end = len(self.bindings)
         self.loop_depth += 1
         self.loop_vars.add(loop_var)
         self.active_carried.append((dict(carried), self.branch_depth))
         self.definite[loop_var] = loop_name
+        self.name_kinds.setdefault(loop_name, None)
         self.maybe.discard(loop_var)
         try:
             result = self.lower_stmts(stmt.body, loop_body=True)
@@ -422,6 +436,7 @@ class _Lowerer:
                 if current is not None and current != loop_name:
                     self.bindings.append(Binding(loop_name, Ref(current)))
                     self.definite[var] = loop_name
+                    self.name_kinds[loop_name] = self.name_kinds.get(current)
 
     def _mark_then_only_unbound(
         self,
@@ -450,8 +465,11 @@ class _Lowerer:
                 continue
             if nt is not None and ne is not None:
                 name = self.ssa.bind(var)
-                self.bindings.append(Binding(name, Where(cond, Ref(nt), Ref(ne))))
+                merged_expr: Node = Where(cond, Ref(nt), Ref(ne))
+                self.bindings.append(Binding(name, merged_expr))
                 self.definite[var] = name
+                kt, ke = self.name_kinds.get(nt), self.name_kinds.get(ne)
+                self.name_kinds[name] = kt if kt == ke else None
             else:
                 # bound on one path only (and not before the if): maybe-unbound
                 self.definite.pop(var, None)
@@ -493,23 +511,9 @@ class _Lowerer:
         if isinstance(node, ast.Name):
             return self.load_name(node)
         if isinstance(node, ast.BinOp):
-            left = self.lower_expr(node.left)
-            right = self.lower_expr(node.right)
-            # Python bool arithmetic is integer (True + True == 2), but
-            # array bool arithmetic saturates (True + True == True): cast
-            # provably-bool operands to int64 for exact semantics.
-            if (
-                isinstance(node.op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod)
-                and self._numeric_kind(left) == "bool"
-                and self._numeric_kind(right) == "bool"
-            ):
-                left = self._as_int_arg(left)
-                right = self._as_int_arg(right)
-            if isinstance(node.op, ast.Pow) and self._is_negative_int(right):
-                # Python promotes int ** negative-int to float; NumPy raises.
-                # Cast provably-int bases so the common literal case matches.
-                left = self._as_float_arg(left)
-            return BinOp(_BINOPS[type(node.op)], left, right)
+            return self._lower_binop(
+                node.op, self.lower_expr(node.left), self.lower_expr(node.right)
+            )
         if isinstance(node, ast.UnaryOp):
             operand = self.lower_expr(node.operand)
             if isinstance(node.op, ast.USub) and self._numeric_kind(operand) == "bool":
@@ -627,11 +631,13 @@ class _Lowerer:
             and node.operand.kind == "int"
         )
 
-    @staticmethod
-    def _numeric_kind(node: Node) -> str | None:
-        """Best-effort numeric kind: literals, casts, and bools are provable."""
+    def _numeric_kind(self, node: Node) -> str | None:
+        """Best-effort numeric kind: literals, casts, bools, and Refs whose
+        binding kind was recorded are provable."""
         if isinstance(node, Literal):
             return node.kind
+        if isinstance(node, Ref):
+            return self.name_kinds.get(node.name)
         if is_bool(node):
             return "bool"
         if (
@@ -643,6 +649,24 @@ class _Lowerer:
             name = node.args[1].name
             return "bool" if name == "bool" else "int" if name == "int64" else "float"
         return None
+
+    def _lower_binop(self, op: ast.operator, left: Node, right: Node) -> Node:
+        """Build a BinOp with the exactness fixes shared by `a op b` and `a op= b`."""
+        # Python bool arithmetic is integer (True + True == 2), but array
+        # bool arithmetic saturates (True + True == True): cast provably-bool
+        # operands to int64 for exact semantics.
+        if (
+            isinstance(op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod)
+            and self._numeric_kind(left) == "bool"
+            and self._numeric_kind(right) == "bool"
+        ):
+            left = self._as_int_arg(left)
+            right = self._as_int_arg(right)
+        if isinstance(op, ast.Pow) and self._is_negative_int(right):
+            # Python promotes int ** negative-int to float; NumPy raises.
+            # Cast provably-int bases so the common literal case matches.
+            left = self._as_float_arg(left)
+        return BinOp(_BINOPS[type(op)], left, right)
 
     def _as_int_arg(self, arg: Node) -> Node:
         if isinstance(arg, Literal):
@@ -683,12 +707,25 @@ class _Lowerer:
             raise self.error(node, f"{name}() takes {expected} argument(s), got {len(args)}")
 
 
+def _namespace_var(info: FunctionInfo) -> str:
+    """Pick the namespace variable name: ``xp`` unless the user uses it."""
+    if "xp" not in info.user_names:
+        return "xp"
+    i = 1
+    while f"xp_{i}" in info.user_names:
+        i += 1
+    return f"xp_{i}"
+
+
 def lower_function(
     info: FunctionInfo,
     helper_vectorizer: HelperVectorizer | None = None,
 ) -> LoweredFunction:
     """Lower a validated FunctionInfo to IR (plan §5/§6/§7)."""
     lowerer = _Lowerer(info, helper_vectorizer=helper_vectorizer)
+    # (5) the caller's own generated name is reserved so a same-named helper
+    # cannot collide with it in the runtime namespace
+    lowerer.ssa.reserve(generated_name(info.name))
     # bind parameter names in order (first bind keeps the name, mangling reserved)
     param_names = [lowerer.ssa.bind(p.name) for p in info.params]
     for param, emitted in zip(info.params, param_names, strict=True):
@@ -724,4 +761,6 @@ def lower_function(
         hidden_params=hidden,
         source=info.source,
         helpers=lowerer.helpers,
+        namespace_var=_namespace_var(info),
+        emitted_names=frozenset(lowerer.ssa.emitted),
     )

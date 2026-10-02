@@ -85,8 +85,15 @@ def test_fold_not_is_exact_for_nan() -> None:
     )
 
 
-def test_fold_does_not_touch_calls() -> None:
-    expr = Call("sqrt", (lit(4),))
+def test_fold_pure_calls_over_literals() -> None:
+    # pure xp functions with literal args fold (keeps plain scalars out of
+    # generated code: strict backends require arrays)
+    assert const_fold(Program((), (), Call("sqrt", (lit(4),)))).result == lit(2.0)
+    expr = Call("sqrt", (lit(-1),))  # math.sqrt(-1) raises: no fold
+    assert const_fold(Program((), (), expr)).result == expr
+    expr = Call("where", (lit(1), lit(2), lit(3)))  # not in the fold table
+    assert const_fold(Program((), (), expr)).result == expr
+    expr = Call("sqrt", (Ref("x"),))  # non-literal arg: no fold
     assert const_fold(Program((), (), expr)).result == expr
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import operator
 from collections import Counter
 from collections.abc import Callable
@@ -109,6 +110,45 @@ def _fold_unary(op: str, lit: Literal) -> Literal | None:
     return Literal(result, _literal_kind(result))
 
 
+#: Array API functions that are pure and safe to fold over literal args,
+#: mapped to their Python equivalents. Keeps plain scalars out of generated
+#: xp.* calls (strict backends require arrays) and preserves semantics.
+_FOLDABLE_CALLS: dict[str, Any] = {
+    "sqrt": math.sqrt,
+    "exp": math.exp,
+    "expm1": math.expm1,
+    "log": math.log,
+    "log1p": math.log1p,
+    "log2": math.log2,
+    "log10": math.log10,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "asin": math.asin,
+    "acos": math.acos,
+    "atan": math.atan,
+    "atan2": math.atan2,
+    "sinh": math.sinh,
+    "cosh": math.cosh,
+    "tanh": math.tanh,
+    "asinh": math.asinh,
+    "acosh": math.acosh,
+    "atanh": math.atanh,
+    "pow": pow,
+    "floor": math.floor,
+    "ceil": math.ceil,
+    "hypot": math.hypot,
+    "copysign": math.copysign,
+    "abs": abs,
+    "round": round,
+    "minimum": min,
+    "maximum": max,
+    "isfinite": math.isfinite,
+    "isnan": math.isnan,
+    "isinf": math.isinf,
+    "logical_not": lambda v: not v,
+}
+
 _CMPOP_PY: dict[str, Any] = {
     "eq": operator.eq,
     "ne": operator.ne,
@@ -194,6 +234,21 @@ def _const_fold_expr(node: Node) -> Node:
                 return folded
         return node
     node = _rewrite(node, _const_fold_expr)
+    if isinstance(node, Call) and node.fn in _FOLDABLE_CALLS and node.args:
+        values = [a.value for a in node.args if isinstance(a, Literal)]
+        if len(values) != len(node.args):
+            return node
+        try:
+            value = _FOLDABLE_CALLS[node.fn](*values)
+        except (ValueError, ArithmeticError, OverflowError, TypeError):
+            pass
+        else:
+            if isinstance(value, bool):
+                return Literal(value, "bool")
+            if isinstance(value, int) and _int64_ok(value):
+                return Literal(value, "int")
+            if isinstance(value, float):
+                return Literal(value, "float")
     # constant casts: int(3.14) -> 3 (also keeps plain-float astype out of
     # generated code, where xp.astype would fail on non-arrays)
     if (
@@ -254,15 +309,23 @@ def _mark_live_stmt(stmt: Stmt, live: set[str]) -> Stmt | None:
             _mark_live(stmt.expr, live)
             return stmt
         return None
-    # Loop: process body in reverse; keep if any body statement is kept or
-    # the loop variable is live afterwards.
-    kept_any = False
+    # Loop: recompute liveness from the FULL body in reverse order until a
+    # fixed point: a statement can be live only through a use appearing
+    # EARLIER in the body (loop-carried feedback), which a single reverse
+    # pass misses. Liveness only grows, so this terminates.
     kept: list[Stmt] = []
-    for inner in reversed(stmt.body):
-        if _mark_live_stmt(inner, live):
-            kept.append(inner)
-            kept_any = True
-    kept.reverse()
+    while True:
+        before_live = set(live)
+        new_kept: list[Stmt] = []
+        for inner in reversed(stmt.body):
+            kept_inner = _mark_live_stmt(inner, live)
+            if kept_inner is not None:
+                new_kept.append(kept_inner)
+        new_kept.reverse()
+        kept = new_kept
+        if live == before_live:
+            break
+    kept_any = len(kept) > 0
     _mark_live(stmt.start, live)
     _mark_live(stmt.stop, live)
     _mark_live(stmt.step, live)
@@ -377,25 +440,33 @@ def optimize(program: Program, user_names: set[str] | None = None) -> Program:
 #: domain only happens inside ``Where`` branches, where out-of-domain lanes
 #: are discarded; live lanes are always in domain (or the scalar code would
 #: have raised), so results never change.
+#:
+#: Boundaries: closed bounds clamp to the bound itself. Open bounds (poles)
+#: clamp to a tiny inset so the call never warns: log(0) is a divide-by-zero,
+#: so log clamps to a small positive value. All clamps are where-selects,
+#: NOT maximum/minimum: IEEE max turns -0.0 into +0.0, which would flip
+#: copysign-observable live values (sqrt(-0.0) is -0.0, in domain).
+_TINY = 1e-300
 _PARTIAL_DOMAINS: dict[str, tuple[float, float | None]] = {
     "sqrt": (0.0, None),
-    "log": (0.0, None),
-    "log2": (0.0, None),
-    "log10": (0.0, None),
-    "log1p": (-1.0, None),
+    "log": (_TINY, None),
+    "log2": (_TINY, None),
+    "log10": (_TINY, None),
+    "log1p": (-1.0 + _TINY, None),
     "asin": (-1.0, 1.0),
     "acos": (-1.0, 1.0),
     "acosh": (1.0, None),
-    "atanh": (-1.0, 1.0),
+    "atanh": (-1.0 + _TINY, 1.0 - _TINY),
 }
 
 
 def _clamp_arg(node: Node, lo: float, hi: float | None) -> Node:
+    """Where-based clamp: preserves -0.0 and NaN, unlike maximum/minimum."""
     clamped: Node = node
-    if lo is not None:
-        clamped = Call("maximum", (clamped, Literal(lo, "float")))
     if hi is not None:
-        clamped = Call("minimum", (clamped, Literal(hi, "float")))
+        clamped = Where(Compare("gt", clamped, Literal(hi, "float")), Literal(hi, "float"), clamped)
+    if lo is not None:
+        clamped = Where(Compare("lt", clamped, Literal(lo, "float")), Literal(lo, "float"), clamped)
     return clamped
 
 

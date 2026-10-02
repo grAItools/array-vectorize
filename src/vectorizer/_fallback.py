@@ -22,18 +22,25 @@ def _is_array(value: Any) -> bool:
     return hasattr(value, "__array_namespace__")
 
 
+def _py_scalar(value: Any) -> Any:
+    """Backend element -> plain Python scalar (scalar code expects scalars)."""
+    item = getattr(value, "item", None)
+    return item() if item is not None else value
+
+
 def make_fallback(func: Callable[..., Any], reason: str) -> Callable[..., Any]:
     """Wrap ``func`` in an element loop over its array arguments."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         positions = [i for i, a in enumerate(args) if _is_array(a)]
-        if not positions:
+        kw_positions = [k for k, v in kwargs.items() if _is_array(v)]
+        if not positions and not kw_positions:
             raise TypeError(
                 f"vectorized fallback for {func.__name__!r} requires at least one "
                 "Array API array argument"
             )
-        arrays = [args[i] for i in positions]
+        arrays = [args[i] for i in positions] + [kwargs[k] for k in kw_positions]
         xp = array_namespace(*arrays)
         broadcast = xp.broadcast_arrays(*arrays)
         shape = broadcast[0].shape
@@ -41,9 +48,13 @@ def make_fallback(func: Callable[..., Any], reason: str) -> Callable[..., Any]:
         out = []
         for elems in zip(*flat, strict=True):
             call_args = list(args)
-            for pos, elem in zip(positions, elems, strict=True):
-                call_args[pos] = elem
-            out.append(func(*call_args, **kwargs))
+            call_kwargs = dict(kwargs)
+            values = iter(elems)
+            for pos in positions:
+                call_args[pos] = _py_scalar(next(values))
+            for key in kw_positions:
+                call_kwargs[key] = _py_scalar(next(values))
+            out.append(func(*call_args, **call_kwargs))
         return xp.reshape(xp.asarray(out), shape)
 
     wrapper.source = (  # type: ignore[attr-defined]

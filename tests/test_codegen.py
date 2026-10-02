@@ -30,6 +30,8 @@ def make_lowered(params: list[Param], program: Program, name: str = "f") -> Lowe
         param_names=[p.name for p in params],
         hidden_params=[],
         helpers=[],
+        namespace_var="xp",
+        emitted_names=frozenset(["x"]),
         source="def f(x):\n    return x",
     )
 
@@ -161,6 +163,8 @@ def test_hidden_params_kwonly_none() -> None:
         param_names=["x"],
         hidden_params=[("ARR", "placeholder")],
         helpers=[],
+        namespace_var="xp",
+        emitted_names=frozenset(["x", "ARR"]),
         source="def f(x):\n    return ARR",
     )
     src = generate_source(lowered, lowered.program)
@@ -175,20 +179,22 @@ def test_posonly_marker() -> None:
     assert "def f_vec(x, /, y):" in src
 
 
-def test_reserved_param_mangled_in_signature() -> None:
+def test_reserved_param_kept_namespace_renamed() -> None:
     params = [Param("xp", "arg")]
     lowered = LoweredFunction(
-        program=Program(("xp_",), (), Ref("xp_")),
+        program=Program(("xp",), (), Ref("xp")),
         name="f",
         params=params,
-        param_names=["xp_"],
+        param_names=["xp"],
         hidden_params=[],
         helpers=[],
+        namespace_var="xp_1",
+        emitted_names=frozenset(["xp"]),
         source="def f(xp):\n    return xp",
     )
     src = generate_source(lowered, lowered.program)
-    assert "def f_vec(xp_):" in src
-    assert "return xp_" in src
+    assert "def f_vec(xp):" in src
+    assert "xp_1 = array_namespace(" in src
 
 
 def test_generated_source_is_valid_python() -> None:

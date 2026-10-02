@@ -219,7 +219,9 @@ def test_closure_array_hidden_param() -> None:
     assert np.array_equal(default, [10.0, 20.0])
 
 
-def test_reserved_param_name_mangled() -> None:
+def test_reserved_param_name_kept_namespace_renamed() -> None:
+    # a parameter named 'xp' keeps its name (keyword calls work); the
+    # generated namespace variable renames itself instead
     path = _TMPDIR / f"snippet_{next(_seq)}.py"
     path.write_text("def subject(xp):\n    return xp + 1\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
@@ -227,8 +229,9 @@ def test_reserved_param_name_mangled() -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     lf = lower_function(extract_function(mod.subject))
-    assert lf.param_names == ["xp_"]
-    assert lf.program.result == BinOp("add", Ref("xp_"), Literal(1, "int"))
+    assert lf.param_names == ["xp"]
+    assert lf.namespace_var == "xp_1"
+    assert lf.program.result == BinOp("add", Ref("xp"), Literal(1, "int"))
 
 
 # ------------------------------------------------------------- M1: rejections

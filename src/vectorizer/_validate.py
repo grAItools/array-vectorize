@@ -244,7 +244,7 @@ class _Validator:
         if isinstance(node.func, ast.Attribute):
             self.validate_attribute(node.func)
         elif isinstance(node.func, ast.Name):
-            return  # resolution is semantic; checked in lowering
+            pass  # resolution is semantic; checked in lowering
         else:
             self.error(node, "calling this expression is not supported")
             self.validate_expr(node.func)

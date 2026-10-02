@@ -7,8 +7,10 @@ CSE. ``DType`` is a small addition to the plan's node set, needed to represent
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 
 def generated_name(name: str) -> str:
@@ -37,18 +39,40 @@ __all__ = [
     "is_bool",
 ]
 
-#: Names the generated code uses for itself; user variables with these base
-#: names are mangled with a trailing underscore. ``hasattr`` is used by the
-#: namespace-detection comprehension and must not be shadowed by a parameter.
-RESERVED_NAMES = frozenset({"xp", "array_namespace", "hasattr"})
+#: Names the generated code cannot rename: ``array_namespace`` is imported
+#: by that name and ``hasattr`` is called by the namespace-detection
+#: comprehension. User variables with these base names are mangled with a
+#: trailing underscore. The namespace variable ``xp`` is NOT reserved: it is
+#: chosen dynamically to avoid user names (see _lower.lower_function).
+RESERVED_NAMES = frozenset({"array_namespace", "hasattr"})
 
 
-@dataclass(frozen=True)
+def _literal_key(value: int | float | bool) -> tuple[Any, ...]:
+    """Canonical key distinguishing -0.0 from 0.0 (copysign-observable)."""
+    if isinstance(value, float) and value == 0.0:
+        return (value, math.copysign(1.0, value))
+    return (value,)
+
+
+@dataclass(frozen=True, eq=False)
 class Literal:
-    """A scalar constant. ``inf``/``nan`` allowed (codegen emits xp.inf / xp.nan)."""
+    """A scalar constant. ``inf``/``nan`` allowed (codegen emits xp.inf / xp.nan).
+
+    Equality distinguishes signed zeros: ``0.0`` and ``-0.0`` compare unequal
+    (functions like ``copysign`` observe the difference, so structural CSE
+    must not merge them). NaN literals never compare equal.
+    """
 
     value: int | float | bool
     kind: str  # 'int' | 'float' | 'bool'
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Literal):
+            return NotImplemented
+        return self.kind == other.kind and _literal_key(self.value) == _literal_key(other.value)
+
+    def __hash__(self) -> int:
+        return hash((self.kind, self.value))
 
 
 @dataclass(frozen=True)

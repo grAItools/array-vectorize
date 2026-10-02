@@ -36,7 +36,7 @@ def make_fn(body: str) -> Callable[..., Any]:
 def test_protect_domains_clamps_dead_lanes() -> None:
     fn = make_fn("    if x > 0:\n        return math.sqrt(x)\n    return 0.0")
     vec = vectorize(fn, protect_domains=True)
-    assert "xp.maximum(x, 0.0)" in vec.source
+    assert "xp.where(x < 0.0, 0.0, x)" in vec.source
     xs = np.asarray([-1.0, 0.5, 4.0])
     with np.errstate(invalid="ignore", divide="ignore"):
         got = vec(xs)
@@ -63,7 +63,8 @@ def test_protect_domains_never_changes_results() -> None:
 def test_protect_domains_two_sided_clamp() -> None:
     fn = make_fn("    if x != 0:\n        return math.atanh(x)\n    return 0.0")
     vec = vectorize(fn, protect_domains=True)
-    assert "xp.minimum(xp.maximum(x, -1.0), 1.0)" in vec.source
+    # where-based clamps with open-boundary insets (preserve -0.0)
+    assert "xp.where(x > " in vec.source and "xp.maximum" not in vec.source
     xs = np.asarray([0.5, 0.0])
     assert np.allclose(vec(xs), [math.atanh(0.5), 0.0])
 

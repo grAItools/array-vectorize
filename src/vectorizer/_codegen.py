@@ -63,73 +63,79 @@ def _load(name: str) -> ast.Name:
     return ast.Name(id=name, ctx=ast.Load())
 
 
-def _xp_attr(attr: str) -> ast.Attribute:
-    return ast.Attribute(value=_load("xp"), attr=attr, ctx=ast.Load())
+def _xp_attr(ns: str, attr: str) -> ast.Attribute:
+    return ast.Attribute(value=_load(ns), attr=attr, ctx=ast.Load())
 
 
-def _xp_call(attr: str, args: list[ast.expr]) -> ast.Call:
-    return ast.Call(func=_xp_attr(attr), args=args, keywords=[])
+def _xp_call(ns: str, attr: str, args: list[ast.expr]) -> ast.Call:
+    return ast.Call(func=_xp_attr(ns, attr), args=args, keywords=[])
 
 
-def _gen_literal(lit: Literal) -> ast.expr:
+def _gen_literal(lit: Literal, ns: str) -> ast.expr:
     value = lit.value
     if isinstance(value, float):
         if math.isnan(value):
-            return _xp_attr("nan")
+            return _xp_attr(ns, "nan")
         if math.isinf(value):
             if value > 0:
-                return _xp_attr("inf")
-            return ast.UnaryOp(op=ast.USub(), operand=_xp_attr("inf"))
+                return _xp_attr(ns, "inf")
+            return ast.UnaryOp(op=ast.USub(), operand=_xp_attr(ns, "inf"))
     return ast.Constant(value=value)
 
 
-def _gen_expr(node: Node) -> ast.expr:
+def _gen_expr(node: Node, ns: str) -> ast.expr:
     if isinstance(node, Literal):
-        return _gen_literal(node)
+        return _gen_literal(node, ns)
     if isinstance(node, Ref):
         return _load(node.name)
     if isinstance(node, DType):
-        return _xp_attr(node.name)
+        return _xp_attr(ns, node.name)
     if isinstance(node, BinOp):
         if node.op in _BINOP_AST:
             return ast.BinOp(
                 op=_BINOP_AST[node.op](),
-                left=_gen_expr(node.left),
-                right=_gen_expr(node.right),
+                left=_gen_expr(node.left, ns),
+                right=_gen_expr(node.right, ns),
             )
-        return _xp_call(_BINOP_XP[node.op], [_gen_expr(node.left), _gen_expr(node.right)])
+        return _xp_call(
+            ns, _BINOP_XP[node.op], [_gen_expr(node.left, ns), _gen_expr(node.right, ns)]
+        )
     if isinstance(node, UnaryOp):
         if node.op == "neg":
-            return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand))
+            return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand, ns))
         if node.op == "pos":
-            return ast.UnaryOp(op=ast.UAdd(), operand=_gen_expr(node.operand))
+            return ast.UnaryOp(op=ast.UAdd(), operand=_gen_expr(node.operand, ns))
         if node.op == "invert":
-            return ast.UnaryOp(op=ast.Invert(), operand=_gen_expr(node.operand))
-        return _xp_call("logical_not", [_gen_expr(node.operand)])
+            return ast.UnaryOp(op=ast.Invert(), operand=_gen_expr(node.operand, ns))
+        return _xp_call(ns, "logical_not", [_gen_expr(node.operand, ns)])
     if isinstance(node, Compare):
         return ast.Compare(
-            left=_gen_expr(node.left),
+            left=_gen_expr(node.left, ns),
             ops=[_CMPOP_AST[node.op]()],
-            comparators=[_gen_expr(node.right)],
+            comparators=[_gen_expr(node.right, ns)],
         )
     if isinstance(node, Logical):
         fn = "logical_and" if node.op == "and" else "logical_or"
-        folded = _gen_expr(node.parts[0])
+        folded = _gen_expr(node.parts[0], ns)
         for part in node.parts[1:]:
-            folded = _xp_call(fn, [folded, _gen_expr(part)])
+            folded = _xp_call(ns, fn, [folded, _gen_expr(part, ns)])
         return folded
     if isinstance(node, Where):
         return _xp_call(
-            "where", [_gen_expr(node.cond), _gen_expr(node.then), _gen_expr(node.other)]
+            ns,
+            "where",
+            [_gen_expr(node.cond, ns), _gen_expr(node.then, ns), _gen_expr(node.other, ns)],
         )
     if isinstance(node, Call):
-        return _xp_call(node.fn, [_gen_expr(a) for a in node.args])
+        return _xp_call(ns, node.fn, [_gen_expr(a, ns) for a in node.args])
     if isinstance(node, FuncCall):
-        return ast.Call(func=_load(node.fn), args=[_gen_expr(a) for a in node.args], keywords=[])
+        return ast.Call(
+            func=_load(node.fn), args=[_gen_expr(a, ns) for a in node.args], keywords=[]
+        )
     raise TypeError(f"unexpected IR node {type(node).__name__}")
 
 
-def _namespace_line(param_names: list[str]) -> ast.Assign:
+def _namespace_line(ns: str, param_names: list[str]) -> ast.Assign:
     # xp = array_namespace(*[a for a in (x, y) if hasattr(a, "__array_namespace__")])
     # 'a' is comprehension-scoped, so it cannot collide with user names.
     element = _load("a")
@@ -151,7 +157,7 @@ def _namespace_line(param_names: list[str]) -> ast.Assign:
         args=[ast.Starred(value=filtered, ctx=ast.Load())],
         keywords=[],
     )
-    return ast.Assign(targets=[ast.Name(id="xp", ctx=ast.Store())], value=call)
+    return ast.Assign(targets=[ast.Name(id=ns, ctx=ast.Store())], value=call)
 
 
 def _build_signature(lowered: LoweredFunction) -> ast.arguments:
@@ -192,25 +198,29 @@ def _build_signature(lowered: LoweredFunction) -> ast.arguments:
     )
 
 
-def _gen_range_call(loop: Loop) -> ast.Call:
+def _gen_range_call(loop: Loop, ns: str) -> ast.Call:
     step_one = isinstance(loop.step, Literal) and loop.step.value == 1
-    args = [_gen_expr(loop.start), _gen_expr(loop.stop)]
+    args = [_gen_expr(loop.start, ns), _gen_expr(loop.stop, ns)]
     if not step_one:
-        args.append(_gen_expr(loop.step))
+        args.append(_gen_expr(loop.step, ns))
     return ast.Call(func=_load("range"), args=args, keywords=[])
 
 
-def _gen_stmt(stmt: Stmt) -> ast.stmt:
+def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
     if isinstance(stmt, Binding):
         return ast.Assign(
             targets=[ast.Name(id=stmt.name, ctx=ast.Store())],
-            value=_gen_expr(stmt.expr),
+            value=_gen_expr(stmt.expr, ns),
         )
     assert isinstance(stmt, Loop)
+    body = [_gen_stmt(inner, ns) for inner in stmt.body]
+    if not body:
+        # (15) a retained loop with a fully dead body still needs a statement
+        body = [ast.Pass()]
     return ast.For(
         target=ast.Name(id=stmt.var, ctx=ast.Store()),
-        iter=_gen_range_call(stmt),
-        body=[_gen_stmt(s) for s in stmt.body],
+        iter=_gen_range_call(stmt, ns),
+        body=body,
         orelse=[],
     )
 
@@ -218,15 +228,16 @@ def _gen_stmt(stmt: Stmt) -> ast.stmt:
 def generate_source(lowered: LoweredFunction, program: Program) -> str:
     """Generate the vectorized function source (plan §9)."""
     func_name = generated_name(lowered.name)
+    ns = lowered.namespace_var
     all_params = lowered.param_names + [name for name, _ in lowered.hidden_params]
 
     body: list[ast.stmt] = [
         ast.Expr(value=ast.Constant(value=lowered.source)),  # original source, verbatim
-        _namespace_line(all_params),
+        _namespace_line(ns, all_params),
     ]
     for stmt in program.bindings:
-        body.append(_gen_stmt(stmt))
-    body.append(ast.Return(value=_gen_expr(program.result)))
+        body.append(_gen_stmt(stmt, ns))
+    body.append(ast.Return(value=_gen_expr(program.result, ns)))
 
     module = ast.Module(
         body=[

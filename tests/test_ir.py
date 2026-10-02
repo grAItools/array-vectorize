@@ -90,19 +90,22 @@ class TestSSAEnv:
         env.bind("x")
         assert env.bind("x") == "x_2"
 
-    def test_reserved_name_mangled(self) -> None:
-        env = SSAEnv(["xp"])
-        assert env.bind("xp") == "xp_"
-        assert env.bind("xp") == "xp_1"
-
     def test_reserved_namespace_name_mangled(self) -> None:
+        # 'xp' is no longer reserved (the namespace var is renamed instead);
+        # names the generated code cannot rename are still mangled
+        env = SSAEnv(["xp"])
+        assert env.bind("xp") == "xp"
+
+    def test_reserved_hasattr_mangled(self) -> None:
         env = SSAEnv(["array_namespace"])
         assert env.bind("array_namespace") == "array_namespace_"
+        env = SSAEnv(["hasattr"])
+        assert env.bind("hasattr") == "hasattr_"
 
     def test_mangle_skips_taken_mangled_name(self) -> None:
-        # user has both xp and xp_ variables
-        env = SSAEnv(["xp", "xp_"])
-        assert env.bind("xp") == "xp_1"
+        # user has both array_namespace and array_namespace_ variables
+        env = SSAEnv(["array_namespace", "array_namespace_"])
+        assert env.bind("array_namespace") == "array_namespace_1"
 
     def test_fresh_temp_skips_user_names(self) -> None:
         env = SSAEnv(["t_1"])

@@ -37,7 +37,11 @@ def compile_vectorized(
     func: Any = namespace[generated_name(name)]
 
     if hidden_params:
-        func.__kwdefaults__ = {param: value for param, value in hidden_params}
+        # merge: replacing __kwdefaults__ would erase the function's own
+        # keyword-only defaults
+        merged = {**getattr(func, "__kwdefaults__", {})}
+        merged.update(dict(hidden_params))
+        func.__kwdefaults__ = merged
 
     linecache.cache[filename] = (len(source), None, source.splitlines(True), filename)
 

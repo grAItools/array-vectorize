@@ -36,7 +36,7 @@ def _vectorize_strict(
     info = extract_function(func)
     validate(info)
     lowered = lower_function(info, helper_vectorizer=_vectorize_helper)
-    program = optimize(lowered.program, user_names=info.user_names)
+    program = optimize(lowered.program, user_names=info.user_names | lowered.emitted_names)
     if protect:
         program = protect_domains(program)
     source = generate_source(lowered, program)

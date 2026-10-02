@@ -57,7 +57,7 @@ def _reject(name: str, message: str) -> NoReturn:
     raise VectorizationError(f"cannot vectorize {name!r}: {message}")
 
 
-def _find_target(tree: ast.Module, name: str) -> _AstFunction:
+def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
     for stmt in tree.body:
         if isinstance(stmt, ast.AsyncFunctionDef):
             _reject(name, "async functions are not supported")
@@ -73,11 +73,32 @@ def _find_target(tree: ast.Module, name: str) -> _AstFunction:
         if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Lambda):
             return stmt.value
     # A lambda passed directly, e.g. vectorize(lambda x: x + 1): its source
-    # line contains the lambda nested in an expression. Take the first one.
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Lambda):
-            return node
-    _reject(name, "could not locate the function definition in its source")
+    # line contains the lambda nested in an expression. When several lambdas
+    # share the line, identify the right one by comparing compiled bytecode
+    # with the target's code object.
+    candidates = [n for n in ast.walk(tree) if isinstance(n, ast.Lambda)]
+    if not candidates:
+        _reject(name, "could not locate the function definition in its source")
+    if len(candidates) == 1:
+        return candidates[0]
+    line = getattr(target, "__code__", None)
+    if line is not None:
+        same_line = [n for n in candidates if n.lineno == line.co_firstlineno]
+        for node in same_line or candidates:
+            try:
+                probe = compile(ast.Expression(node), "<lambda-probe>", "eval")
+            except SyntaxError:
+                continue
+            # the expression wraps the lambda in MAKE_FUNCTION; the lambda's
+            # own code object is nested in the probe's constants
+            inner = next((c for c in probe.co_consts if isinstance(c, types.CodeType)), None)
+            if (
+                inner is not None
+                and inner.co_code == line.co_code
+                and inner.co_consts == line.co_consts
+            ):
+                return node
+    return candidates[0]
 
 
 def _check_default(param: str, node: ast.expr) -> int | float | bool:
@@ -177,7 +198,7 @@ def extract_function(func: Callable[..., Any]) -> FunctionInfo:
     except OSError:
         filename = "<unknown>"
 
-    tree = _find_target(ast.parse(textwrap.dedent(raw)), name)
+    tree = _find_target(ast.parse(textwrap.dedent(raw)), name, target)
     params = _params_of(tree, name)
     docstring = ast.get_docstring(tree) if isinstance(tree, ast.FunctionDef) else None
 
