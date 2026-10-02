@@ -159,8 +159,11 @@ Program(params, bindings, result)            # single return value in M1
   to `x` emits `x`, reassignment binds `x_1`, etc.
 - **SSA naming**: on rebind pick `x_N` with the smallest free N; skip names already
   used by the user (`x` and `x_1` can both be user names). Reserved names
-  `{'xp', 'array_namespace'}`: a user variable with a reserved base name is mangled
-  with a trailing underscore (`xp` → `xp_`, `xp_1`, …) — only in that rare case.
+  `{'array_namespace', 'hasattr'}` (not renameable in generated code): a user variable
+  with a reserved base name is mangled with a trailing underscore. The namespace
+  variable itself is NOT reserved: if the user has any `xp` name, the generated
+  namespace variable renames itself (`xp_1`, `xp_2`, …), so a parameter named `xp`
+  keeps its name and keyword calls keep working.
 - **is_bool lattice** (for and/or/ternary lowering, §7 D2): `Compare`, `Not`,
   `Logical`, bool `Literal`, `isnan/isinf/isfinite` calls → bool; everything else →
   non-bool.
