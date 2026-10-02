@@ -183,7 +183,13 @@ def test_loop_over_closure_array() -> None:
 
 
 def test_loop_dce_drops_dead_body_bindings() -> None:
-    body = "    s = 0.0\n    for i in range(3):\n        dead = x * 100.0\n        s = s + x\n    return s"
+    body = (
+        "    s = 0.0\n"
+        "    for i in range(3):\n"
+        "        dead = x * 100.0\n"
+        "        s = s + x\n"
+        "    return s"
+    )
     vec = vectorize(make_fn(body))
     # the original source in the docstring mentions 'dead' once; the code must not
     assert vec.source.count("dead") == 1
