@@ -14,7 +14,6 @@ from ._ir import (
     Call,
     Compare,
     DType,
-    DTypeOf,
     FuncCall,
     Literal,
     Logical,
@@ -175,8 +174,6 @@ def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
     """Rebuild ``node`` with ``fn`` applied to each rewritten child."""
     if isinstance(node, Literal | Ref | DType):
         return node
-    if isinstance(node, DTypeOf):
-        return DTypeOf(fn(node.value))
     if isinstance(node, BinOp):
         return BinOp(node.op, fn(node.left), fn(node.right))
     if isinstance(node, UnaryOp):
@@ -197,8 +194,6 @@ def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
 def _children(node: Node) -> tuple[Node, ...]:
     if isinstance(node, Literal | Ref | DType):
         return ()
-    if isinstance(node, DTypeOf):
-        return (node.value,)
     if isinstance(node, BinOp):
         return (node.left, node.right)
     if isinstance(node, UnaryOp):

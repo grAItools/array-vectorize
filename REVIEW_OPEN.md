@@ -1,66 +1,54 @@
-# Open review findings — round 4 (reviewer agent 94e52ea7, reviewed commit f3b6b12)
+# Open review findings — round 5 (reviewer agent 94e52ea7, reviewed commit 348606c)
 
-STATUS: all round-4 findings fixed; round-5 request sent. Fix summary:
+STATUS: all round-5 findings fixed; round-6 request sent. Fix summary:
 
-1. CRITICAL float64 intify loses integer precision / breaks `&` — FIXED.
-   intify now casts to int64 for pure bools (exact integer semantics,
-   downstream `&` stays integer, large-int sums exact); float64 only for
-   loop-carried names whose kind union includes float (`_float_mixed`),
-   where int64 would truncate the float iterations. Bool literals intify
-   to int literals.
-   Tests: test_bool_plus_large_int_exact, test_bool_arith_then_bitwise.
+1. CRITICAL min/max literal truncation/overflow — FIXED. The DTypeOf
+   sibling-matching is replaced by a runtime promotion helper
+   `_vec_common_dtype(xp, *args)` injected into every generated module:
+   it computes the common dtype with Python semantics (mixed int/float
+   -> float; ints widen to fit: int8 -> int16 -> int32 -> int64), and
+   every min/max argument is cast to it. A float bound widens the common
+   dtype instead of truncating (min(x, 1.5) at int input -> 1.5); an int
+   bound widens narrow sibling dtypes instead of overflowing
+   (max(x, 300) at int8 -> 300).
+   Tests: test_min_float_literal_int_input, test_max_literal_int8_no_overflow.
 
-2. CRITICAL two-pass cap misses chained kind propagation — FIXED. The
-   loop body is re-lowered to a FIXED POINT: per-name labels only widen
-   (int/float -> bool), so at most len(carried) widenings; the pass bound
-   is len(carried) + 2 and the loop stops when computed labels equal the
-   previous pass's. Also fixed the root cause that made mixes invisible:
-   `_numeric_kind` now infers BinOp kinds (int/bool + float -> float,
-   arithmetic over ints stays int, true division -> float) and UnaryOp
-   neg/pos kinds.
-   Tests: test_chained_loop_kind_mixing (your 4-iteration chain),
-   test_float_bool_loop_mix_keeps_float_values.
+2. CRITICAL compound min/max siblings — FIXED. The helper receives ALL
+   non-literal arguments (compound expressions included), so the common
+   dtype is computed from the computed values themselves; big-int
+   literals stay exact (CSE dedupes the repeated subexpressions).
+   Tests: test_min_compound_sibling_exact_big_int.
 
-3. CRITICAL min/max literal rounding with unknown sibling kind — FIXED.
-   Literal args dtype-match their Ref sibling at RUNTIME via a new
-   DTypeOf IR node: `minimum(x, astype(asarray(3), x.dtype))` (astype
-   takes dtype positionally; DTypeOf codegens to `<value>.dtype`, with
-   asarray-wrapping for possibly-scalar siblings). Exact for any integer
-   width; no float64 rounding; strict promotion satisfied.
-   Tests: test_min_literal_exact_large_int,
-   test_min_literal_strict_int_input,
-   test_min_literal_strict_float_default_param.
+3. CRITICAL float-mix lost through assignments — FIXED (and simplified
+   away). `_float_mixed` static tracking is REMOVED entirely: the intify
+   now casts the bool operand to the sibling's RUNTIME dtype via the
+   same `_vec_common_dtype` helper, so loop-mixed operands (int in one
+   iteration, float in another, bool in another) are cast to whatever
+   dtype they actually have — never truncated.
+   Tests: test_float_mixed_propagates_through_assignment.
 
-4. MAJOR preamble asarray(int default) broke scalar promotion — FIXED by
-   reverting the param preamble. Operators keep raw scalars (scalar
-   promotion works on every backend); scalars are handled only at xp.*
-   call sites.
-   Tests: test_int_default_scalar_promotion_strict.
+4. CRITICAL true-division kind inference — FIXED. `_numeric_kind` now
+   returns 'float' for ANY true division (Python int / int -> float),
+   so `b = x / 2.0` records float in the loop-kind union.
+   Tests: test_true_division_loop_mix_keeps_float.
 
-5. MAJOR computed local scalars / loop-index expressions — FIXED.
-   `_scalar_names` tracks names whose runtime value may be a raw Python
-   scalar (parameters, loop variables, literal bindings, and locals
-   computed from them); the sanitizer asarray-wraps possibly-scalar Refs
-   and compound expressions containing them (plus astype float64 for
-   math calls).
-   Tests: test_computed_local_scalar_math_strict,
-   test_loop_index_math_expression_strict.
+5. CRITICAL bool bitwise classified int — FIXED. Bitwise and/or/xor of
+   two bool-kind operands is 'bool' (Python bool & bool is bool); int
+   involvement stays int.
+   Tests: test_bool_bitwise_stays_bool, test_bool_bitwise_or_xor_stay_bool.
 
-6. MAJOR protect_domains forward refs to loop-body bindings — FIXED. The
-   rewrite-time availability set (`ahead`) now includes every name bound
-   anywhere inside a loop body (recursively), not just the loop index, so
-   a clamp can never reference a binding created inside a later loop.
-   Tests: test_protect_domains_loop_body_binding_guard.
+6. MAJOR bool + float-array on strict — FIXED by the same runtime-dtype
+   intify: `(x > 0) + x` casts the bool to x's actual dtype (float64),
+   so the operation stays single-dtype (strict rejects int64/float64
+   array promotion). Works for float arrays, int arrays, literals (the
+   helper widens to fit), and bool siblings (int8, exact for True+True).
+   Tests: test_bool_plus_float_strict, test_bool_plus_float_literal_strict.
 
-7. MAJOR all-literal min/max kept Ref nodes — FIXED. The all-literal path
-   substitutes the actual Literal nodes (walrus-filtered), so
-   const-folding fires and nothing reaches codegen as raw scalars.
-   Tests: test_all_literal_minmax_refs_fold.
+7. MAJOR scalar tracking through loop phis — FIXED. Loop phis inherit
+   `_scalar_names` from their pre-loop binding (a raw scalar stays a raw
+   scalar on zero-trip loops), so call-site sanitization wraps it.
+   Tests: test_scalar_phi_strict.
 
-8. MAJOR verify crashed on constant-return functions — FIXED. verify_match
-   broadcasts scalar / 0-d results to the input shape before comparing.
-   Tests: test_verify_constant_return.
-
-Round-4 regressions: tests/test_review_round4.py (13 tests). make check
-green: 497 tests, ruff + mypy strict clean, 95% branch coverage. Fuzzer
+Round-5 regressions: tests/test_review_round5.py (11 tests). make check
+green: 508 tests, ruff + mypy strict clean, 95% branch coverage. Fuzzer
 clean on seeds 42/7/123/999/2024. Goldens regenerated.

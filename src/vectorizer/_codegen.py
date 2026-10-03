@@ -16,7 +16,6 @@ from ._ir import (
     Call,
     Compare,
     DType,
-    DTypeOf,
     FuncCall,
     Literal,
     Logical,
@@ -91,8 +90,6 @@ def _gen_expr(node: Node, ns: str) -> ast.expr:
         return _load(node.name)
     if isinstance(node, DType):
         return _xp_attr(ns, node.name)
-    if isinstance(node, DTypeOf):
-        return ast.Attribute(value=_gen_expr(node.value, ns), attr="dtype", ctx=ast.Load())
     if isinstance(node, BinOp):
         if node.op in _BINOP_AST:
             return ast.BinOp(

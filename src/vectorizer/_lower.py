@@ -28,7 +28,6 @@ from ._ir import (
     Call,
     Compare,
     DType,
-    DTypeOf,
     FuncCall,
     Literal,
     Logical,
@@ -140,10 +139,9 @@ class _Lowerer:
         #: Operators promote scalars fine; xp.* function arguments do not
         #: (strict backends reject plain scalars), so call sites wrap these.
         self._scalar_names: set[str] = set()
-        #: loop-carried names whose kind union across iterations includes
-        #: float: arithmetic on them must intify to float64 (an int64 cast
-        #: would truncate the float iterations)
-        self._float_mixed: set[str] = set()
+        #: the generated namespace variable ('xp' unless taken); set by
+        #: lower_function before lowering starts
+        self.ns_var: str = "xp"
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -451,32 +449,34 @@ class _Lowerer:
             self.definite[var] = loop_carried_name
             phi_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
             self.name_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
+            # the phi feeds the pre-loop value on zero-trip loops: a raw
+            # scalar stays a raw scalar, so track that for call sites
+            if pre_name in self._scalar_names or pre_name in self.name_literals:
+                self._scalar_names.add(loop_carried_name)
 
         phi_end = len(self.bindings)
 
         def union_labels(
             frame: dict[str, set[str | None]],
-        ) -> tuple[dict[str, str | None], list[str], set[str]]:
+        ) -> tuple[dict[str, str | None], list[str]]:
             """Per carried name: the final kind (union of the phi kind and
-            all body-assignment kinds), the names whose kinds MIX across
-            iterations, and the mixed names whose union includes float."""
+            all body-assignment kinds) and the names whose kinds MIX across
+            iterations."""
             labels: dict[str, str | None] = {}
             mixed: list[str] = []
-            mixed_float: set[str] = set()
             for loop_carried_name in carried.values():
                 kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
                 unique = {k for k in kinds if k is not None}
                 if (None in kinds and unique) or len(unique) > 1:
                     # mixed (or unknown-mixed) kinds across iterations:
                     # label 'bool' so exact-arithmetic intify kicks in at
-                    # uses inside the body
+                    # uses inside the body (the intify casts to the sibling
+                    # operand's runtime dtype, so no truncation is possible)
                     labels[loop_carried_name] = "bool"
                     mixed.append(loop_carried_name)
-                    if "float" in unique:
-                        mixed_float.add(loop_carried_name)
                 else:
                     labels[loop_carried_name] = unique.pop() if unique else None
-            return labels, mixed, mixed_float
+            return labels, mixed
 
         # The body is lowered repeatedly until per-name kinds reach a fixed
         # point. A carried variable's kind can mix across iterations (int
@@ -513,8 +513,7 @@ class _Lowerer:
                 frame = self._carried_assign_kinds.pop()
             if result is not None:  # pragma: no cover - returns rejected in bodies
                 raise self.error(stmt, "returns inside loop bodies are not supported")
-            labels, mixed, mixed_float = union_labels(frame)
-            self._float_mixed.update(mixed_float)
+            labels, mixed = union_labels(frame)
             if labels == prev_labels or not mixed or attempt == max_passes - 1:
                 break
             # restore the pre-body state and re-lower with the widened
@@ -719,20 +718,36 @@ class _Lowerer:
                     lit for a in args if (lit := self._literal_value(a)) is not None
                 ]
             else:
-                # literals must MATCH the dtype of their array siblings
-                # (strict backends reject mixed-dtype array promotion, and a
-                # parameter's dtype is only known at call time): dtype-match
-                # through the sanitized Ref sibling at runtime
-                sibling = next(
-                    (a for a in args if isinstance(a, Ref) and self._literal_value(a) is None),
-                    None,
-                )
-                dtype_of = (
-                    DTypeOf(self._sanitize_xp_arg(sibling, force_float=False))
-                    if sibling is not None
-                    else None
-                )
-                clean = [self._sanitize_minmax_arg(a, dtype_of=dtype_of) for a in args]
+                # strict backends reject mixed-dtype array promotion, and a
+                # parameter's dtype is only known at call time. Cast every
+                # argument to a common dtype computed at RUNTIME by the
+                # injected _vec_common_dtype helper (bare-name FuncCall):
+                # Python semantics promote mixed int/float to float and
+                # widen ints to fit (no truncation of float bounds, no
+                # overflow of int bounds), while strict backends reject
+                # cross-kind xp.result_type outright
+                sanitized_mm = {
+                    id(a): self._sanitize_xp_arg(a, force_float=False)
+                    for a in args
+                    if self._literal_value(a) is None
+                }
+                helper_args: list[Node] = [Ref(self.ns_var)]
+                for a in args:
+                    lit = self._literal_value(a)
+                    if lit is None:
+                        helper_args.append(sanitized_mm[id(a)])
+                    else:
+                        helper_args.append(lit)
+                common = FuncCall("_vec_common_dtype", tuple(helper_args))
+
+                def minmax_arg(a: Node) -> Node:
+                    if id(a) in sanitized_mm:
+                        return Call("astype", (sanitized_mm[id(a)], common))
+                    mm_lit = self._literal_value(a)
+                    assert mm_lit is not None
+                    return Call("astype", (Call("asarray", (mm_lit,)), common))
+
+                clean = [minmax_arg(a) for a in args]
             folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
             for arg in clean[2:]:
                 folded = Call(BUILTIN_FOLDS[name], (folded, arg))
@@ -741,19 +756,6 @@ class _Lowerer:
             self._check_arity(node, name, args, 1, 1)
             return self._cast_call(args[0], BUILTIN_CASTS[name])
         raise self.error(node, f"unsupported function {name!r}")
-
-    def _sanitize_minmax_arg(self, arg: Node, *, dtype_of: Node | None) -> Node:
-        """min/max argument sanitization: literal args become arrays
-        dtype-matched to their Ref sibling at runtime (``astype(asarray(lit),
-        sibling.dtype)`` — exact for any integer width); without a Ref
-        sibling, literals fall back to float64. Non-literal args pass
-        through the soft sanitizer."""
-        lit = self._literal_value(arg)
-        if lit is not None:
-            if dtype_of is not None:
-                return Call("astype", (Call("asarray", (lit,)), dtype_of))
-            return Call("asarray", (Literal(float(lit.value), "float"),))
-        return self._sanitize_xp_arg(arg, force_float=False)
 
     def _cast_call(self, arg: Node, dtype: str) -> Node:
         """int()/float()/bool()/math.trunc-style casts: fold literal args
@@ -812,11 +814,18 @@ class _Lowerer:
             return "bool"
         if isinstance(node, BinOp):
             # scalar promotion rules: int/bool + float -> float; arithmetic
-            # over ints/bools stays int; true division is always float
+            # over ints/bools stays int; true division is ALWAYS float in
+            # Python (int / int -> float), whatever the operand kinds
             lk, rk = self._numeric_kind(node.left), self._numeric_kind(node.right)
             if node.op == "div":
+                return "float"
+            if node.op in ("and", "or", "xor"):
+                # bitwise: Python bool & bool is bool (saturating array bool
+                # arithmetic would otherwise lose exactness downstream)
+                if lk == "bool" and rk == "bool":
+                    return "bool"
                 if lk in ("int", "bool") and rk in ("int", "bool"):
-                    return "float"
+                    return "int"
                 return None
             if "float" in (lk, rk):
                 return "float"
@@ -847,28 +856,31 @@ class _Lowerer:
             "bool" in (self._numeric_kind(left), self._numeric_kind(right))
         ):
             if self._numeric_kind(left) == "bool":
-                left = self._intify(left)
+                left = self._intify(left, other=right)
             if self._numeric_kind(right) == "bool":
-                right = self._intify(right)
+                right = self._intify(right, other=left)
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
             # Cast provably-int bases so the common literal case matches.
             left = self._as_float_arg(left)
         return BinOp(_BINOPS[type(op)], left, right)
 
-    def _intify(self, arg: Node) -> Node:
+    def _intify(self, arg: Node, other: Node | None = None) -> Node:
         """Make boolean arithmetic exact and backend-safe: Python's
         True + True is 2, but array backends saturate bool arithmetic (or
-        reject it, like strict backends). int64 keeps exact INTEGER
-        semantics for pure bools (downstream integer ops like ``&`` stay
-        integer, and large-int sums do not round); float64 is used only for
-        loop-carried names whose kinds mix with float, where an int64 cast
-        would truncate the float iterations."""
+        reject it, like strict backends). With a sibling operand, the bool
+        is cast to the sibling's RUNTIME dtype (via _vec_common_dtype):
+        exact for bools (0/1 fit any dtype the sibling has), keeps the
+        operation single-dtype (strict backends reject mixed-dtype array
+        promotion), and no-ops for loop-carried operands that are already
+        numeric in that iteration. Without a sibling (unary negation),
+        int64: exact integer semantics for pure bools."""
         if isinstance(arg, Literal):
             return Literal(int(arg.value), "int")
-        float_safe = isinstance(arg, Ref) and arg.name in self._float_mixed
-        dtype = "float64" if float_safe else "int64"
-        return Call("astype", (Call("asarray", (arg,)), DType(dtype)))
+        if other is not None:
+            dt = FuncCall("_vec_common_dtype", (Ref(self.ns_var), other))
+            return Call("astype", (Call("asarray", (arg,)), dt))
+        return Call("astype", (Call("asarray", (arg,)), DType("int64")))
 
     def _literal_value(self, arg: Node) -> Literal | None:
         """The literal behind an arg: directly, or via a literal binding."""
@@ -893,7 +905,7 @@ class _Lowerer:
                 return True
             if isinstance(n, Ref):
                 return is_scalar_name(n.name)
-            if isinstance(n, DType | DTypeOf):
+            if isinstance(n, DType):
                 return False
             return any(walk(c) for c in _children(n))
 
@@ -973,6 +985,7 @@ def lower_function(
     # can never collide with it
     ns = "xp" if lowerer.ssa.is_free("xp") else lowerer.ssa.bind("xp", force_suffix=True)
     lowerer.ssa.reserve(ns)
+    lowerer.ns_var = ns
     param_names = [lowerer.ssa.bind(p.name) for p in info.params]
     # after params take their names, block the caller's own generated name so
     # a same-named helper must pick a different name (emitted-only: user
