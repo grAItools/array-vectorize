@@ -145,21 +145,27 @@ def test_math_constants() -> None:
 def test_builtins() -> None:
     assert lower("    return abs(x)").result == Call("abs", (Call("asarray", (Ref("x"),)),))
     assert lower("    return round(x)").result == Call("round", (Call("asarray", (Ref("x"),)),))
-    _common_xy = FuncCall(
-        "_vec_common_dtype",
-        (Ref("xp"), Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),))),
+    _mm_dt_xy = FuncCall(
+        "_vec_minmax_dtype",
+        (
+            Ref("xp"),
+            Literal(True, "bool"),
+            Call("asarray", (Ref("x"),)),
+            Call("asarray", (Ref("y"),)),
+        ),
     )
     assert lower("    return min(x, y)").result == Call(
         "minimum",
         (
-            Call("astype", (Call("asarray", (Ref("x"),)), _common_xy)),
-            Call("astype", (Call("asarray", (Ref("y"),)), _common_xy)),
+            Call("astype", (Call("asarray", (Ref("x"),)), _mm_dt_xy)),
+            Call("astype", (Call("asarray", (Ref("y"),)), _mm_dt_xy)),
         ),
     )
-    _common_xyf = FuncCall(
-        "_vec_common_dtype",
+    _mm_dt_xyf = FuncCall(
+        "_vec_minmax_dtype",
         (
             Ref("xp"),
+            Literal(False, "bool"),
             Call("asarray", (Ref("x"),)),
             Call("asarray", (Ref("y"),)),
             Literal(2.0, "float"),
@@ -171,13 +177,19 @@ def test_builtins() -> None:
             Call(
                 "maximum",
                 (
-                    Call("astype", (Call("asarray", (Ref("x"),)), _common_xyf)),
-                    Call("astype", (Call("asarray", (Ref("y"),)), _common_xyf)),
+                    Call("astype", (Call("asarray", (Ref("x"),)), _mm_dt_xyf)),
+                    Call("astype", (Call("asarray", (Ref("y"),)), _mm_dt_xyf)),
                 ),
             ),
-            Call(
-                "astype",
-                (Call("asarray", (Literal(2.0, "float"),)), _common_xyf),
+            FuncCall(
+                "_vec_minmax_lit",
+                (
+                    Ref("xp"),
+                    Literal(False, "bool"),
+                    Literal(2.0, "float"),
+                    Call("asarray", (Ref("x"),)),
+                    Call("asarray", (Ref("y"),)),
+                ),
             ),
         ),
     )

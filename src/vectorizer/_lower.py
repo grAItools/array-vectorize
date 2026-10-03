@@ -43,7 +43,7 @@ from ._ir import (
     is_bool,
 )
 from ._optimize import _children
-from ._runtime import _vec_arith_dtype, _vec_common_dtype
+from ._runtime import _vec_arith_dtype, _vec_minmax_dtype, _vec_minmax_lit
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -145,7 +145,8 @@ class _Lowerer:
         self.ns_var: str = "xp"
         #: allocated names of the runtime dtype promotion helpers (set by
         #: lower_function; collision-free against user names)
-        self.common_dtype_name = "_vec_common_dtype"
+        self.minmax_dtype_name = "_vec_minmax_dtype"
+        self.minmax_lit_name = "_vec_minmax_lit"
         self.arith_dtype_name = "_vec_arith_dtype"
         self.assigned_names: set[str] = {
             t.id
@@ -724,33 +725,37 @@ class _Lowerer:
                 ]
             else:
                 # strict backends reject mixed-dtype array promotion, and a
-                # parameter's dtype is only known at call time. Cast every
-                # argument to a common dtype computed at RUNTIME by the
-                # injected _vec_common_dtype helper (bare-name FuncCall):
-                # Python semantics promote mixed int/float to float and
-                # widen ints to fit (no truncation of float bounds, no
-                # overflow of int bounds), while strict backends reject
-                # cross-kind xp.result_type outright
+                # parameter's dtype is only known at call time. Array
+                # arguments are cast to a common dtype computed at RUNTIME
+                # (injected _vec_minmax_dtype helper), and literal bounds
+                # become arrays through the injected _vec_minmax_lit helper:
+                # exact-fit, clamped when the bound can never win (max with
+                # a negative bound on unsigned values), or promoted — never
+                # truncated or overflowed
+                is_min = BUILTIN_FOLDS[name] == "minimum"
                 sanitized_mm = {
                     id(a): self._sanitize_xp_arg(a, force_float=False)
                     for a in args
                     if self._literal_value(a) is None
                 }
-                helper_args: list[Node] = [Ref(self.ns_var)]
+                helper_args: list[Node] = [Ref(self.ns_var), Literal(is_min, "bool")]
                 for a in args:
                     lit = self._literal_value(a)
                     if lit is None:
                         helper_args.append(sanitized_mm[id(a)])
                     else:
                         helper_args.append(lit)
-                common = FuncCall(self.common_dtype_name, tuple(helper_args))
+                common = FuncCall(self.minmax_dtype_name, tuple(helper_args))
 
                 def minmax_arg(a: Node) -> Node:
                     if id(a) in sanitized_mm:
                         return Call("astype", (sanitized_mm[id(a)], common))
                     mm_lit = self._literal_value(a)
                     assert mm_lit is not None
-                    return Call("astype", (Call("asarray", (mm_lit,)), common))
+                    return FuncCall(
+                        self.minmax_lit_name,
+                        (Ref(self.ns_var), Literal(is_min, "bool"), mm_lit, *sanitized_mm.values()),
+                    )
 
                 clean = [minmax_arg(a) for a in args]
             folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
@@ -992,7 +997,8 @@ def lower_function(
     # so a user parameter named like a helper cannot shadow it (bare-name
     # calls would resolve to the parameter instead of the global)
     for attr, base, fn in (
-        ("common_dtype_name", "_vec_common_dtype", _vec_common_dtype),
+        ("minmax_dtype_name", "_vec_minmax_dtype", _vec_minmax_dtype),
+        ("minmax_lit_name", "_vec_minmax_lit", _vec_minmax_lit),
         ("arith_dtype_name", "_vec_arith_dtype", _vec_arith_dtype),
     ):
         helper_name = (

@@ -56,7 +56,9 @@ def _fits_dtype(value: Any, dtype: Any) -> bool:
         return isinstance(value, bool)
     digits = "".join(d for d in name if d.isdigit())
     if "float" in name:
-        code = "d" if not digits or int(digits) >= 64 else "f"
+        code = {16: "e", 32: "f", 64: "d"}.get(int(digits) if digits else 64)
+        if code is None:
+            return False  # exotic float width: promote instead of risking rounding
         try:
             packed = struct.unpack("<" + code, struct.pack("<" + code, value))[0]
             return bool(packed == value)
@@ -74,25 +76,54 @@ def _fits_dtype(value: Any, dtype: Any) -> bool:
     return bool(-(2 ** (bits - 1)) <= v < 2 ** (bits - 1))
 
 
-def _vec_common_dtype(xp: Any, *args: Any) -> Any:
+def _dtype_bits(dtype: Any) -> int:
+    digits = "".join(d for d in str(dtype) if d.isdigit())
+    return int(digits) if digits else 64
+
+
+def _minmax_bound_kind(lit: Any, is_min: Any, dtype: Any) -> str:
+    """ "fit", "clamp", or "promote" for a literal min/max bound.
+
+    A bound that cannot win is CLAMPED into an unsigned array dtype
+    instead of forcing promotion: max(unsigned, negative) never selects
+    the bound, and min(unsigned, >= 2**bits) never selects it either —
+    replacing it with the dtype's own extreme preserves the exact array
+    values (float64 cannot hold every uint64).
+    """
+    if _fits_dtype(lit, dtype):
+        return "fit"
+    name = str(dtype)
+    # max with a negative bound, or min with a too-large bound
+    if (
+        "uint" in name
+        and isinstance(lit, int)
+        and not isinstance(lit, bool)
+        and ((not is_min and lit < 0) or (is_min and lit >= 2 ** _dtype_bits(dtype)))
+    ):
+        return "clamp"
+    return "promote"
+
+
+def _vec_minmax_dtype(xp: Any, is_min: Any, *args: Any) -> Any:
     """Common dtype for min/max arguments (injected into generated modules).
 
     min/max results are always one of the input values, so no arithmetic
     headroom is needed. Fast path: when every ARRAY argument shares one
-    actual dtype and every raw literal is exactly representable in it,
-    that dtype is used unchanged (keeps uint64 pairs and fitting bounds
-    exact). Slow path: class-based promotion — mixed int/float promotes to
-    float64 (Python semantics), ints widen to the largest width present,
-    uint64 counts as float64 (no signed int holds it). Strict backends
-    additionally require identical array dtypes for
+    actual dtype and every raw literal either fits it exactly or clamps
+    (can never win), that dtype is used unchanged — keeping uint64 pairs
+    and fitting bounds exact. Slow path: class-based promotion — mixed
+    int/float promotes to float64 (Python semantics), ints widen to the
+    largest width present, uint64 counts as float64 (no signed int holds
+    it). Strict backends additionally require identical array dtypes for
     xp.minimum/xp.maximum and reject cross-kind xp.result_type, so the
     common dtype is computed here.
     """
     arrays = [a for a in args if hasattr(a, "dtype")]
+    lits = [a for a in args if not hasattr(a, "dtype")]
     if arrays:
         first_dt = arrays[0].dtype
         if all(a.dtype == first_dt for a in arrays) and all(
-            _fits_dtype(a, first_dt) for a in args if not hasattr(a, "dtype")
+            _minmax_bound_kind(b, is_min, first_dt) != "promote" for b in lits
         ):
             return first_dt
     classes = [_describe_dtype(a) for a in args]
@@ -103,6 +134,27 @@ def _vec_common_dtype(xp: Any, *args: Any) -> Any:
             return xp.float64
         return getattr(xp, f"float{max(w for _, w in classes)}")
     return getattr(xp, f"int{max(w for _, w in classes)}")
+
+
+def _vec_minmax_lit(xp: Any, is_min: Any, lit: Any, *arrays: Any) -> Any:
+    """A literal min/max bound as an array (injected into generated modules).
+
+    Fits the bound into the arrays' shared dtype when exactly
+    representable; clamps a never-winning bound into unsigned dtypes
+    (max with a negative bound -> 0, min with a too-large bound ->
+    uint-max); otherwise casts to the promoted common dtype.
+    """
+    if arrays:
+        dts = {a.dtype for a in arrays}
+        if len(dts) == 1:
+            dt = arrays[0].dtype
+            kind = _minmax_bound_kind(lit, is_min, dt)
+            if kind == "fit":
+                return xp.asarray(lit, dtype=dt)
+            if kind == "clamp":
+                bound = 2 ** _dtype_bits(dt) - 1 if is_min else 0
+                return xp.asarray(bound, dtype=dt)
+    return xp.asarray(lit, dtype=_vec_minmax_dtype(xp, is_min, *arrays, lit))
 
 
 def _vec_arith_dtype(xp: Any, *args: Any) -> Any:
