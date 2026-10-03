@@ -136,25 +136,30 @@ def _vec_minmax_dtype(xp: Any, is_min: Any, *args: Any) -> Any:
     return getattr(xp, f"int{max(w for _, w in classes)}")
 
 
-def _vec_minmax_lit(xp: Any, is_min: Any, lit: Any, *arrays: Any) -> Any:
+def _vec_minmax_lit(xp: Any, is_min: Any, lit: Any, *rest: Any) -> Any:
     """A literal min/max bound as an array (injected into generated modules).
 
-    Fits the bound into the arrays' shared dtype when exactly
-    representable; clamps a never-winning bound into unsigned dtypes
-    (max with a negative bound -> 0, min with a too-large bound ->
-    uint-max); otherwise casts to the promoted common dtype.
+    ``rest`` carries the OTHER arguments (literals and arrays), so the
+    final common dtype accounts for every literal: a fitting bound still
+    casts to float64 when another bound forces promotion. Against the
+    final dtype the bound is cast exactly when representable, clamped
+    when it can never win (max with a negative bound on unsigned values
+    -> 0; min with a too-large bound -> uint-max), else promoted.
     """
-    if arrays:
-        dts = {a.dtype for a in arrays}
-        if len(dts) == 1:
-            dt = arrays[0].dtype
-            kind = _minmax_bound_kind(lit, is_min, dt)
-            if kind == "fit":
-                return xp.asarray(lit, dtype=dt)
-            if kind == "clamp":
-                bound = 2 ** _dtype_bits(dt) - 1 if is_min else 0
-                return xp.asarray(bound, dtype=dt)
-    return xp.asarray(lit, dtype=_vec_minmax_dtype(xp, is_min, *arrays, lit))
+    arrays = [a for a in rest if hasattr(a, "dtype")]
+    other_lits = [a for a in rest if not hasattr(a, "dtype")]
+    common = _vec_minmax_dtype(xp, is_min, lit, *other_lits, *arrays)
+    if _fits_dtype(lit, common):
+        return xp.asarray(lit, dtype=common)
+    if (
+        arrays
+        and len({a.dtype for a in arrays}) == 1
+        and common == arrays[0].dtype
+        and _minmax_bound_kind(lit, is_min, common) == "clamp"
+    ):
+        bound = 2 ** _dtype_bits(common) - 1 if is_min else 0
+        return xp.asarray(bound, dtype=common)
+    return xp.asarray(lit, dtype=common)
 
 
 def _vec_arith_dtype(xp: Any, *args: Any) -> Any:

@@ -752,9 +752,16 @@ class _Lowerer:
                         return Call("astype", (sanitized_mm[id(a)], common))
                     mm_lit = self._literal_value(a)
                     assert mm_lit is not None
+                    # every literal sees ALL arguments: another literal can
+                    # force a wider common dtype than this one fits
                     return FuncCall(
                         self.minmax_lit_name,
-                        (Ref(self.ns_var), Literal(is_min, "bool"), mm_lit, *sanitized_mm.values()),
+                        (
+                            Ref(self.ns_var),
+                            Literal(is_min, "bool"),
+                            mm_lit,
+                            *helper_args[2:],
+                        ),
                     )
 
                 clean = [minmax_arg(a) for a in args]
@@ -890,9 +897,17 @@ class _Lowerer:
         return Call("astype", (Call("asarray", (arg,)), dt))
 
     def _literal_value(self, arg: Node) -> Literal | None:
-        """The literal behind an arg: directly, or via a literal binding."""
+        """The literal behind an arg: directly, as a negated literal
+        (``-1`` lowers to UnaryOp(neg, 1)), or via a literal binding."""
         if isinstance(arg, Literal):
             return arg
+        if (
+            isinstance(arg, UnaryOp)
+            and arg.op == "neg"
+            and isinstance(arg.operand, Literal)
+            and arg.operand.kind in ("int", "float")
+        ):
+            return Literal(-arg.operand.value, arg.operand.kind)
         if isinstance(arg, Ref):
             return self.name_literals.get(arg.name)
         return None

@@ -6,4 +6,4 @@ def minmax_vec(x, y):
     xp = array_namespace(*[a for a in (x, y) if hasattr(a, '__array_namespace__')])
     t_1 = xp.asarray(x)
     t_2 = xp.asarray(y)
-    return xp.minimum(xp.astype(t_1, _vec_minmax_dtype(xp, True, t_1, t_2)), xp.astype(t_2, _vec_minmax_dtype(xp, True, t_1, t_2))) + xp.maximum(xp.maximum(xp.astype(t_1, _vec_minmax_dtype(xp, False, t_1, t_2, 3.0)), xp.astype(t_2, _vec_minmax_dtype(xp, False, t_1, t_2, 3.0))), _vec_minmax_lit(xp, False, 3.0, t_1, t_2))
+    return xp.minimum(xp.astype(t_1, _vec_minmax_dtype(xp, True, t_1, t_2)), xp.astype(t_2, _vec_minmax_dtype(xp, True, t_1, t_2))) + xp.maximum(xp.maximum(xp.astype(t_1, _vec_minmax_dtype(xp, False, t_1, t_2, 3.0)), xp.astype(t_2, _vec_minmax_dtype(xp, False, t_1, t_2, 3.0))), _vec_minmax_lit(xp, False, 3.0, t_1, t_2, 3.0))

@@ -54,14 +54,15 @@ def test_max_uint64_negative_bound_exact() -> None:
     # cannot hold 9223372036854775809 exactly)
     vec = vectorize(make_fn("    return max(x, -1)"))
     got = vec(np.asarray([2**63 + 1], dtype=np.uint64))
-    assert got[0] == 9223372036854775809
+    # exact comparison via Python int (numpy scalar == rounds floats)
+    assert int(got[0]) == 9223372036854775809
 
 
 def test_min_uint64_negative_bound_literal_wins() -> None:
     # min selects the negative bound: it must survive exactly
     vec = vectorize(make_fn("    return min(x, -1)"))
     got = vec(np.asarray([2**63 + 1], dtype=np.uint64))
-    assert got[0] == -1
+    assert int(got[0]) == -1
 
 
 # clamp follow-ups for narrow unsigned dtypes

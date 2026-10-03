@@ -189,6 +189,7 @@ def test_builtins() -> None:
                     Literal(2.0, "float"),
                     Call("asarray", (Ref("x"),)),
                     Call("asarray", (Ref("y"),)),
+                    Literal(2.0, "float"),
                 ),
             ),
         ),
