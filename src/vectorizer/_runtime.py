@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import linecache
+import struct
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -44,20 +45,57 @@ def _describe_dtype(value: Any) -> tuple[bool, int]:
     return is_float, width
 
 
+def _fits_dtype(value: Any, dtype: Any) -> bool:
+    """True when a raw Python scalar is EXACTLY representable in ``dtype``.
+
+    Floats are checked by an IEEE round trip at the dtype's width (float32
+    cannot hold 16777217); ints by range; bools only in bool dtypes.
+    """
+    name = str(dtype)
+    if "bool" in name:
+        return isinstance(value, bool)
+    digits = "".join(d for d in name if d.isdigit())
+    if "float" in name:
+        code = "d" if not digits or int(digits) >= 64 else "f"
+        try:
+            packed = struct.unpack("<" + code, struct.pack("<" + code, value))[0]
+            return bool(packed == value)
+        except (OverflowError, ValueError, struct.error):
+            return False
+    try:
+        v = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if v != value:  # e.g. a float literal for an int dtype
+        return False
+    bits = int(digits) if digits else 64
+    if "uint" in name:
+        return bool(0 <= v < 2**bits)
+    return bool(-(2 ** (bits - 1)) <= v < 2 ** (bits - 1))
+
+
 def _vec_common_dtype(xp: Any, *args: Any) -> Any:
     """Common dtype for min/max arguments (injected into generated modules).
 
     min/max results are always one of the input values, so no arithmetic
-    headroom is needed: identical argument dtypes pass through unchanged,
-    mixed int/float promotes to float64 (Python semantics), and ints widen
-    to the largest width present. Strict backends additionally require
-    identical array dtypes for xp.minimum/xp.maximum and reject cross-kind
-    xp.result_type, so the common dtype is computed here.
+    headroom is needed. Fast path: when every ARRAY argument shares one
+    actual dtype and every raw literal is exactly representable in it,
+    that dtype is used unchanged (keeps uint64 pairs and fitting bounds
+    exact). Slow path: class-based promotion — mixed int/float promotes to
+    float64 (Python semantics), ints widen to the largest width present,
+    uint64 counts as float64 (no signed int holds it). Strict backends
+    additionally require identical array dtypes for
+    xp.minimum/xp.maximum and reject cross-kind xp.result_type, so the
+    common dtype is computed here.
     """
+    arrays = [a for a in args if hasattr(a, "dtype")]
+    if arrays:
+        first_dt = arrays[0].dtype
+        if all(a.dtype == first_dt for a in arrays) and all(
+            _fits_dtype(a, first_dt) for a in args if not hasattr(a, "dtype")
+        ):
+            return first_dt
     classes = [_describe_dtype(a) for a in args]
-    first = next((a for a in args if hasattr(a, "dtype")), None)
-    if first is not None and all(c == classes[0] for c in classes):
-        return first.dtype
     has_float = any(f for f, _ in classes)
     has_int = any(not f for f, _ in classes)
     if has_float:
