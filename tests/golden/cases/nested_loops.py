@@ -8,12 +8,11 @@ def nested_loops_vec(x):
             s = s + x
     return s"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
-    x = xp.asarray(x)
     s = 0.0
     s_1 = s
     for i in range(0, 3):
-        s_3 = s_1
-        for j_1 in range(0, 2):
-            s_3 = xp.astype(xp.asarray(s_3), xp.float64) + x
-            s_1 = s_3
+        s_2 = s_1
+        for j in range(0, 2):
+            s_2 = s_2 + x
+            s_1 = s_2
     return s_1

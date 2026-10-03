@@ -14,6 +14,7 @@ from ._ir import (
     Call,
     Compare,
     DType,
+    DTypeOf,
     FuncCall,
     Literal,
     Logical,
@@ -174,6 +175,8 @@ def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
     """Rebuild ``node`` with ``fn`` applied to each rewritten child."""
     if isinstance(node, Literal | Ref | DType):
         return node
+    if isinstance(node, DTypeOf):
+        return DTypeOf(fn(node.value))
     if isinstance(node, BinOp):
         return BinOp(node.op, fn(node.left), fn(node.right))
     if isinstance(node, UnaryOp):
@@ -194,6 +197,8 @@ def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
 def _children(node: Node) -> tuple[Node, ...]:
     if isinstance(node, Literal | Ref | DType):
         return ()
+    if isinstance(node, DTypeOf):
+        return (node.value,)
     if isinstance(node, BinOp):
         return (node.left, node.right)
     if isinstance(node, UnaryOp):
@@ -587,7 +592,21 @@ def protect_domains(program: Program) -> Program:
         for inner in stmt.body:
             if isinstance(inner, Binding):
                 mark_fully_live(inner.expr)
+        # everything bound inside the loop (recursively) is not yet
+        # assigned where statements BEFORE the loop run — loop-body
+        # bindings count as forward references just like the index
         ahead.add(stmt.var)
+
+        def collect_bound(st: Stmt) -> None:
+            if isinstance(st, Binding):
+                ahead.add(st.name)
+            else:
+                ahead.add(st.var)
+                for inner in st.body:
+                    collect_bound(inner)
+
+        for inner in stmt.body:
+            collect_bound(inner)
         return stmt
 
     new_result = rewrite(program.result, None)

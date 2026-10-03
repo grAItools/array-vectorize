@@ -1,85 +1,66 @@
-# Open review findings — round 3 (reviewer agent 94e52ea7, reviewed commit baf7137)
+# Open review findings — round 4 (reviewer agent 94e52ea7, reviewed commit f3b6b12)
 
-STATUS: all round-3 findings fixed; awaiting round-4 verdict. Fix summary:
+STATUS: all round-4 findings fixed; round-5 request sent. Fix summary:
 
-1. CRITICAL literal facts across loops — FIXED. `lower_for` pops
-   `name_literals` for every carried name after the loop, and
-   `_sync_loop_carried` pops the loop-name fact on each sync (the phi feeds
-   pre-loop values on zero-trip loops; body assignments feed later
-   iterations).
-   Tests: test_zero_trip_loop_literal_not_substituted,
-   test_executed_loop_literal_not_substituted,
-   test_conditional_loop_literal_not_substituted.
+1. CRITICAL float64 intify loses integer precision / breaks `&` — FIXED.
+   intify now casts to int64 for pure bools (exact integer semantics,
+   downstream `&` stays integer, large-int sums exact); float64 only for
+   loop-carried names whose kind union includes float (`_float_mixed`),
+   where int64 would truncate the float iterations. Bool literals intify
+   to int literals.
+   Tests: test_bool_plus_large_int_exact, test_bool_arith_then_bitwise.
 
-2. CRITICAL numeric-to-bool loop transitions — FIXED. The loop body is now
-   lowered up to twice: if a carried variable's kind mixes across
-   iterations (union of phi kind and body-assignment kinds), the pre-body
-   state is restored and the body re-lowered with the mixed label
-   pre-applied, so uses emit the intify conversion.
-   Tests: test_int_to_bool_loop_transition, test_float_to_bool_loop_transition.
+2. CRITICAL two-pass cap misses chained kind propagation — FIXED. The
+   loop body is re-lowered to a FIXED POINT: per-name labels only widen
+   (int/float -> bool), so at most len(carried) widenings; the pass bound
+   is len(carried) + 2 and the loop stops when computed labels equal the
+   previous pass's. Also fixed the root cause that made mixes invisible:
+   `_numeric_kind` now infers BinOp kinds (int/bool + float -> float,
+   arithmetic over ints stays int, true division -> float) and UnaryOp
+   neg/pos kinds.
+   Tests: test_chained_loop_kind_mixing (your 4-iteration chain),
+   test_float_bool_loop_mix_keeps_float_values.
 
-3. CRITICAL builtin sanitize converts exact ints — FIXED. Split sanitizer:
-   math-table calls force float (matches scalar `math.*` double
-   conversion); polymorphic builtins (abs/round/min/max, casts) keep
-   values exact (literal -> asarray(literal), raw loop-var ints ->
-   asarray). min/max literals adopt the dtype of provably-int siblings
-   (strict backends reject mixed-dtype array promotion); all-literal
-   min/max keep plain literals so const-folding fires.
-   Tests: test_abs_exact_large_int, test_abs_int_bitwise,
-   test_min_max_literal_args_strict, test_minmax_all_literals_fold,
-   test_minmax_loop_var_sibling, test_abs_round_loop_var.
+3. CRITICAL min/max literal rounding with unknown sibling kind — FIXED.
+   Literal args dtype-match their Ref sibling at RUNTIME via a new
+   DTypeOf IR node: `minimum(x, astype(asarray(3), x.dtype))` (astype
+   takes dtype positionally; DTypeOf codegens to `<value>.dtype`, with
+   asarray-wrapping for possibly-scalar siblings). Exact for any integer
+   width; no float64 rounding; strict promotion satisfied.
+   Tests: test_min_literal_exact_large_int,
+   test_min_literal_strict_int_input,
+   test_min_literal_strict_float_default_param.
 
-4. CRITICAL lambda signed-zero merging — FIXED. `_const_key` compares
-   constants with type- and sign-precision (bool/int/float distinguished;
-   zero floats keyed by sign bit; recurses into const tuples), applied to
-   both co_consts and defaults comparisons.
-   Tests: test_lambda_signed_zero_constants,
-   test_lambda_int_vs_bool_vs_float_constants.
+4. MAJOR preamble asarray(int default) broke scalar promotion — FIXED by
+   reverting the param preamble. Operators keep raw scalars (scalar
+   promotion works on every backend); scalars are handled only at xp.*
+   call sites.
+   Tests: test_int_default_scalar_promotion_strict.
 
-5. MAJOR protect_domains forward/self references — FIXED. (a) When
-   recording a Where's uses, names read by the cond are not re-recorded
-   under the narrowed branch ctxs (the cond evaluates everywhere, so the
-   wider ctx subsumes them — this removes self-referential disjuncts like
-   `y > 1` from y's own liveness). (b) At rewrite time, a clamp whose ctx
-   references names not bound at that point (forward or self references)
-   is skipped; the liveness fact is kept for upstream bindings.
-   Tests: test_protect_domains_self_reference_guard,
-   test_protect_domains_forward_reference_guard.
+5. MAJOR computed local scalars / loop-index expressions — FIXED.
+   `_scalar_names` tracks names whose runtime value may be a raw Python
+   scalar (parameters, loop variables, literal bindings, and locals
+   computed from them); the sanitizer asarray-wraps possibly-scalar Refs
+   and compound expressions containing them (plus astype float64 for
+   math calls).
+   Tests: test_computed_local_scalar_math_strict,
+   test_loop_index_math_expression_strict.
 
-6. MAJOR `* 1` bool conversion on strict — FIXED. `_intify` now emits
-   `astype(asarray(arg), float64)`: exact for bools (0/1) and ints up to
-   2**53, no-op for floats, accepted by strict backends (which reject
-   bools in arithmetic). Fires when either operand is bool-typed (covers
-   bool+int mixes that strict backends also reject).
-   Tests: test_bool_arithmetic_strict_backend,
-   test_bool_mixed_arithmetic_strict_backend, test_unary_negate_bool.
+6. MAJOR protect_domains forward refs to loop-body bindings — FIXED. The
+   rewrite-time availability set (`ahead`) now includes every name bound
+   anywhere inside a loop body (recursively), not just the loop index, so
+   a clamp can never reference a binding created inside a later loop.
+   Tests: test_protect_domains_loop_body_binding_guard.
 
-7. MAJOR computed scalar math args — FIXED (root cause). The generated
-   preamble normalizes every parameter with `xp.asarray(param)` after
-   `array_namespace(...)` (arrays pass through; omitted defaults become
-   0-d arrays), so plain scalars can no longer reach xp.* call sites
-   through params or compound expressions.
-   Tests: test_computed_scalar_math_arg_strict,
-   test_preamble_normalizes_scalar_params.
+7. MAJOR all-literal min/max kept Ref nodes — FIXED. The all-literal path
+   substitutes the actual Literal nodes (walrus-filtered), so
+   const-folding fires and nothing reaches codegen as raw scalars.
+   Tests: test_all_literal_minmax_refs_fold.
 
-8. MAJOR scalar args to casts — FIXED. Same preamble normalization plus
-   literal folding in `_cast_call` (int/float/bool casts of literals fold
-   exactly; inf/nan literals fall back to runtime astype).
-   Tests: test_cast_scalar_default_param, test_cast_literal_folds,
-   test_trunc_scalar_default_param.
+8. MAJOR verify crashed on constant-return functions — FIXED. verify_match
+   broadcasts scalar / 0-d results to the input shape before comparing.
+   Tests: test_verify_constant_return.
 
-9. MINOR mypy strict — FIXED. `_clamp_dead` spec annotated, `or_live`
-   rewritten with membership check (no sentinel/ignore), `safe_hi`
-   narrowed with assert. `make check` (ruff + mypy strict + pytest +
-   coverage >= 95%) fully green: 484 tests, 95% branch coverage.
-
-10. Perf gate — ADDRESSED. The test now uses best-of-3 timing and gates
-    primarily on a load-immune comparison (vectorized within 5x of the
-    hand-written array expression — both sides are single numpy passes,
-    so machine load cancels); the >= 10x np.vectorize oracle comparison
-    is kept as a secondary gate and documented as load-sensitive. The
-    reviewer's 3.1x failure was on a loaded machine with the old
-    single-shot timing.
-
-Fuzzer clean on seeds 42/7/123/999/2024 (400 cases each). Goldens
-regenerated for the preamble + sanitizer changes.
+Round-4 regressions: tests/test_review_round4.py (13 tests). make check
+green: 497 tests, ruff + mypy strict clean, 95% branch coverage. Fuzzer
+clean on seeds 42/7/123/999/2024. Goldens regenerated.

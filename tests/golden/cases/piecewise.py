@@ -8,5 +8,4 @@ def piecewise_vec(x):
         return 1.0
     return x"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
-    x = xp.asarray(x)
     return xp.where(x < -1, -1.0, xp.where(x > 1, 1.0, x))

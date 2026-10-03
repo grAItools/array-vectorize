@@ -8,5 +8,4 @@ def nested_early_returns_vec(x):
         return 2.0
     return 3.0"""
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
-    x = xp.asarray(x)
     return xp.where(x > 0, xp.where(x > 10, 1.0, 2.0), 3.0)

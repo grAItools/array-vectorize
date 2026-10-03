@@ -64,11 +64,17 @@ def verify_match(
         got = vec(*example_args)
         broadcast = xp.broadcast_arrays(*arrays)
         shape = broadcast[0].shape
-        if tuple(got.shape) != tuple(shape):
+        # constant-return functions produce a Python scalar or 0-d array;
+        # broadcast it to the input shape so element-wise comparison works
+        got_arr = got if hasattr(got, "shape") else xp.asarray(got)
+        if got_arr.shape == ():
+            got_arr = xp.broadcast_to(got_arr, shape)
+        if tuple(got_arr.shape) != tuple(shape):
             raise VectorizationError(
-                f"verification failed: result shape {tuple(got.shape)} "
+                f"verification failed: result shape {tuple(got_arr.shape)} "
                 f"!= input shape {tuple(shape)}"
             )
+        got = got_arr
         nan = float("nan")
         flat = [xp.reshape(a, (-1,)) for a in broadcast]
         expected_values: list[Any] = []

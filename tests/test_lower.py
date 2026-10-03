@@ -21,6 +21,7 @@ from vectorizer._ir import (
     Call,
     Compare,
     DType,
+    DTypeOf,
     Literal,
     Logical,
     Program,
@@ -98,23 +99,36 @@ def test_unary_ops() -> None:
 
 
 def test_bool_literals_typed() -> None:
-    # bool literal in arithmetic: intified to an exact float (backends
+    # bool literal in arithmetic: intified to an exact int (backends
     # saturate or reject bool arithmetic)
-    assert lower("    return x + True").result == BinOp("add", Ref("x"), Literal(1.0, "float"))
+    assert lower("    return x + True").result == BinOp("add", Ref("x"), Literal(1, "int"))
     assert lower("    return 1.5").result == Literal(1.5, "float")
 
 
 def test_math_attribute_call() -> None:
-    assert lower("    return math.sqrt(x)").result == Call("sqrt", (Ref("x"),))
-    assert lower("    return math.atan2(x, y)").result == Call("atan2", (Ref("x"), Ref("y")))
-    assert lower("    return math.trunc(x)").result == Call("astype", (Ref("x"), DType("int64")))
+    assert lower("    return math.sqrt(x)").result == Call(
+        "sqrt", (Call("astype", (Call("asarray", (Ref("x"),)), DType("float64"))),)
+    )
+    assert lower("    return math.atan2(x, y)").result == Call(
+        "atan2",
+        (
+            Call("astype", (Call("asarray", (Ref("x"),)), DType("float64"))),
+            Call("astype", (Call("asarray", (Ref("y"),)), DType("float64"))),
+        ),
+    )
+    assert lower("    return math.trunc(x)").result == Call(
+        "astype", (Call("asarray", (Ref("x"),)), DType("int64"))
+    )
     assert lower("    return math.pow(x, 2)").result == Call(
-        "pow", (Ref("x"), Literal(2.0, "float"))
+        "pow",
+        (Call("astype", (Call("asarray", (Ref("x"),)), DType("float64"))), Literal(2.0, "float")),
     )
 
 
 def test_from_math_import_call() -> None:
-    assert lower("    return exp(x)").result == Call("exp", (Ref("x"),))
+    assert lower("    return exp(x)").result == Call(
+        "exp", (Call("astype", (Call("asarray", (Ref("x"),)), DType("float64"))),)
+    )
 
 
 def test_math_constants() -> None:
@@ -123,19 +137,33 @@ def test_math_constants() -> None:
 
 
 def test_builtins() -> None:
-    assert lower("    return abs(x)").result == Call("abs", (Ref("x"),))
-    assert lower("    return round(x)").result == Call("round", (Ref("x"),))
-    assert lower("    return min(x, y)").result == Call("minimum", (Ref("x"), Ref("y")))
+    assert lower("    return abs(x)").result == Call("abs", (Call("asarray", (Ref("x"),)),))
+    assert lower("    return round(x)").result == Call("round", (Call("asarray", (Ref("x"),)),))
+    assert lower("    return min(x, y)").result == Call(
+        "minimum", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))
+    )
     assert lower("    return max(x, y, 2.0)").result == Call(
         "maximum",
         (
-            Call("maximum", (Ref("x"), Ref("y"))),
-            Call("asarray", (Literal(2.0, "float"),)),
+            Call("maximum", (Call("asarray", (Ref("x"),)), Call("asarray", (Ref("y"),)))),
+            Call(
+                "astype",
+                (
+                    Call("asarray", (Literal(2.0, "float"),)),
+                    DTypeOf(Call("asarray", (Ref("x"),))),
+                ),
+            ),
         ),
     )
-    assert lower("    return int(x)").result == Call("astype", (Ref("x"), DType("int64")))
-    assert lower("    return float(x)").result == Call("astype", (Ref("x"), DType("float64")))
-    assert lower("    return bool(x)").result == Call("astype", (Ref("x"), DType("bool")))
+    assert lower("    return int(x)").result == Call(
+        "astype", (Call("asarray", (Ref("x"),)), DType("int64"))
+    )
+    assert lower("    return float(x)").result == Call(
+        "astype", (Call("asarray", (Ref("x"),)), DType("float64"))
+    )
+    assert lower("    return bool(x)").result == Call(
+        "astype", (Call("asarray", (Ref("x"),)), DType("bool"))
+    )
 
 
 def test_comparisons_and_chains() -> None:
@@ -325,7 +353,14 @@ def test_early_return_top_level() -> None:
     assert p.result == Where(
         Compare("lt", Ref("x"), Literal(0, "int")),
         Literal(0.0, "float"),
-        BinOp("mul", Ref("x"), Call("exp", (UnaryOp("neg", Ref("x")),))),
+        BinOp(
+            "mul",
+            Ref("x"),
+            Call(
+                "exp",
+                (Call("astype", (Call("asarray", (UnaryOp("neg", Ref("x")),)), DType("float64"))),),
+            ),
+        ),
     )
 
 

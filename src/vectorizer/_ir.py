@@ -133,6 +133,16 @@ class DType:
 
 
 @dataclass(frozen=True)
+class DTypeOf:
+    """``.dtype`` of an array-valued node; ``DTypeOf(Ref('x'))`` codegens
+    to ``x.dtype``. Used to dtype-match literal siblings at runtime
+    (strict backends reject mixed-dtype array promotion, and a
+    parameter's dtype is only known at call time)."""
+
+    value: Node
+
+
+@dataclass(frozen=True)
 class FuncCall:
     """Call to a vectorized helper function by its emitted name (plan D7)."""
 
@@ -140,7 +150,9 @@ class FuncCall:
     args: tuple[Node, ...]
 
 
-Node = Literal | Ref | BinOp | UnaryOp | Compare | Logical | Where | Call | DType | FuncCall
+Node = (
+    Literal | Ref | BinOp | UnaryOp | Compare | Logical | Where | Call | DType | DTypeOf | FuncCall
+)
 
 
 @dataclass(frozen=True)

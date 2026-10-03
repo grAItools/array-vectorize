@@ -8,7 +8,4 @@ def clamp_vec(x, lo=0.0, hi=1.0):
         return hi
     return x"""
     xp = array_namespace(*[a for a in (x, lo, hi) if hasattr(a, '__array_namespace__')])
-    x = xp.asarray(x)
-    lo = xp.asarray(lo)
-    hi = xp.asarray(hi)
     return xp.where(x < lo, lo, xp.where(x > hi, hi, x))

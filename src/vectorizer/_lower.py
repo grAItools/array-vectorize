@@ -28,6 +28,7 @@ from ._ir import (
     Call,
     Compare,
     DType,
+    DTypeOf,
     FuncCall,
     Literal,
     Logical,
@@ -42,6 +43,7 @@ from ._ir import (
     generated_name,
     is_bool,
 )
+from ._optimize import _children
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -132,6 +134,16 @@ class _Lowerer:
         #: A carried variable's runtime kind is the union of its phi kind and
         #: every body assignment; mixed kinds need conservative handling.
         self._carried_assign_kinds: list[dict[str, set[str | None]]] = []
+        #: emitted names whose runtime value may be a raw Python scalar:
+        #: parameters (omitted defaults), loop variables (raw ints per
+        #: iteration), literal bindings, and locals computed from them.
+        #: Operators promote scalars fine; xp.* function arguments do not
+        #: (strict backends reject plain scalars), so call sites wrap these.
+        self._scalar_names: set[str] = set()
+        #: loop-carried names whose kind union across iterations includes
+        #: float: arithmetic on them must intify to float64 (an int64 cast
+        #: would truncate the float iterations)
+        self._float_mixed: set[str] = set()
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -250,6 +262,10 @@ class _Lowerer:
             self.name_literals[name] = value
         else:
             self.name_literals.pop(name, None)
+        if self._possibly_scalar(value):
+            self._scalar_names.add(name)
+        else:
+            self._scalar_names.discard(name)
         if self.active_carried:
             for carried, _depth in self.active_carried:
                 if var in carried:
@@ -440,12 +456,13 @@ class _Lowerer:
 
         def union_labels(
             frame: dict[str, set[str | None]],
-        ) -> tuple[dict[str, str | None], list[str]]:
+        ) -> tuple[dict[str, str | None], list[str], set[str]]:
             """Per carried name: the final kind (union of the phi kind and
-            all body-assignment kinds), plus the names whose kinds MIX
-            across iterations."""
+            all body-assignment kinds), the names whose kinds MIX across
+            iterations, and the mixed names whose union includes float."""
             labels: dict[str, str | None] = {}
             mixed: list[str] = []
+            mixed_float: set[str] = set()
             for loop_carried_name in carried.values():
                 kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
                 unique = {k for k in kinds if k is not None}
@@ -455,16 +472,23 @@ class _Lowerer:
                     # uses inside the body
                     labels[loop_carried_name] = "bool"
                     mixed.append(loop_carried_name)
+                    if "float" in unique:
+                        mixed_float.add(loop_carried_name)
                 else:
                     labels[loop_carried_name] = unique.pop() if unique else None
-            return labels, mixed
+            return labels, mixed, mixed_float
 
-        # The body is lowered up to twice. If a carried variable's kind
-        # mixes across iterations (int entry, bool body assignment, ...),
-        # the first pass emitted uses with the entry kind only; re-lower
-        # with the mixed labels pre-applied so those uses intify.
+        # The body is lowered repeatedly until per-name kinds reach a fixed
+        # point. A carried variable's kind can mix across iterations (int
+        # entry, bool body assignment, ...), and the mixing can propagate
+        # through assignment chains (a = b; b = c; c = x > 0), so one pass
+        # cannot see every name that needs the intify conversion. Labels
+        # only ever WIDEN (int/float -> bool), so at most len(carried)
+        # widenings can happen; bound the passes at len(carried) + 2.
         labels: dict[str, str | None] = {}
-        for attempt in range(2):
+        prev_labels: dict[str, str | None] | None = None
+        max_passes = len(carried) + 2
+        for attempt in range(max_passes):
             pre_body = (
                 dict(self.definite),
                 set(self.maybe),
@@ -478,6 +502,7 @@ class _Lowerer:
             self.active_carried.append((dict(carried), self.branch_depth))
             self.definite[loop_var] = loop_name
             self.name_kinds.setdefault(loop_name, "int")  # loop vars are Python ints
+            self._scalar_names.add(loop_name)  # raw Python ints per iteration
             self.maybe.discard(loop_var)
             try:
                 result = self.lower_stmts(stmt.body, loop_body=True)
@@ -488,16 +513,18 @@ class _Lowerer:
                 frame = self._carried_assign_kinds.pop()
             if result is not None:  # pragma: no cover - returns rejected in bodies
                 raise self.error(stmt, "returns inside loop bodies are not supported")
-            labels, mixed = union_labels(frame)
-            if not mixed or attempt == 1:
+            labels, mixed, mixed_float = union_labels(frame)
+            self._float_mixed.update(mixed_float)
+            if labels == prev_labels or not mixed or attempt == max_passes - 1:
                 break
-            # restore the pre-body state and re-lower with mixed labels
+            # restore the pre-body state and re-lower with the widened
+            # labels pre-applied
+            prev_labels = labels
             (definite, maybe, deferred, name_kinds, name_literals) = pre_body
             del self.bindings[phi_end:]
             self.definite, self.maybe, self.deferred = definite, maybe, deferred
             self.name_kinds, self.name_literals = name_kinds, name_literals
-            for mixed_name in mixed:
-                self.name_kinds[mixed_name] = "bool"
+            self.name_kinds.update(labels)
         for loop_carried_name, kind in labels.items():
             self.name_kinds[loop_carried_name] = kind
         # literal facts are invalid across the loop boundary: the phi feeds
@@ -684,20 +711,28 @@ class _Lowerer:
         if name in BUILTIN_FOLDS:
             if len(args) < 2:
                 raise self.error(node, f"{name}() needs at least 2 arguments in vectorized code")
-            # min/max literals must MATCH the dtype of their array siblings
-            # (strict backends reject mixed-dtype array-array promotion), so
-            # a literal adopts int64 only when a sibling is provably
-            # int/bool; otherwise float64 (values are exact either way).
-            # All-literal calls keep plain literals so const-folding fires.
             if all(self._literal_value(a) is not None for a in args):
-                clean = list(args)
+                # all-literal call: substitute the actual literals so
+                # const-folding fires (Ref nodes would block it and reach
+                # codegen as raw Python scalars)
+                clean: list[Node] = [
+                    lit for a in args if (lit := self._literal_value(a)) is not None
+                ]
             else:
-                sibling_int = any(
-                    self._numeric_kind(a) in ("int", "bool")
-                    for a in args
-                    if self._literal_value(a) is None
+                # literals must MATCH the dtype of their array siblings
+                # (strict backends reject mixed-dtype array promotion, and a
+                # parameter's dtype is only known at call time): dtype-match
+                # through the sanitized Ref sibling at runtime
+                sibling = next(
+                    (a for a in args if isinstance(a, Ref) and self._literal_value(a) is None),
+                    None,
                 )
-                clean = [self._sanitize_minmax_arg(a, prefer_int=sibling_int) for a in args]
+                dtype_of = (
+                    DTypeOf(self._sanitize_xp_arg(sibling, force_float=False))
+                    if sibling is not None
+                    else None
+                )
+                clean = [self._sanitize_minmax_arg(a, dtype_of=dtype_of) for a in args]
             folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
             for arg in clean[2:]:
                 folded = Call(BUILTIN_FOLDS[name], (folded, arg))
@@ -707,21 +742,18 @@ class _Lowerer:
             return self._cast_call(args[0], BUILTIN_CASTS[name])
         raise self.error(node, f"unsupported function {name!r}")
 
-    def _sanitize_minmax_arg(self, arg: Node, *, prefer_int: bool) -> Node:
-        """min/max argument sanitization: literal args become arrays whose
-        dtype matches provably-int siblings (strict backends reject
-        mixed-dtype promotion between arrays); everything else passes
-        through unchanged (params are preamble-normalized, loop variables
-        are handled by the int/bool kind branch below)."""
+    def _sanitize_minmax_arg(self, arg: Node, *, dtype_of: Node | None) -> Node:
+        """min/max argument sanitization: literal args become arrays
+        dtype-matched to their Ref sibling at runtime (``astype(asarray(lit),
+        sibling.dtype)`` — exact for any integer width); without a Ref
+        sibling, literals fall back to float64. Non-literal args pass
+        through the soft sanitizer."""
         lit = self._literal_value(arg)
         if lit is not None:
-            if prefer_int:
-                return Call("asarray", (lit,))
+            if dtype_of is not None:
+                return Call("astype", (Call("asarray", (lit,)), dtype_of))
             return Call("asarray", (Literal(float(lit.value), "float"),))
-        kind = self._numeric_kind(arg)
-        if kind in ("int", "bool"):
-            return Call("asarray", (arg,))
-        return arg
+        return self._sanitize_xp_arg(arg, force_float=False)
 
     def _cast_call(self, arg: Node, dtype: str) -> Node:
         """int()/float()/bool()/math.trunc-style casts: fold literal args
@@ -765,8 +797,8 @@ class _Lowerer:
         )
 
     def _numeric_kind(self, node: Node) -> str | None:
-        """Best-effort numeric kind: literals, casts, bools, and Refs whose
-        binding kind was recorded are provable."""
+        """Best-effort numeric kind: literals, casts, bools, arithmetic, and
+        Refs whose binding kind was recorded are provable."""
         if isinstance(node, Literal):
             return node.kind
         if isinstance(node, Ref):
@@ -778,6 +810,21 @@ class _Lowerer:
             return kt if kt == ke else None
         if is_bool(node):
             return "bool"
+        if isinstance(node, BinOp):
+            # scalar promotion rules: int/bool + float -> float; arithmetic
+            # over ints/bools stays int; true division is always float
+            lk, rk = self._numeric_kind(node.left), self._numeric_kind(node.right)
+            if node.op == "div":
+                if lk in ("int", "bool") and rk in ("int", "bool"):
+                    return "float"
+                return None
+            if "float" in (lk, rk):
+                return "float"
+            if lk in ("int", "bool") and rk in ("int", "bool"):
+                return "int"
+            return None
+        if isinstance(node, UnaryOp) and node.op in ("neg", "pos"):
+            return self._numeric_kind(node.operand)
         if (
             isinstance(node, Call)
             and node.fn == "astype"
@@ -812,14 +859,16 @@ class _Lowerer:
     def _intify(self, arg: Node) -> Node:
         """Make boolean arithmetic exact and backend-safe: Python's
         True + True is 2, but array backends saturate bool arithmetic (or
-        reject it, like strict backends). ``astype(asarray(arg), float64)``
-        converts bools to exact 0/1 floats, passes ints through exactly up
-        to 2**53, and is a no-op for floats — unlike an int64 cast, which
-        would truncate floats, and unlike ``* 1``, which strict backends
-        reject for boolean arrays."""
+        reject it, like strict backends). int64 keeps exact INTEGER
+        semantics for pure bools (downstream integer ops like ``&`` stay
+        integer, and large-int sums do not round); float64 is used only for
+        loop-carried names whose kinds mix with float, where an int64 cast
+        would truncate the float iterations."""
         if isinstance(arg, Literal):
-            return Literal(float(arg.value), "float")
-        return Call("astype", (Call("asarray", (arg,)), DType("float64")))
+            return Literal(int(arg.value), "int")
+        float_safe = isinstance(arg, Ref) and arg.name in self._float_mixed
+        dtype = "float64" if float_safe else "int64"
+        return Call("astype", (Call("asarray", (arg,)), DType(dtype)))
 
     def _literal_value(self, arg: Node) -> Literal | None:
         """The literal behind an arg: directly, or via a literal binding."""
@@ -829,21 +878,42 @@ class _Lowerer:
             return self.name_literals.get(arg.name)
         return None
 
+    def _possibly_scalar(self, node: Node) -> bool:
+        """True when the node's runtime value may be a raw Python scalar:
+        it is a literal, a possibly-scalar name (parameter default, loop
+        variable, literal binding), or an expression computed from one.
+        Operators promote such scalars fine; xp.* function arguments do
+        not (strict backends reject plain scalars)."""
+
+        def is_scalar_name(name: str) -> bool:
+            return name in self._scalar_names or name in self.name_literals
+
+        def walk(n: Node) -> bool:
+            if isinstance(n, Literal):
+                return True
+            if isinstance(n, Ref):
+                return is_scalar_name(n.name)
+            if isinstance(n, DType | DTypeOf):
+                return False
+            return any(walk(c) for c in _children(n))
+
+        return walk(node)
+
     def _sanitize_xp_arg(self, arg: Node, *, force_float: bool) -> Node:
         """Make an argument safe for xp.* calls.
 
-        Parameters are normalized to arrays in the generated preamble, so
-        plain scalars only reach call sites as literals or as the raw Python
-        ints a ``for`` loop variable takes per iteration.
+        Operators promote raw Python scalars fine, but xp.* function
+        arguments must be arrays (strict backends reject plain scalars) —
+        and elementwise math requires floating-point arrays on every
+        backend.
 
-        ``force_float`` (math functions): scalar semantics convert to double,
-        so literals become float literals (const-folded away) and provably
-        int/bool args are cast to float64 — every backend's elementwise math
-        requires floating-point arrays.
+        ``force_float`` (math functions): scalar semantics convert to
+        double, so literals become float literals (const-folded away) and
+        provably int/bool or possibly-scalar args are cast to float64.
 
-        Otherwise (polymorphic builtins such as abs/min/max and dtype casts):
-        keep values exact — literals and raw loop-variable ints are wrapped
-        in asarray (a no-op for arrays), with no dtype conversion.
+        Otherwise (polymorphic builtins such as abs/min/max and dtype
+        casts): keep values exact — literals and possibly-scalar args are
+        wrapped in asarray, with no dtype conversion.
         """
         lit = self._literal_value(arg)
         if lit is not None:
@@ -851,7 +921,7 @@ class _Lowerer:
                 return Literal(float(lit.value), "float")
             return Call("asarray", (lit,))
         kind = self._numeric_kind(arg)
-        if kind in ("int", "bool"):
+        if kind in ("int", "bool") or self._possibly_scalar(arg):
             if force_float:
                 return Call("astype", (Call("asarray", (arg,)), DType("float64")))
             return Call("asarray", (arg,))
@@ -910,6 +980,9 @@ def lower_function(
     lowerer.ssa.emitted.add(generated_name(info.name))
     for param, emitted in zip(info.params, param_names, strict=True):
         lowerer.definite[param.name] = emitted
+        # parameters can arrive as raw scalars (omitted defaults); operators
+        # promote them, xp.* call sites wrap them (see _sanitize_xp_arg)
+        lowerer._scalar_names.add(emitted)
     hidden: list[tuple[str, Any]] = []
     for var, array in info.closure_arrays.items():
         emitted = lowerer.ssa.bind(var)

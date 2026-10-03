@@ -16,6 +16,7 @@ from ._ir import (
     Call,
     Compare,
     DType,
+    DTypeOf,
     FuncCall,
     Literal,
     Logical,
@@ -90,6 +91,8 @@ def _gen_expr(node: Node, ns: str) -> ast.expr:
         return _load(node.name)
     if isinstance(node, DType):
         return _xp_attr(ns, node.name)
+    if isinstance(node, DTypeOf):
+        return ast.Attribute(value=_gen_expr(node.value, ns), attr="dtype", ctx=ast.Load())
     if isinstance(node, BinOp):
         if node.op in _BINOP_AST:
             return ast.BinOp(
@@ -225,19 +228,6 @@ def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
     )
 
 
-def _param_normalization(ns: str, param_names: list[str]) -> list[ast.stmt]:
-    # x = xp.asarray(x) — arrays pass through unchanged; raw Python scalars
-    # (e.g. omitted parameter defaults) become 0-d arrays so every xp.*
-    # call accepts them (strict backends reject plain scalars)
-    return [
-        ast.Assign(
-            targets=[ast.Name(id=p, ctx=ast.Store())],
-            value=_xp_call(ns, "asarray", [_load(p)]),
-        )
-        for p in param_names
-    ]
-
-
 def generate_source(lowered: LoweredFunction, program: Program) -> str:
     """Generate the vectorized function source (plan §9)."""
     func_name = generated_name(lowered.name)
@@ -247,7 +237,6 @@ def generate_source(lowered: LoweredFunction, program: Program) -> str:
     body: list[ast.stmt] = [
         ast.Expr(value=ast.Constant(value=lowered.source)),  # original source, verbatim
         _namespace_line(ns, all_params),
-        *_param_normalization(ns, lowered.param_names),
     ]
     for stmt in program.bindings:
         body.append(_gen_stmt(stmt, ns))

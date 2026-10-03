@@ -4,6 +4,6 @@ def minmax_vec(x, y):
     """def minmax(x, y):
     return min(x, y) + max(x, y, 3.0)"""
     xp = array_namespace(*[a for a in (x, y) if hasattr(a, '__array_namespace__')])
-    x = xp.asarray(x)
-    y = xp.asarray(y)
-    return xp.minimum(x, y) + xp.maximum(xp.maximum(x, y), xp.asarray(3.0))
+    t_1 = xp.asarray(x)
+    t_2 = xp.asarray(y)
+    return xp.minimum(t_1, t_2) + xp.maximum(xp.maximum(t_1, t_2), xp.astype(xp.asarray(3.0), t_1.dtype))
