@@ -43,6 +43,7 @@ from ._ir import (
     is_bool,
 )
 from ._optimize import _children
+from ._runtime import _vec_arith_dtype, _vec_common_dtype
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -142,6 +143,10 @@ class _Lowerer:
         #: the generated namespace variable ('xp' unless taken); set by
         #: lower_function before lowering starts
         self.ns_var: str = "xp"
+        #: allocated names of the runtime dtype promotion helpers (set by
+        #: lower_function; collision-free against user names)
+        self.common_dtype_name = "_vec_common_dtype"
+        self.arith_dtype_name = "_vec_arith_dtype"
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -738,7 +743,7 @@ class _Lowerer:
                         helper_args.append(sanitized_mm[id(a)])
                     else:
                         helper_args.append(lit)
-                common = FuncCall("_vec_common_dtype", tuple(helper_args))
+                common = FuncCall(self.common_dtype_name, tuple(helper_args))
 
                 def minmax_arg(a: Node) -> Node:
                     if id(a) in sanitized_mm:
@@ -855,32 +860,29 @@ class _Lowerer:
         if isinstance(op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod) and (
             "bool" in (self._numeric_kind(left), self._numeric_kind(right))
         ):
-            if self._numeric_kind(left) == "bool":
-                left = self._intify(left, other=right)
-            if self._numeric_kind(right) == "bool":
-                right = self._intify(right, other=left)
+            # cast BOTH operands to the runtime common dtype: bools need a
+            # numeric representation, strict backends require a single
+            # dtype, and a loop-mixed operand must keep its actual dtype
+            # (never truncated). The helper sees both operands, so int
+            # siblings get int64 headroom and float siblings keep floats.
+            dt = FuncCall(self.arith_dtype_name, (Ref(self.ns_var), left, right))
+            left = Call("astype", (Call("asarray", (left,)), dt))
+            right = Call("astype", (Call("asarray", (right,)), dt))
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
             # Cast provably-int bases so the common literal case matches.
             left = self._as_float_arg(left)
         return BinOp(_BINOPS[type(op)], left, right)
 
-    def _intify(self, arg: Node, other: Node | None = None) -> Node:
-        """Make boolean arithmetic exact and backend-safe: Python's
-        True + True is 2, but array backends saturate bool arithmetic (or
-        reject it, like strict backends). With a sibling operand, the bool
-        is cast to the sibling's RUNTIME dtype (via _vec_common_dtype):
-        exact for bools (0/1 fit any dtype the sibling has), keeps the
-        operation single-dtype (strict backends reject mixed-dtype array
-        promotion), and no-ops for loop-carried operands that are already
-        numeric in that iteration. Without a sibling (unary negation),
-        int64: exact integer semantics for pure bools."""
+    def _intify(self, arg: Node) -> Node:
+        """Make unary boolean arithmetic exact and backend-safe: Python's
+        -True is -1, but array backends cannot negate bool arrays. The
+        cast targets the operand's RUNTIME dtype (via _vec_arith_dtype):
+        a no-op for numeric loop-mixed operands, int64 for bools."""
         if isinstance(arg, Literal):
             return Literal(int(arg.value), "int")
-        if other is not None:
-            dt = FuncCall("_vec_common_dtype", (Ref(self.ns_var), other))
-            return Call("astype", (Call("asarray", (arg,)), dt))
-        return Call("astype", (Call("asarray", (arg,)), DType("int64")))
+        dt = FuncCall(self.arith_dtype_name, (Ref(self.ns_var), arg))
+        return Call("astype", (Call("asarray", (arg,)), dt))
 
     def _literal_value(self, arg: Node) -> Literal | None:
         """The literal behind an arg: directly, or via a literal binding."""
@@ -986,6 +988,19 @@ def lower_function(
     ns = "xp" if lowerer.ssa.is_free("xp") else lowerer.ssa.bind("xp", force_suffix=True)
     lowerer.ssa.reserve(ns)
     lowerer.ns_var = ns
+    # runtime dtype promotion helpers: allocated through the shared SSA env
+    # so a user parameter named like a helper cannot shadow it (bare-name
+    # calls would resolve to the parameter instead of the global)
+    for attr, base, fn in (
+        ("common_dtype_name", "_vec_common_dtype", _vec_common_dtype),
+        ("arith_dtype_name", "_vec_arith_dtype", _vec_arith_dtype),
+    ):
+        helper_name = (
+            base if lowerer.ssa.is_free(base) else lowerer.ssa.bind(base, force_suffix=True)
+        )
+        lowerer.ssa.reserve(helper_name)
+        setattr(lowerer, attr, helper_name)
+        lowerer.helpers.append((helper_name, fn))
     param_names = [lowerer.ssa.bind(p.name) for p in info.params]
     # after params take their names, block the caller's own generated name so
     # a same-named helper must pick a different name (emitted-only: user

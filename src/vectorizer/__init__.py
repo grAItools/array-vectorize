@@ -21,7 +21,7 @@ __version__ = "0.1.0"
 __all__ = ["VectorizationError", "get_source", "vectorize"]
 
 #: memoized vectorized helpers, keyed by the original function object (D7)
-_HELPER_CACHE: dict[Callable[..., Any], Callable[..., Any]] = {}
+_HELPER_CACHE: dict[tuple[Callable[..., Any], bool], Callable[..., Any]] = {}
 #: functions currently being vectorized (recursion detection)
 _ACTIVE_HELPERS: set[Callable[..., Any]] = set()
 
@@ -53,8 +53,11 @@ def _vectorize_strict(
 
 
 def _vectorize_helper(callee: Callable[..., Any], *, protect: bool = False) -> Callable[..., Any]:
-    if callee in _HELPER_CACHE:
-        return _HELPER_CACHE[callee]
+    # keyed by (function, protect_domains): a protected compilation must
+    # not reuse an unprotected helper compiled earlier (and vice versa)
+    key = (callee, protect)
+    if key in _HELPER_CACHE:
+        return _HELPER_CACHE[key]
     if callee in _ACTIVE_HELPERS:
         raise VectorizationError(
             f"cannot vectorize {callee.__name__!r}: recursive helper calls are not supported"
@@ -64,7 +67,7 @@ def _vectorize_helper(callee: Callable[..., Any], *, protect: bool = False) -> C
         vec = _vectorize_strict(callee, protect=protect)
     finally:
         _ACTIVE_HELPERS.discard(callee)
-    _HELPER_CACHE[callee] = vec
+    _HELPER_CACHE[key] = vec
     return vec
 
 

@@ -99,9 +99,15 @@ def test_unary_ops() -> None:
 
 
 def test_bool_literals_typed() -> None:
-    # bool literal in arithmetic: intified to an exact int (backends
+    # bool literal in arithmetic: both operands are cast to the runtime
+    # common dtype (bools need a numeric representation; backends
     # saturate or reject bool arithmetic)
-    assert lower("    return x + True").result == BinOp("add", Ref("x"), Literal(1, "int"))
+    dt = FuncCall("_vec_arith_dtype", (Ref("xp"), Ref("x"), Literal(True, "bool")))
+    assert lower("    return x + True").result == BinOp(
+        "add",
+        Call("astype", (Call("asarray", (Ref("x"),)), dt)),
+        Call("astype", (Call("asarray", (Literal(True, "bool"),)), dt)),
+    )
     assert lower("    return 1.5").result == Literal(1.5, "float")
 
 

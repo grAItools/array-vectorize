@@ -7,4 +7,5 @@ def casts_vec(x):
     t_1 = xp.asarray(x)
     t_2 = xp.astype(t_1, xp.int64)
     t_3 = xp.astype(t_1, xp.float64)
-    return t_2 + t_3 + xp.astype(xp.asarray(xp.astype(t_1, xp.bool)), _vec_common_dtype(xp, t_2 + t_3)) + t_2
+    t_4 = xp.astype(t_1, xp.bool)
+    return xp.astype(xp.asarray(t_2 + t_3), _vec_arith_dtype(xp, t_2 + t_3, t_4)) + xp.astype(xp.asarray(t_4), _vec_arith_dtype(xp, t_2 + t_3, t_4)) + t_2
