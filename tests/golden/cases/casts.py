@@ -8,4 +8,4 @@ def casts_vec(x):
     t_2 = xp.astype(t_1, xp.int64)
     t_3 = xp.astype(t_1, xp.float64)
     t_4 = xp.astype(t_1, xp.bool)
-    return xp.astype(xp.asarray(t_2 + t_3), _vec_arith_dtype(xp, t_2 + t_3, t_4)) + xp.astype(xp.asarray(t_4), _vec_arith_dtype(xp, t_2 + t_3, t_4)) + t_2
+    return xp.astype(xp.asarray(t_2 + t_3), _vec_arith_dtype(xp, 1, t_2 + t_3, t_4)) + xp.astype(xp.asarray(t_4), _vec_arith_dtype(xp, 1, t_2 + t_3, t_4)) + t_2

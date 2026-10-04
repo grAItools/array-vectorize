@@ -1,27 +1,32 @@
-# Open review findings — round 15 (reviewer agent 94e52ea7, reviewed commit 1c0ad0b)
+# Open review findings — round 16 (reviewer agent 94e52ea7, reviewed commit c2b7ba0)
 
-STATUS: both round-15 findings fixed; round-16 request sent. Fix
-summary:
+STATUS: the round-16 finding fixed; round-17 request sent. Fix summary:
 
-1. CRITICAL negative integer operands triggered lossy uint64
-   conversion — FIXED. The uint64-preservation branch of
-   `_vec_arith_dtype` now accepts ANY int literal (not only
-   non-negative): modular uint64 arithmetic is exact whenever the true
-   result is in [0, 2**64) — (2**63 + 3) + (-2) -> 2**63 + 1 exactly —
-   and results outside that range are unrepresentable in any dtype.
-   Signed ARRAYS still route through the promotion paths (per-lane
-   mixed-sign results have no common dtype).
-   Tests: test_uint64_negative_literal_arithmetic_exact.
+1. CRITICAL modular uint64 casting was applied to remainder and
+   division — FIXED. `_vec_arith_dtype` now receives the OPERATOR (as a
+   stable int id indexing _ARITH_OPS; generated code passes an int
+   literal) and applies the uint64-preservation only where modular
+   arithmetic preserves semantics:
+   - add/sub/mul: any int literal (modular wrap is exact while the true
+     result is in [0, 2**64) — all any dtype can hold);
+   - floordiv/mod: only non-negative literals (negative divisors change
+     floor/mod semantics: -2 % 3 == 1 and 3 // -2 == -2, so those take
+     the lattice path, which promotes u64 to float64 and computes
+     exactly for these cases);
+   - true division and negation: never the uint64 path (results can be
+     negative or float) — the operands are cast to float64, which also
+     fixes the strict-backend rejection of integer true division.
+   Repros: -2 % a -> 1; a // -2 -> -2; a / -2 -> -1.5 on numpy AND
+   array_api_strict; a // 2 and a % 2 keep the exact modular uint64
+   path for non-negative divisors; a + -2 stays modular-exact.
+   Tests: test_uint64_mod_negative_divisor,
+   test_uint64_floordiv_negative_divisor,
+   test_uint64_truediv_negative_divisor,
+   test_uint64_truediv_negative_divisor_strict,
+   test_uint64_floordiv_mod_positive_keep_uint64,
+   test_uint64_add_negative_literal_still_modular.
 
-2. CRITICAL bitwise expressions lost maybe-boolean tracking — FIXED.
-   `_maybe_bool_result` handles bitwise BinOps (and/or/xor): bitwise
-   expressions preserve boolean-ness (arithmetic results are already
-   intified and numeric, so they are correctly excluded).
-   `a = min(x, True); b = a & True; b + b` -> [2, 0].
-   Tests: test_bitwise_maybe_bool_arithmetic,
-   test_bitwise_maybe_bool_or, test_bitwise_maybe_bool_strict,
-   test_arithmetic_maybe_bool_result_not_maybe_bool.
-
-Round-15 regressions: tests/test_review_round15.py (5 tests). make
-check green: 581 tests, ruff + mypy strict clean, 95% branch coverage.
-Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged.
+Round-16 regressions: tests/test_review_round16.py (6 tests). make
+check green: 587 tests, ruff + mypy strict clean, 95% branch coverage.
+Fuzzer clean on seeds 42/7/123/999/2024. Goldens regenerated (the
+arith helper calls now carry the operator id).

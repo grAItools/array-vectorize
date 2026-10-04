@@ -236,36 +236,53 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
     return fold([xp.asarray(a, dtype=dt) for a in args])
 
 
-def _vec_arith_dtype(xp: Any, *args: Any) -> Any:
+#: operator names accepted by _vec_arith_dtype, mapped to stable ids
+#: (generated code passes the id as an int literal)
+_ARITH_OPS = ("neg", "add", "sub", "mul", "div", "floordiv", "mod")
+
+
+def _vec_arith_dtype(xp: Any, op_id: Any, *args: Any) -> Any:
     """Common dtype for bool-intified arithmetic (injected into generated
-    modules).
+    modules). ``op_id`` indexes _ARITH_OPS ('add', 'sub', 'mul', 'div',
+    'floordiv', 'mod', 'neg').
 
     Python integers are unbounded, so int-class operands get int64
     headroom (True + True chains must not wrap); float operands keep their
     dtype (bools are exact in any of them); mixed int/float promotes to
-    float64, matching Python's int + float -> float. Exception: uint64
-    values fit no signed int and round through float64, so when no real
-    float is involved and every other operand is an unsigned/boolean
-    array or an int literal, the target stays uint64: modular uint64
-    arithmetic is exact whenever the true result is in [0, 2**64), and
-    results outside that range are unrepresentable in any case.
+    float64, matching Python's int + float -> float.
+
+    uint64 exception (no real float involved): uint64 values fit no
+    signed int and round through float64, so the target stays uint64
+    when every other operand is an unsigned/boolean array or an int
+    literal — BUT only where modular arithmetic preserves semantics:
+    add/sub/mul accept any int literal (exact while the true result is
+    in [0, 2**64), which is all any dtype can hold); floordiv/mod accept
+    only non-negative literals (negative divisors change floor/mod
+    semantics); true division and negation never take the uint64 path
+    (their results can be negative or float), so the lattice promotes
+    them to float64.
     """
+    op = _ARITH_OPS[op_id] if isinstance(op_id, int) else op_id
     has_real_float = any(
         hasattr(a, "dtype") and ("float" in str(a.dtype) or "complex" in str(a.dtype)) for a in args
     ) or any(isinstance(a, float) for a in args)
-    if (
-        not has_real_float
-        and any(
-            hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64
-            for a in args
-        )
-        and all(
-            (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
-            or isinstance(a, bool | int)
-            for a in args
-        )
+    if not has_real_float and any(
+        hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64 for a in args
     ):
-        return xp.uint64
+        if op in ("add", "sub", "mul"):
+            if all(
+                (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
+                or isinstance(a, bool | int)
+                for a in args
+            ):
+                return xp.uint64
+        elif op in ("floordiv", "mod") and all(
+            (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
+            or isinstance(a, bool)
+            or (isinstance(a, int) and a >= 0)
+            for a in args
+        ):
+            return xp.uint64
     classes = [_describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)
     has_int = any(not f for f, _ in classes)

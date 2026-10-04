@@ -43,7 +43,7 @@ from ._ir import (
     is_bool,
 )
 from ._optimize import _children
-from ._runtime import _vec_arith_dtype, _vec_minmax
+from ._runtime import _ARITH_OPS, _vec_arith_dtype, _vec_minmax
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -881,9 +881,15 @@ class _Lowerer:
             # cast BOTH operands to the runtime common dtype: bools need a
             # numeric representation, strict backends require a single
             # dtype, and a loop-mixed operand must keep its actual dtype
-            # (never truncated). The helper sees both operands, so int
-            # siblings get int64 headroom and float siblings keep floats.
-            dt = FuncCall(self.arith_dtype_name, (Ref(self.ns_var), left, right))
+            # (never truncated). The helper sees the operator and both
+            # operands, so int siblings get int64 headroom, float siblings
+            # keep floats, and the uint64 preservation respects the
+            # operator's semantics (modular only for add/sub/mul).
+            ir_op = _BINOPS[type(op)]
+            dt = FuncCall(
+                self.arith_dtype_name,
+                (Ref(self.ns_var), Literal(_ARITH_OPS.index(ir_op), "int"), left, right),
+            )
             left = Call("astype", (Call("asarray", (left,)), dt))
             right = Call("astype", (Call("asarray", (right,)), dt))
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
@@ -899,7 +905,9 @@ class _Lowerer:
         a no-op for numeric loop-mixed operands, int64 for bools."""
         if isinstance(arg, Literal):
             return Literal(int(arg.value), "int")
-        dt = FuncCall(self.arith_dtype_name, (Ref(self.ns_var), arg))
+        dt = FuncCall(
+            self.arith_dtype_name, (Ref(self.ns_var), Literal(_ARITH_OPS.index("neg"), "int"), arg)
+        )
         return Call("astype", (Call("asarray", (arg,)), dt))
 
     def _literal_value(self, arg: Node) -> Literal | None:
