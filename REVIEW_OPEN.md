@@ -1,38 +1,30 @@
-# Open review findings — round 18 (reviewer agent 94e52ea7, reviewed commit 5ec7b00)
+# Open review findings — round 19 (reviewer agent 94e52ea7, reviewed commit 0d99838)
 
-STATUS: the round-18 finding fixed; round-19 request sent. Fix
+STATUS: all three round-19 findings fixed; round-20 request sent. Fix
 summary:
 
-1. CRITICAL one large uint64 lane forced lossy arithmetic for the whole
-   batch — FIXED by making the arith helper compute the WHOLE operation
-   (`_vec_arith` replaces `_vec_arith_dtype`; the lowering emits a
-   single helper call for bool/maybe-bool arithmetic and negation).
-   uint64 integer paths are now exact PER LANE:
-   - array % negative-literal and array // negative-literal: the results
-     ALWAYS fit int64 (remainder magnitude < |divisor| <= 2**63; floor
-     magnitude <= 2**63), so the magnitudes are computed exactly in
-     uint64 and negated into int64 — [2**53+1, 2**63+1] % -2 ->
-     [-1, -1] and // -2 -> [-4503599627370497, -4611686018427387905]
-     (your repros);
-   - negative-literal % array: (v - |d| mod v) mod v computed exactly in
-     uint64, int64 when every lane's result fits;
-   - negative-literal // array: -ceil(|d|/v), exact in int64;
-   - add/sub/mul (and non-negative floordiv/mod): modular uint64, with
-     negative literals wrapped modularly (NumPy rejects out-of-bounds
-     ints in asarray);
-   - negation: int64 when values fit, else float64 (those results are
-     genuinely unrepresentable per lane);
-   - true division: always float operands.
-   Tests: test_uint64_mod_negative_mixed_lanes_exact,
-   test_uint64_floordiv_negative_mixed_lanes_exact,
-   test_uint64_negate_mixed_lanes_best_effort,
-   test_uint64_negative_literal_mod_array_mixed,
-   test_uint64_negative_literal_floordiv_array,
-   test_uint64_add_negative_literal_modular_still_exact,
-   test_unary_negate_maybe_bool_after_restructure,
-   test_truediv_bool_strict_after_restructure.
+1. CRITICAL incorrect remainder formula for negative divisors — FIXED.
+   `a % -|d|` now computes `0` when `a %% |d| == 0`, else
+   `(a %% |d|) - |d|` (in int64): 5 % -3 -> -1, 6 % -3 -> 0 (previously
+   -(5 % 3) == -2). The -2 tests kept passing because |2|-1 == 1.
+   Tests: test_uint64_mod_negative_divisor_formula.
 
-Round-18 regressions: tests/test_review_round18.py (8 tests). make
-check green: 601 tests, ruff + mypy strict clean, 95% branch coverage.
-Fuzzer clean on seeds 42/7/123/999/2024. Goldens regenerated (bool /
-maybe-bool arithmetic now lowers to single _vec_arith helper calls).
+2. MAJOR floor-division corrections added booleans to numeric arrays —
+   FIXED. The ceil corrections cast the boolean comparison to the
+   numeric operand's dtype before adding: max(x, True) // -3 -> -2 and
+   -3 // max(x, True) -> -1 on array_api_strict (previously TypeError).
+   Tests: test_uint64_floordiv_negative_divisor_strict,
+   test_uint64_negative_literal_floordiv_strict.
+
+3. CRITICAL literal-left remainder discarded representable uint64
+   results — FIXED. The literal-left remainder result is always in
+   [0, v) and exactly representable in uint64, so it is returned as the
+   uint64 computation itself (no int64/float64 conversion):
+   -1 % (2**63 + 2) -> 9223372036854775809 exactly.
+   Tests: test_negative_literal_mod_uint64_exact,
+   test_negative_literal_mod_small_array.
+
+Round-19 regressions: tests/test_review_round19.py (5 tests). make
+check green: 606 tests, ruff + mypy strict clean, 95% branch coverage.
+Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged
+(helper-internal formulas only).

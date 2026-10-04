@@ -305,22 +305,22 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 # array op negative-literal: exact in int64 per lane
                 d = xp.asarray(-right, dtype=left.dtype)
                 if op == "mod":
-                    return -xp.astype(left % d, xp.int64)
+                    # a % -|d| is 0 when a %% |d| == 0, else (a %% |d|) - |d|
+                    r = xp.astype(left % d, xp.int64)
+                    return xp.where(r == 0, xp.asarray(0, dtype=xp.int64), r - (-right))
                 q = left // d
                 r = left % d
-                return -xp.astype(q + (r > 0), xp.int64)
+                mag = q + xp.astype(r > 0, left.dtype)  # ceil(a / |d|)
+                return -xp.astype(mag, xp.int64)
             if op == "mod" and isinstance(left, int) and left < 0 and _is_u64(right):
-                # negative-literal % array: (v - |d| mod v) mod v, exact in
-                # uint64; int64 when every lane's result fits
+                # negative-literal % array: (v - |d| mod v) mod v — always
+                # in [0, v), exactly representable in uint64
                 d = xp.asarray(-left, dtype=right.dtype)
-                res = (right - (d % right)) % right
-                if bool(xp.all(res < 2**63)):
-                    return xp.astype(res, xp.int64)
-                return xp.astype(res, xp.float64)
+                return (right - (d % right)) % right
             if op == "floordiv" and isinstance(left, int) and left < 0 and _is_u64(right):
                 # negative-literal // array: -ceil(|d| / v), exact in int64
                 d = xp.asarray(-left, dtype=right.dtype)
-                mag = (d // right) + ((d % right) > 0)
+                mag = (d // right) + xp.astype((d % right) > 0, right.dtype)
                 return -xp.astype(mag, xp.int64)
             if (
                 op in ("floordiv", "mod")
