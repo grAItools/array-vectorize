@@ -33,6 +33,7 @@ Source = "https://github.com/grAItools/vectorizer"
 dev = [
     "pytest>=8.0",
     "pytest-benchmark>=4.0",
+    "pytest-timeout>=2.3",
     "hypothesis>=6.100",
     "ruff>=0.6",
     "mypy>=1.11",
@@ -97,6 +98,7 @@ filterwarnings = [
 ]
 markers = [
     "slow: performance tests that are timing-sensitive",
+    "timeout: per-test wall-clock limit (pytest-timeout)",
 ]
 
 [tool.coverage.run]
