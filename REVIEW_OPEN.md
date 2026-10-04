@@ -1,30 +1,34 @@
-# Open review findings — round 24 (reviewer agent 94e52ea7, reviewed commit 405770a)
+# Open review findings — round 25 (reviewer agent 94e52ea7, reviewed commit 882d4b5)
 
-STATUS: the round-24 finding fixed; round-25 request sent. Fix summary:
+STATUS: the round-25 finding fixed; round-26 request sent. Fix summary:
 
-1. CRITICAL result-aware subtraction was missing from the
-   literal/unsigned-array path — FIXED. The result-aware logic is
-   extracted into `_u64_sub_exact` and used by EVERY integer
-   subtraction path in `_vec_arith`: the literal/unsigned-array path
-   (others_intish), the non-negative signed-array path, and (via the
-   int64-fit branch) the signed path. uint64 when every per-lane
-   difference is non-negative; exact mod-2**64 int64 when every
-   per-lane difference fits int64 (including the int64-min edge);
-   the documented float64 only for mixed-magnitude batches that fit
-   no single dtype.
-   Repros: 0 - max(uint64[1], True) -> -1 and
-   max(uint64[5], True) - uint64[7] -> -2, exactly, on numpy AND
-   array_api_strict (previously the wrapped 2**64-1 and 2**64-2).
-   Non-negative results keep uint64
-   (max(uint64[2**63+5], True) - uint64[3] -> 2**63+2). add/mul with
-   negative literals keep the established modular semantics.
-   Tests: test_literal_minus_uint64_exact,
-   test_literal_minus_uint64_strict, test_uint64_minus_uint64_exact,
-   test_uint64_minus_uint64_strict,
-   test_sub_nonnegative_result_keeps_uint64,
-   test_sub_mixed_magnitude_fallback_documented.
+1. CRITICAL subtraction inferred result ranges after wrapping negative
+   literals — FIXED. `_u64_sub_exact` now reads the true sign of
+   Python int operands BEFORE any modular conversion (arrays on these
+   paths are non-negative by construction: uint64/bool, or signed
+   arrays gated non-negative at runtime):
+   - right negative literal: left - (negative) = left + |right| is
+     always non-negative -> modular uint64 (overflow past 2**64 is
+     the documented backend behavior, same as add);
+   - left negative literal: (negative) - right = -(|left| + right) is
+     always negative -> exact int64 when the magnitude fits
+     (runtime-checked, |left| + right <= 2**63, includes the
+     int64-min edge); otherwise the documented float64;
+   - both non-negative: the round-23/24 ge/pos/neg analysis unchanged.
+   Repros: max(uint64[2**63+3], True) - -2 -> 2**63+5 (uint64, exact)
+   and -2 - max(uint64[5], True) -> -7 (int64, exact), on numpy AND
+   array_api_strict (previously -9223372036854775803 and the wrapped
+   2**64-7). Also exact: closure constant -(2**63-1) minus the
+   boolean max -> int64-min; one magnitude further falls back to the
+   documented float64.
+   Tests: test_uint64_minus_negative_literal_exact,
+   test_uint64_minus_negative_literal_strict,
+   test_negative_literal_minus_uint64_exact,
+   test_negative_literal_minus_uint64_strict,
+   test_negative_literal_sub_int64_min_exact,
+   test_negative_literal_sub_past_int64_min_fallback.
 
-Round-24 regressions: tests/test_review_round24.py (6 tests). make
-check green: 633 tests, ruff + mypy strict clean, 95% branch coverage.
+Round-25 regressions: tests/test_review_round25.py (6 tests). make
+check green: 639 tests, ruff + mypy strict clean, 95% branch coverage.
 Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged
 (helper-internal logic only).

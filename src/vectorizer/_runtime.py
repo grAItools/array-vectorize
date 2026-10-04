@@ -264,16 +264,31 @@ def _to_u64(xp: Any, a: Any) -> Any:
 
 
 def _u64_sub_exact(xp: Any, left: Any, right: Any) -> Any | None:
-    """Result-aware subtraction of uint64-range operands.
+    """Result-aware subtraction of integer operands in uint64 range.
 
-    Returns uint64 when every per-lane difference is non-negative, or
+    Python ints keep their true sign here (arrays on these paths are
+    non-negative: uint64/bool, or signed arrays gated non-negative).
+    Returns uint64 when the difference is provably non-negative, or
     the exact int64 difference when every per-lane result fits int64
-    (int64 subtraction is mod-2**64, so the wrapped uint64 casts
+    (int64 subtraction is mod-2**64, so wrapped uint64 casts
     reinterpret exactly). None signals results that fit no single
     dtype: the caller falls back to the documented float64.
     """
+    l_neg = isinstance(left, int) and not isinstance(left, bool) and left < 0
+    r_neg = isinstance(right, int) and not isinstance(right, bool) and right < 0
     lu = _to_u64(xp, left)
     ru = _to_u64(xp, right)
+    if r_neg:
+        # left - (negative) = left + |right|: always non-negative
+        # (modular uint64; overflow past 2**64 is the documented
+        # backend behavior, same as add)
+        return lu - ru
+    if l_neg:
+        # (negative) - right = -(|left| + right): always negative;
+        # exact in int64 when the magnitude fits
+        if -left <= 2**63 and bool(xp.all(ru <= 2**63 + left)):
+            return xp.astype(lu, xp.int64) - xp.astype(ru, xp.int64)
+        return None
     ge = lu >= ru
     if bool(xp.all(ge)):
         return lu - ru  # every result in [0, 2**64)
