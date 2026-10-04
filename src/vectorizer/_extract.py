@@ -129,11 +129,36 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
     if len(matches) == 1:
         return matches[0]
     if not matches:
+        # temporary CI diagnostics (to be reverted)
+        detail = []
+        for node in candidates:
+            try:
+                probe = compile(ast.Expression(node), "<lambda-probe>", "eval")
+                inner = next(
+                    (c for c in probe.co_consts if isinstance(c, types.CodeType)), None
+                )
+                if inner is None:
+                    detail.append(f"node={ast.unparse(node)} inner=None")
+                    continue
+                desc = (
+                    inner.co_code.hex(),
+                    inner.co_names,
+                    inner.co_varnames,
+                    inner.co_consts,
+                )
+                detail.append(f"node={ast.unparse(node)} inner={desc}")
+            except SyntaxError as exc:  # pragma: no cover
+                detail.append(f"node={ast.unparse(node)} probe SyntaxError: {exc}")
+        code = getattr(target, "__code__", None)
+        target_desc = (
+            code
+            and (code.co_code.hex(), code.co_names, code.co_varnames, code.co_consts)
+        ) or None
         _reject(
             name,
             "multiple lambdas share this source line and the intended one "
             "could not be identified; assign the lambda to a variable on its "
-            "own line",
+            f"own line [DEBUG target={target_desc} candidates={detail}]",
         )
     # several identical lambdas: semantically interchangeable
     return matches[0]
