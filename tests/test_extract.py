@@ -210,3 +210,77 @@ def test_np_float64_is_scalar() -> None:
 
     info = extract_function(f)
     assert info.closure_scalars == {"c": 1.5}
+
+
+def test_lambda_probe_fallback_identifies_sibling() -> None:
+    # module source unavailable (or uncompilable): the isolated-probe
+    # comparison must still identify the right same-line lambda
+    import ast
+    import importlib.util
+    import inspect
+    import pathlib
+    import tempfile
+
+    from vectorizer._extract import _find_target
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    path = tmp / "probe_siblings.py"
+    path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\n")
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    for fn, body in ((mod.f1, "lambda x: x + 1"), (mod.f2, "lambda x: x + 2")):
+        tree = ast.parse(inspect.getsource(fn))
+        node = _find_target(tree, "<lambda>", fn, module_source=None)
+        assert ast.unparse(node) == body
+
+    # a module source that cannot be compiled also falls back to probes
+    tree = ast.parse(inspect.getsource(mod.f2))
+    node = _find_target(tree, "<lambda>", mod.f2, module_source="def broken(:", first_lineno=1)
+    assert ast.unparse(node) == "lambda x: x + 2"
+
+
+def test_lambda_probe_fallback_interchangeable() -> None:
+    import ast
+    import importlib.util
+    import inspect
+    import pathlib
+    import tempfile
+
+    from vectorizer._extract import _find_target
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    path = tmp / "probe_twin.py"
+    path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 1)\n")
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    tree = ast.parse(inspect.getsource(mod.f2))
+    node = _find_target(tree, "<lambda>", mod.f2, module_source=None)
+    assert ast.unparse(node) == "lambda x: x + 1"
+
+
+def test_lambda_probe_fallback_rejects_unidentifiable() -> None:
+    import ast
+    import importlib.util
+    import inspect
+    import pathlib
+    import tempfile
+
+    from vectorizer._extract import _find_target
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    path = tmp / "probe_none.py"
+    path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\nf3 = lambda x: x + 3\n")
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    tree = ast.parse(inspect.getsource(mod.f1))
+    with pytest.raises(VectorizationError, match="could not be identified"):
+        _find_target(tree, "<lambda>", mod.f3, module_source=None)
