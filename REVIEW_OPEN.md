@@ -1,31 +1,27 @@
-# Open review findings — round 14 (reviewer agent 94e52ea7, reviewed commit 3b428af)
+# Open review findings — round 15 (reviewer agent 94e52ea7, reviewed commit 1c0ad0b)
 
-STATUS: all three round-14 findings fixed; round-15 request sent. Fix
+STATUS: both round-15 findings fixed; round-16 request sent. Fix
 summary:
 
-1. CRITICAL branch merges lost maybe-boolean tracking — FIXED.
-   `_maybe_bool_result` handles Where nodes (a branch merge of
-   maybe-bool values is maybe-bool), and `_merge_envs` records the
-   merged binding name. `if x == True: a = min(x, True) else:
-   a = max(x, False); a + a` -> [2, 0].
-   Tests: test_branch_merged_maybe_bool_arithmetic.
+1. CRITICAL negative integer operands triggered lossy uint64
+   conversion — FIXED. The uint64-preservation branch of
+   `_vec_arith_dtype` now accepts ANY int literal (not only
+   non-negative): modular uint64 arithmetic is exact whenever the true
+   result is in [0, 2**64) — (2**63 + 3) + (-2) -> 2**63 + 1 exactly —
+   and results outside that range are unrepresentable in any dtype.
+   Signed ARRAYS still route through the promotion paths (per-lane
+   mixed-sign results have no common dtype).
+   Tests: test_uint64_negative_literal_arithmetic_exact.
 
-2. CRITICAL maybe-boolean conversion rounded uint64 values — FIXED.
-   `_vec_arith_dtype` preserves uint64 when no real float is involved
-   and every other operand is exactly representable in uint64
-   (unsigned/boolean arrays, non-negative literals): the u64-as-float64
-   lattice classification no longer routes integer arithmetic through
-   float64. `a = max(x, True); a + 0` at uint64[2**63+1] ->
-   9223372036854775809 exactly (checked via int()).
-   Tests: test_maybe_bool_uint64_arithmetic_exact,
-   test_maybe_bool_uint64_unary_negate_no_rounding_cast.
+2. CRITICAL bitwise expressions lost maybe-boolean tracking — FIXED.
+   `_maybe_bool_result` handles bitwise BinOps (and/or/xor): bitwise
+   expressions preserve boolean-ness (arithmetic results are already
+   intified and numeric, so they are correctly excluded).
+   `a = min(x, True); b = a & True; b + b` -> [2, 0].
+   Tests: test_bitwise_maybe_bool_arithmetic,
+   test_bitwise_maybe_bool_or, test_bitwise_maybe_bool_strict,
+   test_arithmetic_maybe_bool_result_not_maybe_bool.
 
-3. MAJOR unary negation ignored maybe-boolean results — FIXED. The
-   USub intify condition now also fires for maybe-bool operands:
-   `a = min(x, True); -a` -> [-1, 0] on numpy and array_api_strict.
-   Tests: test_unary_negate_maybe_bool,
-   test_unary_negate_maybe_bool_strict.
-
-Round-14 regressions: tests/test_review_round14.py (5 tests). make
-check green: 576 tests, ruff + mypy strict clean, 95% branch coverage.
+Round-15 regressions: tests/test_review_round15.py (5 tests). make
+check green: 581 tests, ruff + mypy strict clean, 95% branch coverage.
 Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged.

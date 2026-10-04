@@ -931,6 +931,10 @@ class _Lowerer:
         if isinstance(node, Where):
             # branch merge of maybe-bool values is maybe-bool
             return self._maybe_bool_result(node.then) or self._maybe_bool_result(node.other)
+        if isinstance(node, BinOp) and node.op in ("and", "or", "xor"):
+            # bitwise expressions preserve boolean-ness (arithmetic
+            # results are already intified and numeric)
+            return self._maybe_bool_result(node.left) or self._maybe_bool_result(node.right)
         return False
 
     def _possibly_scalar(self, node: Node) -> bool:

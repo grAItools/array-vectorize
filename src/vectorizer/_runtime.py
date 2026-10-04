@@ -245,9 +245,10 @@ def _vec_arith_dtype(xp: Any, *args: Any) -> Any:
     dtype (bools are exact in any of them); mixed int/float promotes to
     float64, matching Python's int + float -> float. Exception: uint64
     values fit no signed int and round through float64, so when no real
-    float is involved and every other operand is exactly representable in
-    uint64 (unsigned or boolean arrays, non-negative literals), the target
-    stays uint64.
+    float is involved and every other operand is an unsigned/boolean
+    array or an int literal, the target stays uint64: modular uint64
+    arithmetic is exact whenever the true result is in [0, 2**64), and
+    results outside that range are unrepresentable in any case.
     """
     has_real_float = any(
         hasattr(a, "dtype") and ("float" in str(a.dtype) or "complex" in str(a.dtype)) for a in args
@@ -260,8 +261,7 @@ def _vec_arith_dtype(xp: Any, *args: Any) -> Any:
         )
         and all(
             (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
-            or isinstance(a, bool)
-            or (isinstance(a, int) and 0 <= a < 2**64)
+            or isinstance(a, bool | int)
             for a in args
         )
     ):
