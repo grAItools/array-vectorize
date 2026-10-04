@@ -263,6 +263,27 @@ def _to_u64(xp: Any, a: Any) -> Any:
     return xp.asarray(a, dtype=xp.uint64)
 
 
+def _u64_sub_exact(xp: Any, left: Any, right: Any) -> Any | None:
+    """Result-aware subtraction of uint64-range operands.
+
+    Returns uint64 when every per-lane difference is non-negative, or
+    the exact int64 difference when every per-lane result fits int64
+    (int64 subtraction is mod-2**64, so the wrapped uint64 casts
+    reinterpret exactly). None signals results that fit no single
+    dtype: the caller falls back to the documented float64.
+    """
+    lu = _to_u64(xp, left)
+    ru = _to_u64(xp, right)
+    ge = lu >= ru
+    if bool(xp.all(ge)):
+        return lu - ru  # every result in [0, 2**64)
+    pos = xp.where(ge, lu - ru, xp.asarray(0, dtype=lu.dtype))
+    neg = xp.where(ge, xp.asarray(0, dtype=lu.dtype), ru - lu)
+    if bool(xp.all(pos <= 2**63 - 1)) and bool(xp.all(neg <= 2**63)):
+        return xp.astype(lu, xp.int64) - xp.astype(ru, xp.int64)
+    return None
+
+
 def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
     """Exact-semantics arithmetic for bool-intified operations (injected
     into generated modules). ``op_id`` indexes _ARITH_OPS.
@@ -322,27 +343,24 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                     # non-negative signed values are faithful in uint64:
                     # add/mul are modular-exact, and %,// match Python
                     # for non-negative dividends and divisors. Subtraction
-                    # is result-aware: uint64 when every difference is
-                    # non-negative, else int64 when every per-lane
-                    # difference fits (int64 subtraction is mod-2**64, so
-                    # the wrapped uint64 casts still yield the exact
-                    # value); mixed-magnitude differences fit no single
-                    # dtype and fall through to the documented float64.
+                    # is result-aware (see _u64_sub_exact): mixed-magnitude
+                    # differences fit no single dtype and fall through to
+                    # the documented float64.
                     if op == "sub":
-                        lu = _to_u64(xp, left)
-                        ru = _to_u64(xp, right)
-                        ge = lu >= ru
-                        if bool(xp.all(ge)):
-                            return lu - ru  # every result in [0, 2**64)
-                        pos = xp.where(ge, lu - ru, xp.asarray(0, dtype=lu.dtype))
-                        neg = xp.where(ge, xp.asarray(0, dtype=lu.dtype), ru - lu)
-                        if bool(xp.all(pos <= 2**63 - 1)) and bool(xp.all(neg <= 2**63)):
-                            return xp.astype(lu, xp.int64) - xp.astype(ru, xp.int64)
+                        res = _u64_sub_exact(xp, left, right)
+                        if res is not None:
+                            return res
                     else:
                         return fn(*[_to_u64(xp, a) for a in args])
         if others_intish:
-            if op in ("add", "sub", "mul"):
+            if op in ("add", "mul"):
                 return fn(_to_u64(xp, left), _to_u64(xp, right))
+            if op == "sub":
+                # result-aware: representable negative differences must
+                # not wrap (None falls through to the float64 lattice)
+                res = _u64_sub_exact(xp, left, right)
+                if res is not None:
+                    return res
             if op in ("floordiv", "mod") and right is not None and u64_dividend(left, right):
                 # array op negative-literal: exact in int64 per lane
                 d = xp.asarray(-right, dtype=left.dtype)
