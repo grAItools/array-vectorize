@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import linecache
+import operator
 import struct
 from collections.abc import Callable
 from typing import Any, cast
@@ -236,84 +237,127 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
     return fold([xp.asarray(a, dtype=dt) for a in args])
 
 
-#: operator names accepted by _vec_arith_dtype, mapped to stable ids
+#: operator names accepted by _vec_arith, mapped to stable ids
 #: (generated code passes the id as an int literal)
 _ARITH_OPS = ("neg", "add", "sub", "mul", "div", "floordiv", "mod")
 
+_ARITH_FNS = {
+    "add": operator.add,
+    "sub": operator.sub,
+    "mul": operator.mul,
+    "div": operator.truediv,
+    "floordiv": operator.floordiv,
+    "mod": operator.mod,
+}
 
-def _vec_arith_dtype(xp: Any, op_id: Any, *args: Any) -> Any:
-    """Common dtype for bool-intified arithmetic (injected into generated
-    modules). ``op_id`` indexes _ARITH_OPS ('add', 'sub', 'mul', 'div',
-    'floordiv', 'mod', 'neg').
 
-    Python integers are unbounded, so int-class operands get int64
-    headroom (True + True chains must not wrap); float operands keep their
-    dtype (bools are exact in any of them); mixed int/float promotes to
-    float64, matching Python's int + float -> float.
+def _is_u64(a: Any) -> bool:
+    return hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64
 
-    uint64 exception (no real float involved): uint64 values fit no
-    signed int and round through float64, so the target stays uint64
-    when every other operand is an unsigned/boolean array or an int
-    literal — BUT only where modular arithmetic preserves semantics:
-    add/sub/mul accept any int literal (exact while the true result is
-    in [0, 2**64), which is all any dtype can hold); floordiv/mod accept
-    only non-negative literals; floordiv/mod with negative divisors and
-    negation use int64 whenever every uint64 VALUE fits int64 (checked
-    at runtime — exact for those, and their results fit int64);
-    otherwise the lattice promotes to float64 (best effort: the results
-    are unrepresentable or the values exceed int64). True division
-    always produces float.
+
+def _to_u64(xp: Any, a: Any) -> Any:
+    """Cast to uint64, wrapping negative int literals modularly (NumPy
+    rejects out-of-bounds Python ints in asarray)."""
+    if isinstance(a, int) and not isinstance(a, bool) and a < 0:
+        a = a % 2**64
+    return xp.asarray(a, dtype=xp.uint64)
+
+
+def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
+    """Exact-semantics arithmetic for bool-intified operations (injected
+    into generated modules). ``op_id`` indexes _ARITH_OPS.
+
+    Bools are cast to a numeric dtype (int64 headroom; Python integers
+    are unbounded). Floats keep their dtype; mixed int/float promotes to
+    float64. True division always computes in floats (strict backends
+    require floating-point operands).
+
+    uint64 integer paths are EXACT (no real float involved, other
+    operands unsigned/boolean arrays or int literals):
+    - add/sub/mul and floordiv/mod with non-negative divisors: modular
+      uint64 (exact while the true result is in [0, 2**64) — all any
+      dtype can hold);
+    - array % negative-literal and array // negative-literal: the results
+      ALWAYS fit int64 (remainder magnitude < |divisor| <= 2**63; floor
+      magnitude <= 2**63), so the magnitudes are computed exactly in
+      uint64 and negated into int64 — per lane, regardless of how large
+      the input values are;
+    - negative-literal % array and negation: int64 whenever the values
+      fit (checked at runtime); otherwise float64, because those results
+      are genuinely unrepresentable in int64 on the offending lanes.
     """
     op = _ARITH_OPS[op_id] if isinstance(op_id, int) else op_id
+    fn: Any = _ARITH_FNS.get(op, operator.neg)
+    args = [left] + ([right] if right is not None else [])
     has_real_float = any(
         hasattr(a, "dtype") and ("float" in str(a.dtype) or "complex" in str(a.dtype)) for a in args
     ) or any(isinstance(a, float) for a in args)
-    if not has_real_float and any(
-        hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64 for a in args
-    ):
+    if any(_is_u64(a) for a in args) and not has_real_float:
         others_intish = all(
             (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
             or isinstance(a, bool | int)
             for a in args
         )
-        u64s = [
-            a
-            for a in args
-            if hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64
-        ]
         if others_intish:
             if op in ("add", "sub", "mul"):
-                return xp.uint64
-            if op in ("floordiv", "mod") and all(
-                isinstance(a, bool) or (isinstance(a, int) and a >= 0)
-                for a in args
-                if not hasattr(a, "dtype")
+                return fn(_to_u64(xp, left), _to_u64(xp, right))
+            if op in ("floordiv", "mod") and right is not None and u64_dividend(left, right):
+                # array op negative-literal: exact in int64 per lane
+                d = xp.asarray(-right, dtype=left.dtype)
+                if op == "mod":
+                    return -xp.astype(left % d, xp.int64)
+                q = left // d
+                r = left % d
+                return -xp.astype(q + (r > 0), xp.int64)
+            if op == "mod" and isinstance(left, int) and left < 0 and _is_u64(right):
+                # negative-literal % array: (v - |d| mod v) mod v, exact in
+                # uint64; int64 when every lane's result fits
+                d = xp.asarray(-left, dtype=right.dtype)
+                res = (right - (d % right)) % right
+                if bool(xp.all(res < 2**63)):
+                    return xp.astype(res, xp.int64)
+                return xp.astype(res, xp.float64)
+            if op == "floordiv" and isinstance(left, int) and left < 0 and _is_u64(right):
+                # negative-literal // array: -ceil(|d| / v), exact in int64
+                d = xp.asarray(-left, dtype=right.dtype)
+                mag = (d // right) + ((d % right) > 0)
+                return -xp.astype(mag, xp.int64)
+            if (
+                op in ("floordiv", "mod")
+                and right is not None
+                and all(
+                    isinstance(a, bool) or (isinstance(a, int) and a >= 0)
+                    for a in args
+                    if not hasattr(a, "dtype")
+                )
             ):
-                return xp.uint64
-            if op in ("floordiv", "mod", "neg"):
-                # negative divisors / negation: int64 is exact whenever
-                # every uint64 value fits (runtime check)
-                if all(bool(xp.all(a < 2**63)) for a in u64s):
-                    return xp.int64
-                return xp.float64
+                return fn(_to_u64(xp, left), _to_u64(xp, right))
+            if op == "neg":
+                if bool(xp.all(left <= 2**63)):
+                    return -xp.astype(left, xp.int64)
+                return -xp.astype(left, xp.float64)
         if op == "div":
-            return xp.float64
+            return operator.truediv(
+                xp.asarray(left, dtype=xp.float64), xp.asarray(right, dtype=xp.float64)
+            )
+    # generic: cast to the common dtype and compute
     classes = [_describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)
     has_int = any(not f for f, _ in classes)
-    if op == "div":
-        # true division always produces float; strict backends require
-        # floating-point operands
-        if has_float:
-            if has_int:
-                return xp.float64
-            return getattr(xp, f"float{max(w for f, w in classes)}")
-        return xp.float64
-    if has_float:
-        if has_int:
-            return xp.float64
-        return getattr(xp, f"float{max(w for f, w in classes)}")
-    return xp.int64
+    if op == "div" or (has_float and has_int):
+        dt: Any = xp.float64
+    elif has_float:
+        dt = getattr(xp, f"float{max(w for f, w in classes)}")
+    else:
+        dt = xp.int64
+    if right is None:
+        return -xp.asarray(left, dtype=dt)
+    return fn(xp.asarray(left, dtype=dt), xp.asarray(right, dtype=dt))
+
+
+def u64_dividend(left: Any, right: Any) -> bool:
+    """True for the array-op-negative-literal forms (array on the left)."""
+    return isinstance(right, int) and not isinstance(right, bool) and right < 0 and _is_u64(left)
 
 
 def compile_vectorized(

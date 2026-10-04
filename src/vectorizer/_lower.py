@@ -43,7 +43,7 @@ from ._ir import (
     is_bool,
 )
 from ._optimize import _children
-from ._runtime import _ARITH_OPS, _vec_arith_dtype, _vec_minmax
+from ._runtime import _ARITH_OPS, _vec_arith, _vec_minmax
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -151,7 +151,7 @@ class _Lowerer:
         #: allocated names of the runtime promotion/selection helpers (set
         #: by lower_function; collision-free against user names)
         self.minmax_name = "_vec_minmax"
-        self.arith_dtype_name = "_vec_arith_dtype"
+        self.arith_name = "_vec_arith"
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -649,8 +649,15 @@ class _Lowerer:
             if isinstance(node.op, ast.USub) and (
                 self._numeric_kind(operand) == "bool" or self._maybe_bool_result(operand)
             ):
-                # -True is -1 in Python; numpy cannot negate bool arrays
-                operand = self._intify(operand)
+                # -True is -1 in Python; numpy cannot negate bool arrays.
+                # The whole negation goes through the runtime helper (it
+                # computes the negation — no wrapping UnaryOp on top)
+                if isinstance(operand, Literal):
+                    return Literal(-int(operand.value), "int")
+                return FuncCall(
+                    self.arith_name,
+                    (Ref(self.ns_var), Literal(_ARITH_OPS.index("neg"), "int"), operand),
+                )
             return UnaryOp(_UNARY[type(node.op)], operand)
         if isinstance(node, ast.Compare):
             return self._lower_compare(node)
@@ -878,37 +885,21 @@ class _Lowerer:
             or self._maybe_bool_result(left)
             or self._maybe_bool_result(right)
         ):
-            # cast BOTH operands to the runtime common dtype: bools need a
-            # numeric representation, strict backends require a single
-            # dtype, and a loop-mixed operand must keep its actual dtype
-            # (never truncated). The helper sees the operator and both
-            # operands, so int siblings get int64 headroom, float siblings
-            # keep floats, and the uint64 preservation respects the
-            # operator's semantics (modular only for add/sub/mul).
+            # the whole operation goes through the runtime _vec_arith
+            # helper: bools need a numeric representation, strict
+            # backends require single-dtype or float operands, and the
+            # uint64 integer paths are exact per lane (modular for
+            # add/sub/mul; int64 magnitudes for negative divisors)
             ir_op = _BINOPS[type(op)]
-            dt = FuncCall(
-                self.arith_dtype_name,
+            return FuncCall(
+                self.arith_name,
                 (Ref(self.ns_var), Literal(_ARITH_OPS.index(ir_op), "int"), left, right),
             )
-            left = Call("astype", (Call("asarray", (left,)), dt))
-            right = Call("astype", (Call("asarray", (right,)), dt))
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
             # Cast provably-int bases so the common literal case matches.
             left = self._as_float_arg(left)
         return BinOp(_BINOPS[type(op)], left, right)
-
-    def _intify(self, arg: Node) -> Node:
-        """Make unary boolean arithmetic exact and backend-safe: Python's
-        -True is -1, but array backends cannot negate bool arrays. The
-        cast targets the operand's RUNTIME dtype (via _vec_arith_dtype):
-        a no-op for numeric loop-mixed operands, int64 for bools."""
-        if isinstance(arg, Literal):
-            return Literal(int(arg.value), "int")
-        dt = FuncCall(
-            self.arith_dtype_name, (Ref(self.ns_var), Literal(_ARITH_OPS.index("neg"), "int"), arg)
-        )
-        return Call("astype", (Call("asarray", (arg,)), dt))
 
     def _literal_value(self, arg: Node) -> Literal | None:
         """The literal behind an arg: directly, as a negated literal
@@ -1046,7 +1037,7 @@ def lower_function(
     # calls would resolve to the parameter instead of the global)
     for attr, base, fn in (
         ("minmax_name", "_vec_minmax", _vec_minmax),
-        ("arith_dtype_name", "_vec_arith_dtype", _vec_arith_dtype),
+        ("arith_name", "_vec_arith", _vec_arith),
     ):
         helper_name = (
             base if lowerer.ssa.is_free(base) else lowerer.ssa.bind(base, force_suffix=True)
