@@ -132,6 +132,14 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
             result = fn(result, c)
         return result
 
+    orig_arrays = [a for a in args if hasattr(a, "dtype")]
+    lits = [a for a in args if not hasattr(a, "dtype")]
+    had_bool = bool(orig_arrays) and any("bool" in str(a.dtype) for a in orig_arrays)
+    bool_only = (
+        had_bool
+        and all("bool" in str(a.dtype) for a in orig_arrays)
+        and all(isinstance(b, bool) for b in lits)
+    )
     # boolean arrays normalize to int8: strict backends reject bool
     # operands in minimum/maximum (and in the comparisons below), and
     # 0/1 int8 values are exact for every boolean selection
@@ -139,7 +147,23 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
         xp.astype(a, xp.int8) if hasattr(a, "dtype") and "bool" in str(a.dtype) else a for a in args
     )
     arrays = [a for a in args if hasattr(a, "dtype")]
-    lits = [a for a in args if not hasattr(a, "dtype")]
+
+    if bool_only:
+        # boolean-only selection: compute in int8, restore bool so
+        # downstream boolean operations keep boolean semantics
+        cast = [a if hasattr(a, "dtype") else xp.asarray(int(a), dtype=xp.int8) for a in args]
+        return xp.astype(fold(cast), xp.bool)
+    if (
+        had_bool
+        and arrays
+        and all(a.dtype == xp.int8 for a in arrays)
+        and not any(isinstance(b, float) for b in lits)
+    ):
+        # every array was boolean (normalized to int8) with non-boolean
+        # operands: select in int64 — the compiler introduced the bool->
+        # int conversion, and Python's integer semantics are unbounded,
+        # so downstream arithmetic must not overflow int8
+        return fold([xp.asarray(a, dtype=xp.int64) for a in args])
 
     if arrays:
         first_dt = arrays[0].dtype
