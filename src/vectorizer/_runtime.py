@@ -10,7 +10,7 @@ import struct
 from collections.abc import Callable
 from typing import Any, cast
 
-from ._ir import generated_name
+from .ir.ssa import generated_name
 
 __all__ = ["ArithOp", "compile_vectorized"]
 

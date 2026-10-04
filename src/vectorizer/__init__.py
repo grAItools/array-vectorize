@@ -6,15 +6,21 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
-from ._codegen import generate_source
 from ._errors import VectorizationError
-from ._extract import extract_function
 from ._fallback import make_fallback
 from ._lower import lower_function
-from ._optimize import optimize, protect_domains
 from ._runtime import compile_vectorized
-from ._validate import validate
 from ._verify import verify_match
+from .codegen import generate_source
+from .frontend.extract import extract_function
+from .frontend.validate import validate
+
+# NOTE: aliased twice-over — binding `optimize` here would clobber the
+# `vectorizer.optimize` package attribute with the pipeline function, and
+# aliasing to `_optimize` would collide with the `_optimize.py` compat shim
+# (importing the shim rebinds that attribute with the module)
+from .optimize import optimize as optimize_
+from .optimize import protect_domains
 
 __version__ = "0.1.0"
 
@@ -40,7 +46,7 @@ def _vectorize_strict(
         # helpers inherit the caller's protect_domains setting
         helper_vectorizer=lambda callee: _vectorize_helper(callee, protect=protect),
     )
-    program = optimize(lowered.program, user_names=info.user_names | lowered.emitted_names)
+    program = optimize_(lowered.program, user_names=info.user_names | lowered.emitted_names)
     if protect:
         program = protect_domains(program)
     source = generate_source(lowered, program)

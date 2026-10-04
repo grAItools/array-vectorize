@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import NoReturn
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,3 +41,7 @@ class VectorizationError(Exception):
             return self.message
         rendered = "\n".join(d.render() for d in self.diagnostics)
         return f"{self.message}\n{rendered}"
+
+
+def _reject(name: str, message: str) -> NoReturn:
+    raise VectorizationError(f"cannot vectorize {name!r}: {message}")

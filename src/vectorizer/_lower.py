@@ -12,7 +12,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ._builtins import (
+from ._errors import VectorizationError
+from ._runtime import ArithOp, _vec_arith, _vec_minmax
+from .frontend.info import FunctionInfo, Param
+from .frontend.tables import (
     BUILTIN_CASTS,
     BUILTIN_FOLDS,
     BUILTIN_UNARY,
@@ -20,9 +23,7 @@ from ._builtins import (
     MATH_FUNCS,
     MATH_SPECIAL,
 )
-from ._errors import VectorizationError
-from ._extract import FunctionInfo, Param
-from ._ir import (
+from .ir import (
     Binding,
     BinOp,
     Call,
@@ -43,8 +44,8 @@ from ._ir import (
     generated_name,
     is_bool,
 )
-from ._optimize import _children
-from ._runtime import ArithOp, _vec_arith, _vec_minmax
+from .ir.walk import children
+from .optimize.constfold import _const_fold_expr
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -364,8 +365,6 @@ class _Lowerer:
     # ------------------------------------------------------------- loops
 
     def _const_int(self, node: ast.expr, what: str) -> Node:
-        from ._optimize import _const_fold_expr
-
         folded = _const_fold_expr(self.lower_expr(node))
         if (
             isinstance(folded, Literal)
@@ -975,7 +974,7 @@ class _Lowerer:
                 return is_scalar_name(n.name)
             if isinstance(n, DType):
                 return False
-            return any(walk(c) for c in _children(n))
+            return any(walk(c) for c in children(n))
 
         return walk(node)
 

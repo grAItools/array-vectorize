@@ -1,7 +1,8 @@
-"""Compat shim: canonical home is vectorizer.ir (restructure phase 2)."""
+"""The vectorizer IR: node dataclasses, SSA naming, and the tree algebra."""
 
-from .ir import (
-    RESERVED_NAMES,
+from __future__ import annotations
+
+from .nodes import (
     Binding,
     BinOp,
     Call,
@@ -15,14 +16,13 @@ from .ir import (
     Node,
     Program,
     Ref,
-    SSAEnv,
     Stmt,
     UnaryOp,
     Where,
-    generated_name,
     is_bool,
 )
-from .ir.nodes import _literal_key
+from .ssa import RESERVED_NAMES, SSAEnv, generated_name
+from .walk import children, rewrite
 
 __all__ = [
     "RESERVED_NAMES",
@@ -43,7 +43,8 @@ __all__ = [
     "Stmt",
     "UnaryOp",
     "Where",
-    "_literal_key",
+    "children",
     "generated_name",
     "is_bool",
+    "rewrite",
 ]

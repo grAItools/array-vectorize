@@ -5,11 +5,11 @@ at decoration time:
 
 ```mermaid
 flowchart LR
-    A["scalar Python\n(ast)"] --> B["extract\n(_extract)"]
-    B --> C["validate\n(_validate)"]
+    A["scalar Python\n(ast)"] --> B["extract\n(frontend/extract)"]
+    B --> C["validate\n(frontend/validate)"]
     C --> D["lower\n(_lower)"]
-    D --> E["optimize\n(_optimize)"]
-    E --> F["codegen\n(_codegen)"]
+    D --> E["optimize\n(optimize/)"]
+    E --> F["codegen\n(codegen/)"]
     F --> G["exec + wrap\n(__init__)"]
     G --> H["verify\n(optional, differential)"]
 ```
