@@ -143,6 +143,11 @@ class _Lowerer:
         #: the generated namespace variable ('xp' unless taken); set by
         #: lower_function before lowering starts
         self.ns_var: str = "xp"
+        #: names whose value is a min/max result with unknown static kind:
+        #: the runtime dtype may be boolean (parameter operands), so
+        #: arithmetic must use the runtime-polymorphic intify (a no-op for
+        #: numeric dtypes)
+        self._maybe_bool_names: set[str] = set()
         #: allocated names of the runtime promotion/selection helpers (set
         #: by lower_function; collision-free against user names)
         self.minmax_name = "_vec_minmax"
@@ -269,6 +274,10 @@ class _Lowerer:
             self._scalar_names.add(name)
         else:
             self._scalar_names.discard(name)
+        if self._maybe_bool_result(value):
+            self._maybe_bool_names.add(name)
+        else:
+            self._maybe_bool_names.discard(name)
         if self.active_carried:
             for carried, _depth in self.active_carried:
                 if var in carried:
@@ -458,6 +467,8 @@ class _Lowerer:
             # scalar stays a raw scalar, so track that for call sites
             if pre_name in self._scalar_names or pre_name in self.name_literals:
                 self._scalar_names.add(loop_carried_name)
+            if pre_name in self._maybe_bool_names:
+                self._maybe_bool_names.add(loop_carried_name)
 
         phi_end = len(self.bindings)
 
@@ -860,6 +871,8 @@ class _Lowerer:
         # iterations stay correct too.
         if isinstance(op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod) and (
             "bool" in (self._numeric_kind(left), self._numeric_kind(right))
+            or self._maybe_bool_result(left)
+            or self._maybe_bool_result(right)
         ):
             # cast BOTH operands to the runtime common dtype: bools need a
             # numeric representation, strict backends require a single
@@ -900,6 +913,18 @@ class _Lowerer:
         if isinstance(arg, Ref):
             return self.name_literals.get(arg.name)
         return None
+
+    def _maybe_bool_result(self, node: Node) -> bool:
+        """True for min/max results whose static kind is unknown: their
+        runtime dtype may be boolean (parameter operands), so arithmetic
+        must use the runtime-polymorphic intify — the _vec_arith_dtype
+        cast is a no-op for numeric dtypes and int64 for booleans."""
+
+        if isinstance(node, FuncCall) and node.fn == self.minmax_name:
+            return self._numeric_kind(node) is None
+        if isinstance(node, Ref):
+            return node.name in self._maybe_bool_names
+        return False
 
     def _possibly_scalar(self, node: Node) -> bool:
         """True when the node's runtime value may be a raw Python scalar:
