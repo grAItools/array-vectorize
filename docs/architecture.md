@@ -7,7 +7,7 @@ at decoration time:
 flowchart LR
     A["scalar Python\n(ast)"] --> B["extract\n(frontend/extract)"]
     B --> C["validate\n(frontend/validate)"]
-    C --> D["lower\n(_lower)"]
+    C --> D["lower\n(lower/)"]
     D --> E["optimize\n(optimize/)"]
     E --> F["codegen\n(codegen/)"]
     F --> G["exec + wrap\n(emit.py)"]

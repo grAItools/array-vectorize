@@ -8,12 +8,12 @@ from typing import Any
 
 from ._errors import VectorizationError
 from ._fallback import make_fallback
-from ._lower import lower_function
 from ._verify import verify_match
 from .codegen import generate_source
 from .emit import compile_vectorized
 from .frontend.extract import extract_function
 from .frontend.validate import validate
+from .lower import lower_function
 
 # NOTE: aliased twice-over — binding `optimize` here would clobber the
 # `vectorizer.optimize` package attribute with the pipeline function, and

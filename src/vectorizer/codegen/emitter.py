@@ -11,7 +11,6 @@ import ast
 import math
 from typing import assert_never
 
-from .._lower import LoweredFunction
 from ..ir import (
     Binding,
     BinOp,
@@ -30,6 +29,7 @@ from ..ir import (
     Where,
     generated_name,  # re-export helper
 )
+from ..lower.types import LoweredFunction
 
 __all__ = ["generate_source"]
 
