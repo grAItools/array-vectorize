@@ -10,7 +10,7 @@ flowchart LR
     C --> D["lower\n(_lower)"]
     D --> E["optimize\n(optimize/)"]
     E --> F["codegen\n(codegen/)"]
-    F --> G["exec + wrap\n(__init__)"]
+    F --> G["exec + wrap\n(emit.py)"]
     G --> H["verify\n(optional, differential)"]
 ```
 
@@ -51,6 +51,12 @@ generated code calls small runtime helpers injected into its globals:
   [exactness lattice](semantics.md#integer-exactness-lattice), including
   per-lane-exact uint64 `mod`/`floordiv` formulas for negative divisors
   and result-aware subtraction.
+
+The helpers live in `vectorizer/runtime/` (`minmax.py`, `arith.py`,
+`dtype.py`), a stdlib-only leaf. Lowering does not import them directly:
+it goes through the `vectorizer/runtime/registry.py` seam
+(`RUNTIME_HELPERS`), which maps each stable key to the emitted base
+name and the injected callable.
 
 Helper names are allocated collision-free per generated function and
 memoized per (callee, protect) pair.

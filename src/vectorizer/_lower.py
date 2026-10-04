@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ._errors import VectorizationError
-from ._runtime import ArithOp, _vec_arith, _vec_minmax
 from .frontend.info import FunctionInfo, Param
 from .frontend.tables import (
     BUILTIN_CASTS,
@@ -46,6 +45,7 @@ from .ir import (
 )
 from .ir.walk import children
 from .optimize.constfold import _const_fold_expr
+from .runtime.registry import RUNTIME_HELPERS, ArithOp
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -1056,10 +1056,8 @@ def lower_function(
     # runtime dtype promotion helpers: allocated through the shared SSA env
     # so a user parameter named like a helper cannot shadow it (bare-name
     # calls would resolve to the parameter instead of the global)
-    for attr, base, fn in (
-        ("minmax_name", "_vec_minmax", _vec_minmax),
-        ("arith_name", "_vec_arith", _vec_arith),
-    ):
+    for attr, key in (("minmax_name", "vec_minmax"), ("arith_name", "vec_arith")):
+        base, fn = RUNTIME_HELPERS[key]
         helper_name = (
             base if lowerer.ssa.is_free(base) else lowerer.ssa.bind(base, force_suffix=True)
         )
