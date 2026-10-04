@@ -320,9 +320,26 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                     return fn(*[xp.asarray(a, dtype=xp.int64) for a in args])
                 if all(bool(xp.all(s >= 0)) for s in signed_arrs):
                     # non-negative signed values are faithful in uint64:
-                    # add/sub/mul are modular-exact, and %,// match Python
-                    # for non-negative dividends and divisors
-                    return fn(*[_to_u64(xp, a) for a in args])
+                    # add/mul are modular-exact, and %,// match Python
+                    # for non-negative dividends and divisors. Subtraction
+                    # is result-aware: uint64 when every difference is
+                    # non-negative, else int64 when every per-lane
+                    # difference fits (int64 subtraction is mod-2**64, so
+                    # the wrapped uint64 casts still yield the exact
+                    # value); mixed-magnitude differences fit no single
+                    # dtype and fall through to the documented float64.
+                    if op == "sub":
+                        lu = _to_u64(xp, left)
+                        ru = _to_u64(xp, right)
+                        ge = lu >= ru
+                        if bool(xp.all(ge)):
+                            return lu - ru  # every result in [0, 2**64)
+                        pos = xp.where(ge, lu - ru, xp.asarray(0, dtype=lu.dtype))
+                        neg = xp.where(ge, xp.asarray(0, dtype=lu.dtype), ru - lu)
+                        if bool(xp.all(pos <= 2**63 - 1)) and bool(xp.all(neg <= 2**63)):
+                            return xp.astype(lu, xp.int64) - xp.astype(ru, xp.int64)
+                    else:
+                        return fn(*[_to_u64(xp, a) for a in args])
         if others_intish:
             if op in ("add", "sub", "mul"):
                 return fn(_to_u64(xp, left), _to_u64(xp, right))
