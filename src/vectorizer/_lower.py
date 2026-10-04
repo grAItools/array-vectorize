@@ -824,6 +824,22 @@ class _Lowerer:
             return None
         if isinstance(node, UnaryOp) and node.op in ("neg", "pos"):
             return self._numeric_kind(node.operand)
+        if isinstance(node, Call) and node.fn == "asarray" and len(node.args) == 1:
+            # asarray preserves the wrapped value's kind
+            return self._numeric_kind(node.args[0])
+        if isinstance(node, FuncCall) and node.fn == self.minmax_name:
+            # min/max result kind: bool when every argument is bool, float
+            # when any argument is float, int for int-ish mixes (the helper
+            # normalizes bool arrays to int8, so arithmetic downstream must
+            # intify)
+            kinds = [self._numeric_kind(a) for a in node.args[2:]]
+            if any(k is None for k in kinds):
+                return None
+            if "float" in kinds:
+                return "float"
+            if all(k == "bool" for k in kinds):
+                return "bool"
+            return "int"
         if (
             isinstance(node, Call)
             and node.fn == "astype"

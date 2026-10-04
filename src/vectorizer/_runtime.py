@@ -132,6 +132,12 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
             result = fn(result, c)
         return result
 
+    # boolean arrays normalize to int8: strict backends reject bool
+    # operands in minimum/maximum (and in the comparisons below), and
+    # 0/1 int8 values are exact for every boolean selection
+    args = tuple(
+        xp.astype(a, xp.int8) if hasattr(a, "dtype") and "bool" in str(a.dtype) else a for a in args
+    )
     arrays = [a for a in args if hasattr(a, "dtype")]
     lits = [a for a in args if not hasattr(a, "dtype")]
 
