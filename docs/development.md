@@ -34,7 +34,7 @@ numeric warnings (`overflow encountered`, `invalid value`,
 
 ## CI
 
-- **check** — the full `make check` gate on Python 3.10–3.13
+- **check** — the full `make check` gate on Python 3.12–3.14
   (Hypothesis derandomized).
 - **fuzz** — the five fixed fuzzer seeds.
 - **docs** — builds this site with `--strict`.

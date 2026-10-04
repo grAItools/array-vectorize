@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import enum
 import inspect
 import linecache
 import operator
@@ -11,7 +12,7 @@ from typing import Any, cast
 
 from ._ir import generated_name
 
-__all__ = ["compile_vectorized"]
+__all__ = ["ArithOp", "compile_vectorized"]
 
 
 def _describe_dtype(value: Any) -> tuple[bool, int]:
@@ -237,9 +238,27 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
     return fold([xp.asarray(a, dtype=dt) for a in args])
 
 
-#: operator names accepted by _vec_arith, mapped to stable ids
+class ArithOp(enum.IntEnum):
+    """Stable ids for the ops accepted by _vec_arith.
+
+    Generated code passes the id as an int literal. Lowering must convert
+    to a plain int at the Literal boundary (``Literal(int(ArithOp.ADD),
+    "int")``): ``ast.unparse`` on an enum value would emit its repr and
+    corrupt the generated source.
+    """
+
+    NEG = 0
+    ADD = 1
+    SUB = 2
+    MUL = 3
+    DIV = 4
+    FLOORDIV = 5
+    MOD = 6
+
+
+#: operator names accepted by _vec_arith, in ArithOp id order
 #: (generated code passes the id as an int literal)
-_ARITH_OPS = ("neg", "add", "sub", "mul", "div", "floordiv", "mod")
+_ARITH_OPS = tuple(m.name.lower() for m in ArithOp)
 
 _ARITH_FNS = {
     "add": operator.add,

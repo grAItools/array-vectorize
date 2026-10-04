@@ -6,7 +6,7 @@ import math
 import operator
 from collections import Counter
 from collections.abc import Callable
-from typing import Any
+from typing import Any, assert_never
 
 from ._ir import (
     Binding,
@@ -15,6 +15,7 @@ from ._ir import (
     Compare,
     DType,
     FuncCall,
+    Kind,
     Literal,
     Logical,
     Loop,
@@ -42,7 +43,7 @@ def _int64_ok(value: int) -> bool:
     return _INT64_MIN <= value <= _INT64_MAX
 
 
-def _literal_kind(value: object) -> str:
+def _literal_kind(value: object) -> Kind:
     if isinstance(value, bool):
         return "bool"
     if isinstance(value, int):
@@ -58,30 +59,31 @@ def _fold_binop(op: str, left: Literal, right: Literal) -> Literal | None:
     a: Any = left.value
     b: Any = right.value
     try:
-        if op == "add":
-            result: object = a + b
-        elif op == "sub":
-            result = a - b
-        elif op == "mul":
-            result = a * b
-        elif op == "div":
-            result = a / b
-        elif op == "floordiv":
-            result = a // b
-        elif op == "mod":
-            result = a % b
-        elif op == "and":
-            result = a & b
-        elif op == "or":
-            result = a | b
-        elif op == "xor":
-            result = a ^ b
-        elif op == "lshift":
-            result = a << b
-        elif op == "rshift":
-            result = a >> b
-        else:
-            return None
+        match op:
+            case "add":
+                result: object = a + b
+            case "sub":
+                result = a - b
+            case "mul":
+                result = a * b
+            case "div":
+                result = a / b
+            case "floordiv":
+                result = a // b
+            case "mod":
+                result = a % b
+            case "and":
+                result = a & b
+            case "or":
+                result = a | b
+            case "xor":
+                result = a ^ b
+            case "lshift":
+                result = a << b
+            case "rshift":
+                result = a >> b
+            case _:
+                return None
     except (ArithmeticError, ValueError, TypeError):
         return None
     if isinstance(result, int) and not isinstance(result, bool) and not _int64_ok(result):
@@ -95,14 +97,15 @@ def _fold_unary(op: str, lit: Literal) -> Literal | None:
         # exact per D2: logical_not(NaN) is False, Python `not nan` is False
         return Literal(not v, "bool")
     try:
-        if op == "neg":
-            result: Any = -v
-        elif op == "pos":
-            result = +v
-        elif op == "invert":
-            result = ~v
-        else:
-            return None
+        match op:
+            case "neg":
+                result: Any = -v
+            case "pos":
+                result = +v
+            case "invert":
+                result = ~v
+            case _:
+                return None
     except (ArithmeticError, ValueError, TypeError):
         return None
     if isinstance(result, int) and not isinstance(result, bool) and not _int64_ok(result):
@@ -172,43 +175,47 @@ def _fold_compare(op: str, left: Literal, right: Literal) -> Literal | None:
 
 def _rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
     """Rebuild ``node`` with ``fn`` applied to each rewritten child."""
-    if isinstance(node, Literal | Ref | DType):
-        return node
-    if isinstance(node, BinOp):
-        return BinOp(node.op, fn(node.left), fn(node.right))
-    if isinstance(node, UnaryOp):
-        return UnaryOp(node.op, fn(node.operand))
-    if isinstance(node, Compare):
-        return Compare(node.op, fn(node.left), fn(node.right))
-    if isinstance(node, Logical):
-        return Logical(node.op, tuple(fn(p) for p in node.parts))
-    if isinstance(node, Where):
-        return Where(fn(node.cond), fn(node.then), fn(node.other))
-    if isinstance(node, Call):
-        return Call(node.fn, tuple(fn(a) for a in node.args))
-    if isinstance(node, FuncCall):
-        return FuncCall(node.fn, tuple(fn(a) for a in node.args))
-    raise TypeError(f"unexpected IR node {type(node).__name__}")
+    match node:
+        case Literal() | Ref() | DType():
+            return node
+        case BinOp():
+            return BinOp(node.op, fn(node.left), fn(node.right))
+        case UnaryOp():
+            return UnaryOp(node.op, fn(node.operand))
+        case Compare():
+            return Compare(node.op, fn(node.left), fn(node.right))
+        case Logical():
+            return Logical(node.op, tuple(fn(p) for p in node.parts))
+        case Where():
+            return Where(fn(node.cond), fn(node.then), fn(node.other))
+        case Call():
+            return Call(node.fn, tuple(fn(a) for a in node.args))
+        case FuncCall():
+            return FuncCall(node.fn, tuple(fn(a) for a in node.args))
+        case _:
+            assert_never(node)
 
 
 def _children(node: Node) -> tuple[Node, ...]:
-    if isinstance(node, Literal | Ref | DType):
-        return ()
-    if isinstance(node, BinOp):
-        return (node.left, node.right)
-    if isinstance(node, UnaryOp):
-        return (node.operand,)
-    if isinstance(node, Compare):
-        return (node.left, node.right)
-    if isinstance(node, Logical):
-        return node.parts
-    if isinstance(node, Where):
-        return (node.cond, node.then, node.other)
-    if isinstance(node, Call):
-        return node.args
-    if isinstance(node, FuncCall):
-        return node.args
-    raise TypeError(f"unexpected IR node {type(node).__name__}")
+    match node:
+        case Literal() | Ref() | DType():
+            return ()
+        case BinOp():
+            return (node.left, node.right)
+        case UnaryOp():
+            return (node.operand,)
+        case Compare():
+            return (node.left, node.right)
+        case Logical():
+            return node.parts
+        case Where():
+            return (node.cond, node.then, node.other)
+        case Call():
+            return node.args
+        case FuncCall():
+            return node.args
+        case _:
+            assert_never(node)
 
 
 def _const_fold_expr(node: Node) -> Node:

@@ -7,7 +7,7 @@ name = "vectorizer"
 version = "0.1.0"
 description = "Source-to-source array vectorization: scalar Python functions compiled to Array API (NumPy/PyTorch/JAX/CuPy) functions"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "BSD-3-Clause" }
 dependencies = [
     "array-api-compat>=1.7",
@@ -18,10 +18,9 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Typing :: Typed",
 ]
@@ -35,10 +34,10 @@ dev = [
     "pytest-benchmark>=4.0",
     "pytest-timeout>=2.3",
     "hypothesis>=6.100",
-    "ruff>=0.6",
-    "mypy>=1.11",
+    "ruff>=0.8",
+    "mypy>=1.13",
     "coverage[toml]>=7.6",
-    "numpy>=1.24",
+    "numpy>=1.26",
     "array-api-strict>=1.0",
     "pre-commit>=3.5",
 ]
@@ -47,7 +46,7 @@ docs = [
 ]
 notebooks = [
     "marimo>=0.9",
-    "numpy>=1.24",
+    "numpy>=1.26",
     "array-api-strict>=1.0",
 ]
 
@@ -58,7 +57,7 @@ packages = ["src/vectorizer"]
 "src/vectorizer/py.typed" = "vectorizer/py.typed"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 100
 extend-exclude = ["tests/golden"]
 
@@ -75,7 +74,7 @@ select = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 strict = true
 files = ["src"]
 
@@ -112,4 +111,5 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+    "assert_never",
 ]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import math
+from typing import assert_never
 
 from ._ir import (
     Binding,
@@ -84,55 +85,57 @@ def _gen_literal(lit: Literal, ns: str) -> ast.expr:
 
 
 def _gen_expr(node: Node, ns: str) -> ast.expr:
-    if isinstance(node, Literal):
-        return _gen_literal(node, ns)
-    if isinstance(node, Ref):
-        return _load(node.name)
-    if isinstance(node, DType):
-        return _xp_attr(ns, node.name)
-    if isinstance(node, BinOp):
-        if node.op in _BINOP_AST:
-            return ast.BinOp(
-                op=_BINOP_AST[node.op](),
-                left=_gen_expr(node.left, ns),
-                right=_gen_expr(node.right, ns),
+    match node:
+        case Literal():
+            return _gen_literal(node, ns)
+        case Ref():
+            return _load(node.name)
+        case DType():
+            return _xp_attr(ns, node.name)
+        case BinOp():
+            if node.op in _BINOP_AST:
+                return ast.BinOp(
+                    op=_BINOP_AST[node.op](),
+                    left=_gen_expr(node.left, ns),
+                    right=_gen_expr(node.right, ns),
+                )
+            return _xp_call(
+                ns, _BINOP_XP[node.op], [_gen_expr(node.left, ns), _gen_expr(node.right, ns)]
             )
-        return _xp_call(
-            ns, _BINOP_XP[node.op], [_gen_expr(node.left, ns), _gen_expr(node.right, ns)]
-        )
-    if isinstance(node, UnaryOp):
-        if node.op == "neg":
-            return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand, ns))
-        if node.op == "pos":
-            return ast.UnaryOp(op=ast.UAdd(), operand=_gen_expr(node.operand, ns))
-        if node.op == "invert":
-            return ast.UnaryOp(op=ast.Invert(), operand=_gen_expr(node.operand, ns))
-        return _xp_call(ns, "logical_not", [_gen_expr(node.operand, ns)])
-    if isinstance(node, Compare):
-        return ast.Compare(
-            left=_gen_expr(node.left, ns),
-            ops=[_CMPOP_AST[node.op]()],
-            comparators=[_gen_expr(node.right, ns)],
-        )
-    if isinstance(node, Logical):
-        fn = "logical_and" if node.op == "and" else "logical_or"
-        folded = _gen_expr(node.parts[0], ns)
-        for part in node.parts[1:]:
-            folded = _xp_call(ns, fn, [folded, _gen_expr(part, ns)])
-        return folded
-    if isinstance(node, Where):
-        return _xp_call(
-            ns,
-            "where",
-            [_gen_expr(node.cond, ns), _gen_expr(node.then, ns), _gen_expr(node.other, ns)],
-        )
-    if isinstance(node, Call):
-        return _xp_call(ns, node.fn, [_gen_expr(a, ns) for a in node.args])
-    if isinstance(node, FuncCall):
-        return ast.Call(
-            func=_load(node.fn), args=[_gen_expr(a, ns) for a in node.args], keywords=[]
-        )
-    raise TypeError(f"unexpected IR node {type(node).__name__}")
+        case UnaryOp():
+            if node.op == "neg":
+                return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand, ns))
+            if node.op == "pos":
+                return ast.UnaryOp(op=ast.UAdd(), operand=_gen_expr(node.operand, ns))
+            if node.op == "invert":
+                return ast.UnaryOp(op=ast.Invert(), operand=_gen_expr(node.operand, ns))
+            return _xp_call(ns, "logical_not", [_gen_expr(node.operand, ns)])
+        case Compare():
+            return ast.Compare(
+                left=_gen_expr(node.left, ns),
+                ops=[_CMPOP_AST[node.op]()],
+                comparators=[_gen_expr(node.right, ns)],
+            )
+        case Logical():
+            fn = "logical_and" if node.op == "and" else "logical_or"
+            folded = _gen_expr(node.parts[0], ns)
+            for part in node.parts[1:]:
+                folded = _xp_call(ns, fn, [folded, _gen_expr(part, ns)])
+            return folded
+        case Where():
+            return _xp_call(
+                ns,
+                "where",
+                [_gen_expr(node.cond, ns), _gen_expr(node.then, ns), _gen_expr(node.other, ns)],
+            )
+        case Call():
+            return _xp_call(ns, node.fn, [_gen_expr(a, ns) for a in node.args])
+        case FuncCall():
+            return ast.Call(
+                func=_load(node.fn), args=[_gen_expr(a, ns) for a in node.args], keywords=[]
+            )
+        case _:
+            assert_never(node)
 
 
 def _namespace_line(ns: str, param_names: list[str]) -> ast.Assign:
@@ -207,22 +210,25 @@ def _gen_range_call(loop: Loop, ns: str) -> ast.Call:
 
 
 def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
-    if isinstance(stmt, Binding):
-        return ast.Assign(
-            targets=[ast.Name(id=stmt.name, ctx=ast.Store())],
-            value=_gen_expr(stmt.expr, ns),
-        )
-    assert isinstance(stmt, Loop)
-    body = [_gen_stmt(inner, ns) for inner in stmt.body]
-    if not body:
-        # (15) a retained loop with a fully dead body still needs a statement
-        body = [ast.Pass()]
-    return ast.For(
-        target=ast.Name(id=stmt.var, ctx=ast.Store()),
-        iter=_gen_range_call(stmt, ns),
-        body=body,
-        orelse=[],
-    )
+    match stmt:
+        case Binding():
+            return ast.Assign(
+                targets=[ast.Name(id=stmt.name, ctx=ast.Store())],
+                value=_gen_expr(stmt.expr, ns),
+            )
+        case Loop():
+            body = [_gen_stmt(inner, ns) for inner in stmt.body]
+            if not body:
+                # (15) a retained loop with a fully dead body still needs a statement
+                body = [ast.Pass()]
+            return ast.For(
+                target=ast.Name(id=stmt.var, ctx=ast.Store()),
+                iter=_gen_range_call(stmt, ns),
+                body=body,
+                orelse=[],
+            )
+        case _:
+            assert_never(stmt)
 
 
 def generate_source(lowered: LoweredFunction, program: Program) -> str:
@@ -253,6 +259,7 @@ def generate_source(lowered: LoweredFunction, program: Program) -> str:
                 decorator_list=[],
                 returns=None,
                 type_comment=None,
+                type_params=[],
             ),
         ],
         type_ignores=[],

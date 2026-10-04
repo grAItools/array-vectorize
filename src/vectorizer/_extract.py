@@ -10,29 +10,32 @@ import textwrap
 import types
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn
 
 from ._builtins import MATH_FUNCS, MATH_SPECIAL
 from ._errors import VectorizationError
 
-__all__ = ["FunctionInfo", "Param", "extract_function"]
+__all__ = ["FunctionInfo", "Param", "ParamKind", "extract_function"]
 
 _AstFunction = ast.FunctionDef | ast.Lambda
 
 _MATH_FUNC_NAMES = (*MATH_FUNCS, *MATH_SPECIAL)
 
+#: Parameter kinds, mirroring Python argument kinds.
+type ParamKind = Literal["posonly", "arg", "kwonly"]
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, slots=True)
 class Param:
     """One function parameter; ``kind`` mirrors Python argument kinds."""
 
     name: str
-    kind: str  # 'posonly' | 'arg' | 'kwonly'
+    kind: ParamKind
     default: int | float | bool | None = None
     has_default: bool = False
 
 
-@dataclass
+@dataclass(slots=True)
 class FunctionInfo:
     """Everything the later passes need about the scalar function."""
 
@@ -256,7 +259,7 @@ def _params_of(fn: _AstFunction, name: str) -> list[Param]:
     for i, default in enumerate(a.defaults):
         defaults[offset + i] = default
     for i, arg in enumerate(positional):
-        kind = "posonly" if i < len(a.posonlyargs) else "arg"
+        kind: ParamKind = "posonly" if i < len(a.posonlyargs) else "arg"
         if i in defaults:
             params.append(Param(arg.arg, kind, _check_default(arg.arg, defaults[i]), True))
         else:

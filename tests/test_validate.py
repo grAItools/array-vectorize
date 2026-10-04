@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import itertools
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -13,17 +15,19 @@ import pytest
 
 from vectorizer._errors import VectorizationError
 from vectorizer._extract import extract_function
-from vectorizer._validate import validate
+from vectorizer._validate import _EXPR_MESSAGES, validate
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_validate_")
 _TMPDIR = Path(_tmp.name)
 _seq = itertools.count()
 
 
-def make_fn(body: str) -> Callable[..., Any]:
+def make_fn(body: str, signature: str = "x", type_params: str = "") -> Callable[..., Any]:
     """Define a function with the given (indented) body in a real temp module."""
     path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text("import math\n\n\ndef subject(x):\n" + body + "\n")
+    path.write_text(
+        "import math\n\n\ndef subject" + type_params + "(" + signature + "):\n" + body + "\n"
+    )
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -252,3 +256,50 @@ def test_nonlocal_rejected() -> None:
     spec.loader.exec_module(mod)
     with pytest.raises(VectorizationError, match="nonlocal"):
         validate(extract_function(mod.outer()))
+
+
+# ------------------------------------------- Python 3.11-3.14 new syntax
+#
+# The floor bump widens the input language: the contract is rejection with a
+# precise diagnostic, never a silent miscompile (RESTRUCTURE.md §7.1). Each
+# test runs the real grammar on the interpreter that supports it; the CI
+# matrix (3.12/3.13/3.14) makes the skips meaningful.
+
+
+def test_try_star_rejected() -> None:
+    # except* is valid syntax on every supported interpreter (3.11+)
+    with pytest.raises(VectorizationError, match=r"except\*"):
+        check_body("    try:\n        y = x\n    except* ValueError:\n        y = 0\n    return y")
+
+
+def test_type_alias_statement_rejected() -> None:
+    # `type X = ...` (PEP 695) is valid syntax on every supported interpreter
+    with pytest.raises(VectorizationError, match="type alias statements"):
+        check_body("    type Alias = int\n    return x")
+
+
+def test_generic_function_rejected() -> None:
+    # def subject[T](x) (PEP 695): type parameters on the extracted function
+    with pytest.raises(VectorizationError, match="type parameters"):
+        validate(extract_function(make_fn("    return x", type_params="[T]")))
+
+
+def test_template_string_table_entry_is_version_gated() -> None:
+    # the t-string rejection entry exists exactly where the grammar has
+    # ast.TemplateStr (3.14+); on 3.12/3.13 the guard must keep it absent
+    template_node = getattr(ast, "TemplateStr", None)
+    if sys.version_info >= (3, 14):
+        assert template_node is not None
+        assert template_node in _EXPR_MESSAGES
+    else:
+        assert template_node is None
+        assert template_node not in _EXPR_MESSAGES
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="t-string syntax requires 3.14")
+def test_template_string_rejected() -> None:
+    # t-strings (PEP 750) only exist in the 3.14 grammar; on 3.12/3.13 the
+    # source itself would be a SyntaxError, so the rejection is only testable
+    # here (the validator's guarded message-table entry covers both)
+    with pytest.raises(VectorizationError, match="t-strings"):
+        check('t"x"')

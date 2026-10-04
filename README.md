@@ -45,7 +45,7 @@ pip install -e ".[dev]"   # from a checkout
 make check                # lint + type + test + coverage
 ```
 
-Requires Python >= 3.10. The only runtime dependency is `array-api-compat`.
+Requires Python >= 3.12. The only runtime dependency is `array-api-compat`.
 
 ## Public API
 

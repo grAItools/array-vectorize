@@ -29,6 +29,7 @@ from ._ir import (
     Compare,
     DType,
     FuncCall,
+    Kind,
     Literal,
     Logical,
     Loop,
@@ -43,7 +44,7 @@ from ._ir import (
     is_bool,
 )
 from ._optimize import _children
-from ._runtime import _ARITH_OPS, _vec_arith, _vec_minmax
+from ._runtime import ArithOp, _vec_arith, _vec_minmax
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -77,7 +78,7 @@ _UNARY: dict[type[ast.unaryop], str] = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class LoweredFunction:
     """Lowering output: IR plus everything codegen/runtime need."""
 
@@ -92,7 +93,7 @@ class LoweredFunction:
     emitted_names: frozenset[str]  # every binding/param name the lowering emitted
 
 
-HelperVectorizer = Callable[[Callable[..., Any]], Callable[..., Any]]
+type HelperVectorizer = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 
 class _Lowerer:
@@ -125,7 +126,7 @@ class _Lowerer:
         #: emitted name -> provable numeric kind ('int'/'float'/'bool' or
         #: None when unknown). Names are unique (SSA), so entries never go
         #: stale; this lets _numeric_kind see through Ref nodes.
-        self.name_kinds: dict[str, str | None] = {}
+        self.name_kinds: dict[str, Kind | None] = {}
         #: emitted name -> its Literal value, for bindings of plain literals
         #: (lets later uses substitute the value instead of emitting casts on
         #: runtime plain scalars, which would crash xp.astype/xp.sqrt)
@@ -133,7 +134,7 @@ class _Lowerer:
         #: per active loop: {loop-carried name -> kinds assigned in the body}.
         #: A carried variable's runtime kind is the union of its phi kind and
         #: every body assignment; mixed kinds need conservative handling.
-        self._carried_assign_kinds: list[dict[str, set[str | None]]] = []
+        self._carried_assign_kinds: list[dict[str, set[Kind | None]]] = []
         #: emitted names whose runtime value may be a raw Python scalar:
         #: parameters (omitted defaults), loop variables (raw ints per
         #: iteration), literal bindings, and locals computed from them.
@@ -448,7 +449,7 @@ class _Lowerer:
         if loop_var in body_assigned:
             raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
 
-        phi_kinds: dict[str, str | None] = {}
+        phi_kinds: dict[str, Kind | None] = {}
         # a pre-bound loop variable keeps its value on zero-trip loops:
         # emit a phi (the for-statement overwrites it on real iterations)
         if loop_var in pre_definite:
@@ -473,12 +474,12 @@ class _Lowerer:
         phi_end = len(self.bindings)
 
         def union_labels(
-            frame: dict[str, set[str | None]],
-        ) -> tuple[dict[str, str | None], list[str]]:
+            frame: dict[str, set[Kind | None]],
+        ) -> tuple[dict[str, Kind | None], list[str]]:
             """Per carried name: the final kind (union of the phi kind and
             all body-assignment kinds) and the names whose kinds MIX across
             iterations."""
-            labels: dict[str, str | None] = {}
+            labels: dict[str, Kind | None] = {}
             mixed: list[str] = []
             for loop_carried_name in carried.values():
                 kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
@@ -501,8 +502,8 @@ class _Lowerer:
         # cannot see every name that needs the intify conversion. Labels
         # only ever WIDEN (int/float -> bool), so at most len(carried)
         # widenings can happen; bound the passes at len(carried) + 2.
-        labels: dict[str, str | None] = {}
-        prev_labels: dict[str, str | None] | None = None
+        labels: dict[str, Kind | None] = {}
+        prev_labels: dict[str, Kind | None] | None = None
         max_passes = len(carried) + 2
         for attempt in range(max_passes):
             pre_body = (
@@ -636,44 +637,48 @@ class _Lowerer:
     # --------------------------------------------------------- expressions
 
     def lower_expr(self, node: ast.expr) -> Node:
-        if isinstance(node, ast.Constant):
-            return self._literal(node.value)
-        if isinstance(node, ast.Name):
-            return self.load_name(node)
-        if isinstance(node, ast.BinOp):
-            return self._lower_binop(
-                node.op, self.lower_expr(node.left), self.lower_expr(node.right)
-            )
-        if isinstance(node, ast.UnaryOp):
-            operand = self.lower_expr(node.operand)
-            if isinstance(node.op, ast.USub) and (
-                self._numeric_kind(operand) == "bool" or self._maybe_bool_result(operand)
-            ):
-                # -True is -1 in Python; numpy cannot negate bool arrays.
-                # The whole negation goes through the runtime helper (it
-                # computes the negation — no wrapping UnaryOp on top)
-                if isinstance(operand, Literal):
-                    return Literal(-int(operand.value), "int")
-                return FuncCall(
-                    self.arith_name,
-                    (Ref(self.ns_var), Literal(_ARITH_OPS.index("neg"), "int"), operand),
+        match node:
+            case ast.Constant():
+                return self._literal(node.value)
+            case ast.Name():
+                return self.load_name(node)
+            case ast.BinOp():
+                return self._lower_binop(
+                    node.op, self.lower_expr(node.left), self.lower_expr(node.right)
                 )
-            return UnaryOp(_UNARY[type(node.op)], operand)
-        if isinstance(node, ast.Compare):
-            return self._lower_compare(node)
-        if isinstance(node, ast.BoolOp):
-            return self._lower_boolop(node)
-        if isinstance(node, ast.IfExp):
-            return Where(
-                self._coerce_bool(self.lower_expr(node.test)),
-                self.lower_expr(node.body),
-                self.lower_expr(node.orelse),
-            )
-        if isinstance(node, ast.Call):
-            return self._lower_call(node)
-        if isinstance(node, ast.Attribute):
-            return self._lower_math_const(node)
-        raise self.error(node, f"{type(node).__name__} expressions are not supported")
+            case ast.UnaryOp():
+                operand = self.lower_expr(node.operand)
+                if isinstance(node.op, ast.USub) and (
+                    self._numeric_kind(operand) == "bool" or self._maybe_bool_result(operand)
+                ):
+                    # -True is -1 in Python; numpy cannot negate bool arrays.
+                    # The whole negation goes through the runtime helper (it
+                    # computes the negation — no wrapping UnaryOp on top)
+                    if isinstance(operand, Literal):
+                        return Literal(-int(operand.value), "int")
+                    return FuncCall(
+                        self.arith_name,
+                        (Ref(self.ns_var), Literal(int(ArithOp.NEG), "int"), operand),
+                    )
+                return UnaryOp(_UNARY[type(node.op)], operand)
+            case ast.Compare():
+                return self._lower_compare(node)
+            case ast.BoolOp():
+                return self._lower_boolop(node)
+            case ast.IfExp():
+                return Where(
+                    self._coerce_bool(self.lower_expr(node.test)),
+                    self.lower_expr(node.body),
+                    self.lower_expr(node.orelse),
+                )
+            case ast.Call():
+                return self._lower_call(node)
+            case ast.Attribute():
+                return self._lower_math_const(node)
+            case _:
+                # ast.expr is an open set (new syntax per Python release);
+                # the validator rejects these first, lowering never sees them
+                raise self.error(node, f"{type(node).__name__} expressions are not supported")
 
     def _lower_compare(self, node: ast.Compare) -> Node:
         parts: list[Node] = []
@@ -810,83 +815,84 @@ class _Lowerer:
             and node.operand.kind == "int"
         )
 
-    def _numeric_kind(self, node: Node) -> str | None:
+    def _numeric_kind(self, node: Node) -> Kind | None:
         """Best-effort numeric kind: literals, casts, bools, arithmetic, and
         Refs whose binding kind was recorded are provable."""
-        if isinstance(node, Literal):
-            return node.kind
-        if isinstance(node, Ref):
-            return self.name_kinds.get(node.name)
-        if isinstance(node, Logical):
-            return "bool"
-        if isinstance(node, Where):
-            kt, ke = self._numeric_kind(node.then), self._numeric_kind(node.other)
-            return kt if kt == ke else None
-        if is_bool(node):
-            return "bool"
-        if isinstance(node, BinOp):
-            # scalar promotion rules: int/bool + float -> float; arithmetic
-            # over ints/bools stays int; true division is ALWAYS float in
-            # Python (int / int -> float), whatever the operand kinds
-            lk, rk = self._numeric_kind(node.left), self._numeric_kind(node.right)
-            if node.op == "div":
-                return "float"
-            if node.op in ("and", "or", "xor"):
-                # bitwise: Python bool & bool is bool (saturating array bool
-                # arithmetic would otherwise lose exactness downstream)
-                if lk == "bool" and rk == "bool":
-                    return "bool"
+        match node:
+            case Literal():
+                return node.kind
+            case Ref():
+                return self.name_kinds.get(node.name)
+            case Logical():
+                return "bool"
+            case Where():
+                kt, ke = self._numeric_kind(node.then), self._numeric_kind(node.other)
+                return kt if kt == ke else None
+            case _ if is_bool(node):
+                # provably-boolean nodes (Compare, not, isnan/isinf/isfinite)
+                return "bool"
+            case BinOp():
+                # scalar promotion rules: int/bool + float -> float; arithmetic
+                # over ints/bools stays int; true division is ALWAYS float in
+                # Python (int / int -> float), whatever the operand kinds
+                lk, rk = self._numeric_kind(node.left), self._numeric_kind(node.right)
+                if node.op == "div":
+                    return "float"
+                if node.op in ("and", "or", "xor"):
+                    # bitwise: Python bool & bool is bool (saturating array bool
+                    # arithmetic would otherwise lose exactness downstream)
+                    if lk == "bool" and rk == "bool":
+                        return "bool"
+                    if lk in ("int", "bool") and rk in ("int", "bool"):
+                        return "int"
+                    return None
+                if "float" in (lk, rk):
+                    return "float"
                 if lk in ("int", "bool") and rk in ("int", "bool"):
                     return "int"
                 return None
-            if "float" in (lk, rk):
-                return "float"
-            if lk in ("int", "bool") and rk in ("int", "bool"):
+            case UnaryOp() if node.op in ("neg", "pos"):
+                return self._numeric_kind(node.operand)
+            case Call() if node.fn == "asarray" and len(node.args) == 1:
+                # asarray preserves the wrapped value's kind
+                return self._numeric_kind(node.args[0])
+            case FuncCall() if node.fn == self.minmax_name:
+                # min/max result kind: bool when every argument is bool, float
+                # when any argument is float, int for int-ish mixes (the helper
+                # normalizes bool arrays to int8, so arithmetic downstream must
+                # intify)
+                kinds = [self._numeric_kind(a) for a in node.args[2:]]
+                if any(k is None for k in kinds):
+                    return None
+                if "float" in kinds:
+                    return "float"
+                if all(k == "bool" for k in kinds):
+                    return "bool"
                 return "int"
-            return None
-        if isinstance(node, UnaryOp) and node.op in ("neg", "pos"):
-            return self._numeric_kind(node.operand)
-        if isinstance(node, Call) and node.fn == "asarray" and len(node.args) == 1:
-            # asarray preserves the wrapped value's kind
-            return self._numeric_kind(node.args[0])
-        if isinstance(node, FuncCall) and node.fn == self.minmax_name:
-            # min/max result kind: bool when every argument is bool, float
-            # when any argument is float, int for int-ish mixes (the helper
-            # normalizes bool arrays to int8, so arithmetic downstream must
-            # intify)
-            kinds = [self._numeric_kind(a) for a in node.args[2:]]
-            if any(k is None for k in kinds):
+            case FuncCall() if node.fn == self.arith_name:
+                # arithmetic helper result kind: floats stay float, true
+                # division is float, known int/bool operands give int (bools
+                # are converted to a numeric dtype inside the helper) — so
+                # downstream mitigations (e.g. the negative-exponent float
+                # cast) keep firing for provably-integer results
+                op_lit = node.args[1] if len(node.args) > 1 else None
+                op_id = op_lit.value if isinstance(op_lit, Literal) else None
+                if op_id == int(ArithOp.DIV):
+                    return "float"
+                kinds = [self._numeric_kind(a) for a in node.args[2:]]
+                if any(k is None for k in kinds):
+                    return None
+                if "float" in kinds:
+                    return "float"
+                return "int"
+            case Call() if (
+                node.fn == "astype" and len(node.args) == 2 and isinstance(node.args[1], DType)
+            ):
+                name = node.args[1].name
+                return "bool" if name == "bool" else "int" if name == "int64" else "float"
+            case _:
+                # no provable kind (unknown ops, untracked casts, ...)
                 return None
-            if "float" in kinds:
-                return "float"
-            if all(k == "bool" for k in kinds):
-                return "bool"
-            return "int"
-        if isinstance(node, FuncCall) and node.fn == self.arith_name:
-            # arithmetic helper result kind: floats stay float, true
-            # division is float, known int/bool operands give int (bools
-            # are converted to a numeric dtype inside the helper) — so
-            # downstream mitigations (e.g. the negative-exponent float
-            # cast) keep firing for provably-integer results
-            op_lit = node.args[1] if len(node.args) > 1 else None
-            op_id = op_lit.value if isinstance(op_lit, Literal) else None
-            if op_id == _ARITH_OPS.index("div"):
-                return "float"
-            kinds = [self._numeric_kind(a) for a in node.args[2:]]
-            if any(k is None for k in kinds):
-                return None
-            if "float" in kinds:
-                return "float"
-            return "int"
-        if (
-            isinstance(node, Call)
-            and node.fn == "astype"
-            and len(node.args) == 2
-            and isinstance(node.args[1], DType)
-        ):
-            name = node.args[1].name
-            return "bool" if name == "bool" else "int" if name == "int64" else "float"
-        return None
 
     def _lower_binop(self, op: ast.operator, left: Node, right: Node) -> Node:
         """Build a BinOp with the exactness fixes shared by `a op b` and `a op= b`."""
@@ -909,7 +915,7 @@ class _Lowerer:
             ir_op = _BINOPS[type(op)]
             return FuncCall(
                 self.arith_name,
-                (Ref(self.ns_var), Literal(_ARITH_OPS.index(ir_op), "int"), left, right),
+                (Ref(self.ns_var), Literal(int(ArithOp[ir_op.upper()]), "int"), left, right),
             )
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
