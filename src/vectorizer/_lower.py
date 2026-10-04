@@ -43,7 +43,7 @@ from ._ir import (
     is_bool,
 )
 from ._optimize import _children
-from ._runtime import _vec_arith_dtype, _vec_minmax_dtype, _vec_minmax_lit
+from ._runtime import _vec_arith_dtype, _vec_minmax
 
 __all__ = ["LoweredFunction", "lower_function"]
 
@@ -143,10 +143,9 @@ class _Lowerer:
         #: the generated namespace variable ('xp' unless taken); set by
         #: lower_function before lowering starts
         self.ns_var: str = "xp"
-        #: allocated names of the runtime dtype promotion helpers (set by
-        #: lower_function; collision-free against user names)
-        self.minmax_dtype_name = "_vec_minmax_dtype"
-        self.minmax_lit_name = "_vec_minmax_lit"
+        #: allocated names of the runtime promotion/selection helpers (set
+        #: by lower_function; collision-free against user names)
+        self.minmax_name = "_vec_minmax"
         self.arith_dtype_name = "_vec_arith_dtype"
         self.assigned_names: set[str] = {
             t.id
@@ -724,47 +723,21 @@ class _Lowerer:
                     lit for a in args if (lit := self._literal_value(a)) is not None
                 ]
             else:
-                # strict backends reject mixed-dtype array promotion, and a
-                # parameter's dtype is only known at call time. Array
-                # arguments are cast to a common dtype computed at RUNTIME
-                # (injected _vec_minmax_dtype helper), and literal bounds
-                # become arrays through the injected _vec_minmax_lit helper:
-                # exact-fit, clamped when the bound can never win (max with
-                # a negative bound on unsigned values), or promoted — never
-                # truncated or overflowed
+                # one runtime helper call with exact selection semantics:
+                # identical-dtype fast paths, never-winning-bound clamps,
+                # proven integer result ranges (max(uint64, signed) fits
+                # uint64; min(uint64, signed) fits int64), Python float
+                # promotion. Literal args pass as raw values; array args
+                # pass through the soft sanitizer
                 is_min = BUILTIN_FOLDS[name] == "minimum"
-                sanitized_mm = {
-                    id(a): self._sanitize_xp_arg(a, force_float=False)
-                    for a in args
-                    if self._literal_value(a) is None
-                }
                 helper_args: list[Node] = [Ref(self.ns_var), Literal(is_min, "bool")]
                 for a in args:
                     lit = self._literal_value(a)
                     if lit is None:
-                        helper_args.append(sanitized_mm[id(a)])
+                        helper_args.append(self._sanitize_xp_arg(a, force_float=False))
                     else:
                         helper_args.append(lit)
-                common = FuncCall(self.minmax_dtype_name, tuple(helper_args))
-
-                def minmax_arg(a: Node) -> Node:
-                    if id(a) in sanitized_mm:
-                        return Call("astype", (sanitized_mm[id(a)], common))
-                    mm_lit = self._literal_value(a)
-                    assert mm_lit is not None
-                    # every literal sees ALL arguments: another literal can
-                    # force a wider common dtype than this one fits
-                    return FuncCall(
-                        self.minmax_lit_name,
-                        (
-                            Ref(self.ns_var),
-                            Literal(is_min, "bool"),
-                            mm_lit,
-                            *helper_args[2:],
-                        ),
-                    )
-
-                clean = [minmax_arg(a) for a in args]
+                return FuncCall(self.minmax_name, tuple(helper_args))
             folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
             for arg in clean[2:]:
                 folded = Call(BUILTIN_FOLDS[name], (folded, arg))
@@ -1012,8 +985,7 @@ def lower_function(
     # so a user parameter named like a helper cannot shadow it (bare-name
     # calls would resolve to the parameter instead of the global)
     for attr, base, fn in (
-        ("minmax_dtype_name", "_vec_minmax_dtype", _vec_minmax_dtype),
-        ("minmax_lit_name", "_vec_minmax_lit", _vec_minmax_lit),
+        ("minmax_name", "_vec_minmax", _vec_minmax),
         ("arith_dtype_name", "_vec_arith_dtype", _vec_arith_dtype),
     ):
         helper_name = (
