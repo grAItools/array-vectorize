@@ -862,6 +862,22 @@ class _Lowerer:
             if all(k == "bool" for k in kinds):
                 return "bool"
             return "int"
+        if isinstance(node, FuncCall) and node.fn == self.arith_name:
+            # arithmetic helper result kind: floats stay float, true
+            # division is float, known int/bool operands give int (bools
+            # are converted to a numeric dtype inside the helper) — so
+            # downstream mitigations (e.g. the negative-exponent float
+            # cast) keep firing for provably-integer results
+            op_lit = node.args[1] if len(node.args) > 1 else None
+            op_id = op_lit.value if isinstance(op_lit, Literal) else None
+            if op_id == _ARITH_OPS.index("div"):
+                return "float"
+            kinds = [self._numeric_kind(a) for a in node.args[2:]]
+            if any(k is None for k in kinds):
+                return None
+            if "float" in kinds:
+                return "float"
+            return "int"
         if (
             isinstance(node, Call)
             and node.fn == "astype"

@@ -305,9 +305,11 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 # array op negative-literal: exact in int64 per lane
                 d = xp.asarray(-right, dtype=left.dtype)
                 if op == "mod":
-                    # a % -|d| is 0 when a %% |d| == 0, else (a %% |d|) - |d|
+                    # a % -|d| is 0 when a %% |d| == 0, else (a %% |d|) + d;
+                    # adding the NEGATIVE divisor directly avoids forming
+                    # |d| = 2**63, which no int64 scalar can hold
                     r = xp.astype(left % d, xp.int64)
-                    return xp.where(r == 0, xp.asarray(0, dtype=xp.int64), r - (-right))
+                    return xp.where(r == 0, xp.asarray(0, dtype=xp.int64), r + right)
                 q = left // d
                 r = left % d
                 mag = q + xp.astype(r > 0, left.dtype)  # ceil(a / |d|)
