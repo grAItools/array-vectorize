@@ -1,27 +1,31 @@
-# Open review findings — round 13 (reviewer agent 94e52ea7, reviewed commit aec0dd4)
+# Open review findings — round 14 (reviewer agent 94e52ea7, reviewed commit 3b428af)
 
-STATUS: the round-13 finding fixed; round-14 request sent. Fix summary:
+STATUS: all three round-14 findings fixed; round-15 request sent. Fix
+summary:
 
-1. CRITICAL runtime-boolean min/max results bypassed arithmetic
-   conversion when an operand's static kind was unknown — FIXED with
-   maybe-bool tracking. A new `_maybe_bool_names` set records bindings
-   whose value is a `_vec_minmax` result with unknown static kind
-   (parameter operands: the runtime dtype may be boolean). The
-   arithmetic-intify condition in `_lower_binop` now also fires for
-   maybe-bool operands (direct FuncCall calls, Refs to maybe-bool
-   bindings, and reference chains through assignments — propagated in
-   `_lower_assign` and loop phis). The intify itself is
-   runtime-polymorphic (_vec_arith_dtype): int64 for booleans, a no-op
-   for numeric dtypes, so nothing changes for float/int inputs.
-   Repro: `a = min(x, True); a + a` with a boolean array -> [2, 0] on
-   numpy AND array_api_strict (previously [True, False] / TypeError).
-   Tests: test_minmax_runtime_bool_arithmetic_numpy,
-   test_minmax_runtime_bool_arithmetic_strict,
-   test_minmax_runtime_bool_ref_chain, test_minmax_runtime_numeric_noop,
-   test_minmax_runtime_bool_loop_carried,
-   test_minmax_runtime_bool_direct_call.
+1. CRITICAL branch merges lost maybe-boolean tracking — FIXED.
+   `_maybe_bool_result` handles Where nodes (a branch merge of
+   maybe-bool values is maybe-bool), and `_merge_envs` records the
+   merged binding name. `if x == True: a = min(x, True) else:
+   a = max(x, False); a + a` -> [2, 0].
+   Tests: test_branch_merged_maybe_bool_arithmetic.
 
-Round-13 regressions: tests/test_review_round13.py (6 tests). make
-check green: 571 tests, ruff + mypy strict clean, 95% branch coverage.
-Fuzzer clean on seeds 42/7/123/999/2024. Goldens regenerated (maybe-bool
-arithmetic emits the runtime intify casts).
+2. CRITICAL maybe-boolean conversion rounded uint64 values — FIXED.
+   `_vec_arith_dtype` preserves uint64 when no real float is involved
+   and every other operand is exactly representable in uint64
+   (unsigned/boolean arrays, non-negative literals): the u64-as-float64
+   lattice classification no longer routes integer arithmetic through
+   float64. `a = max(x, True); a + 0` at uint64[2**63+1] ->
+   9223372036854775809 exactly (checked via int()).
+   Tests: test_maybe_bool_uint64_arithmetic_exact,
+   test_maybe_bool_uint64_unary_negate_no_rounding_cast.
+
+3. MAJOR unary negation ignored maybe-boolean results — FIXED. The
+   USub intify condition now also fires for maybe-bool operands:
+   `a = min(x, True); -a` -> [-1, 0] on numpy and array_api_strict.
+   Tests: test_unary_negate_maybe_bool,
+   test_unary_negate_maybe_bool_strict.
+
+Round-14 regressions: tests/test_review_round14.py (5 tests). make
+check green: 576 tests, ruff + mypy strict clean, 95% branch coverage.
+Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged.

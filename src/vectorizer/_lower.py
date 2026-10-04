@@ -598,6 +598,8 @@ class _Lowerer:
                 self.definite[var] = name
                 kt, ke = self.name_kinds.get(nt), self.name_kinds.get(ne)
                 self.name_kinds[name] = kt if kt == ke else None
+                if self._maybe_bool_result(merged_expr):
+                    self._maybe_bool_names.add(name)
             else:
                 # bound on one path only (and not before the if): maybe-unbound
                 self.definite.pop(var, None)
@@ -644,7 +646,9 @@ class _Lowerer:
             )
         if isinstance(node, ast.UnaryOp):
             operand = self.lower_expr(node.operand)
-            if isinstance(node.op, ast.USub) and self._numeric_kind(operand) == "bool":
+            if isinstance(node.op, ast.USub) and (
+                self._numeric_kind(operand) == "bool" or self._maybe_bool_result(operand)
+            ):
                 # -True is -1 in Python; numpy cannot negate bool arrays
                 operand = self._intify(operand)
             return UnaryOp(_UNARY[type(node.op)], operand)
@@ -924,6 +928,9 @@ class _Lowerer:
             return self._numeric_kind(node) is None
         if isinstance(node, Ref):
             return node.name in self._maybe_bool_names
+        if isinstance(node, Where):
+            # branch merge of maybe-bool values is maybe-bool
+            return self._maybe_bool_result(node.then) or self._maybe_bool_result(node.other)
         return False
 
     def _possibly_scalar(self, node: Node) -> bool:

@@ -243,15 +243,36 @@ def _vec_arith_dtype(xp: Any, *args: Any) -> Any:
     Python integers are unbounded, so int-class operands get int64
     headroom (True + True chains must not wrap); float operands keep their
     dtype (bools are exact in any of them); mixed int/float promotes to
-    float64, matching Python's int + float -> float.
+    float64, matching Python's int + float -> float. Exception: uint64
+    values fit no signed int and round through float64, so when no real
+    float is involved and every other operand is exactly representable in
+    uint64 (unsigned or boolean arrays, non-negative literals), the target
+    stays uint64.
     """
+    has_real_float = any(
+        hasattr(a, "dtype") and ("float" in str(a.dtype) or "complex" in str(a.dtype)) for a in args
+    ) or any(isinstance(a, float) for a in args)
+    if (
+        not has_real_float
+        and any(
+            hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64
+            for a in args
+        )
+        and all(
+            (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
+            or isinstance(a, bool)
+            or (isinstance(a, int) and 0 <= a < 2**64)
+            for a in args
+        )
+    ):
+        return xp.uint64
     classes = [_describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)
     has_int = any(not f for f, _ in classes)
     if has_float:
         if has_int:
             return xp.float64
-        return getattr(xp, f"float{max(w for _, w in classes)}")
+        return getattr(xp, f"float{max(w for f, w in classes)}")
     return xp.int64
 
 
