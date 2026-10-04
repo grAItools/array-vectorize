@@ -7,8 +7,8 @@ at decoration time:
 flowchart LR
     A["scalar Python\n(ast)"] --> B["extract\n(_extract)"]
     B --> C["validate\n(_validate)"]
-    C --> D["optimize\n(_optimize)"]
-    D --> E["lower\n(_lower)"]
+    C --> D["lower\n(_lower)"]
+    D --> E["optimize\n(_optimize)"]
     E --> F["codegen\n(_codegen)"]
     F --> G["exec + wrap\n(__init__)"]
     G --> H["verify\n(optional, differential)"]
@@ -20,13 +20,13 @@ flowchart LR
   closure environment; resolves lambdas and nested pure functions.
 - **validate** — rejects unsupported constructs, collecting *all*
   violations with line/column positions before failing.
-- **optimize** — IR-level constant folding, dead-code elimination, and
-  common-subexpression elimination on the scalar program.
 - **lower** — the semantic core: scalar control flow (`if`/`else`, early
   returns, `range` loops) becomes `xp.where` merges and explicit loop
   phis; scalar operations become Array API calls; dtype/kind inference
   (`_numeric_kind`, maybe-bool tracking) decides where the exactness
   helpers are needed.
+- **optimize** — IR-level constant folding, dead-code elimination, and
+  common-subexpression elimination on the scalar program.
 - **codegen** — emits readable Python source from the lowered IR (SSA
   names, real loop structure).
 - **exec + wrap** — compiles the source and wraps it so the namespace is
