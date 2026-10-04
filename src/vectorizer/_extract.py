@@ -134,9 +134,7 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
         for node in candidates:
             try:
                 probe = compile(ast.Expression(node), "<lambda-probe>", "eval")
-                inner = next(
-                    (c for c in probe.co_consts if isinstance(c, types.CodeType)), None
-                )
+                inner = next((c for c in probe.co_consts if isinstance(c, types.CodeType)), None)
                 if inner is None:
                     detail.append(f"node={ast.unparse(node)} inner=None")
                     continue
@@ -151,8 +149,7 @@ def _find_target(tree: ast.Module, name: str, target: object) -> _AstFunction:
                 detail.append(f"node={ast.unparse(node)} probe SyntaxError: {exc}")
         code = getattr(target, "__code__", None)
         target_desc = (
-            code
-            and (code.co_code.hex(), code.co_names, code.co_varnames, code.co_consts)
+            code and (code.co_code.hex(), code.co_names, code.co_varnames, code.co_consts)
         ) or None
         _reject(
             name,
