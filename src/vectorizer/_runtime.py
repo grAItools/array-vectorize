@@ -257,10 +257,12 @@ def _vec_arith_dtype(xp: Any, op_id: Any, *args: Any) -> Any:
     literal — BUT only where modular arithmetic preserves semantics:
     add/sub/mul accept any int literal (exact while the true result is
     in [0, 2**64), which is all any dtype can hold); floordiv/mod accept
-    only non-negative literals (negative divisors change floor/mod
-    semantics); true division and negation never take the uint64 path
-    (their results can be negative or float), so the lattice promotes
-    them to float64.
+    only non-negative literals; floordiv/mod with negative divisors and
+    negation use int64 whenever every uint64 VALUE fits int64 (checked
+    at runtime — exact for those, and their results fit int64);
+    otherwise the lattice promotes to float64 (best effort: the results
+    are unrepresentable or the values exceed int64). True division
+    always produces float.
     """
     op = _ARITH_OPS[op_id] if isinstance(op_id, int) else op_id
     has_real_float = any(
@@ -269,23 +271,44 @@ def _vec_arith_dtype(xp: Any, op_id: Any, *args: Any) -> Any:
     if not has_real_float and any(
         hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64 for a in args
     ):
-        if op in ("add", "sub", "mul"):
-            if all(
-                (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
-                or isinstance(a, bool | int)
+        others_intish = all(
+            (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
+            or isinstance(a, bool | int)
+            for a in args
+        )
+        u64s = [
+            a
+            for a in args
+            if hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64
+        ]
+        if others_intish:
+            if op in ("add", "sub", "mul"):
+                return xp.uint64
+            if op in ("floordiv", "mod") and all(
+                isinstance(a, bool) or (isinstance(a, int) and a >= 0)
                 for a in args
+                if not hasattr(a, "dtype")
             ):
                 return xp.uint64
-        elif op in ("floordiv", "mod") and all(
-            (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
-            or isinstance(a, bool)
-            or (isinstance(a, int) and a >= 0)
-            for a in args
-        ):
-            return xp.uint64
+            if op in ("floordiv", "mod", "neg"):
+                # negative divisors / negation: int64 is exact whenever
+                # every uint64 value fits (runtime check)
+                if all(bool(xp.all(a < 2**63)) for a in u64s):
+                    return xp.int64
+                return xp.float64
+        if op == "div":
+            return xp.float64
     classes = [_describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)
     has_int = any(not f for f, _ in classes)
+    if op == "div":
+        # true division always produces float; strict backends require
+        # floating-point operands
+        if has_float:
+            if has_int:
+                return xp.float64
+            return getattr(xp, f"float{max(w for f, w in classes)}")
+        return xp.float64
     if has_float:
         if has_int:
             return xp.float64
