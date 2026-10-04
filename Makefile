@@ -1,4 +1,4 @@
-.PHONY: install fmt lint type test coverage check
+.PHONY: install fmt lint type test coverage check fuzz bench docs docs-serve notebook
 
 install:
 	python -m pip install -e ".[dev]"
@@ -22,3 +22,22 @@ coverage:
 	python -m coverage report
 
 check: lint type coverage
+
+fuzz:
+	for seed in 42 7 123 999 2024; do \
+		python -m vectorizer.fuzz --seed $$seed --cases 400 || exit 1; \
+	done
+
+bench:
+	python -m pytest tests/test_bench.py -m slow --benchmark-enable \
+		--benchmark-only --benchmark-columns=min,median,ops \
+		--benchmark-group-by=func
+
+docs:
+	python -m zensical build --strict
+
+docs-serve:
+	python -m zensical serve
+
+notebook:
+	python -m marimo edit examples/notebooks

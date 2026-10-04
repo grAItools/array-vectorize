@@ -3,34 +3,16 @@
 from __future__ import annotations
 
 import importlib.util
-import itertools
-import tempfile
 import warnings
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from support import TMPDIR, make_fn
 
 from vectorizer import VectorizationError, vectorize
 from vectorizer._verify import verify_match
-
-_tmp = tempfile.TemporaryDirectory(prefix="vec_rev1_")
-_TMPDIR = Path(_tmp.name)
-_seq = itertools.count()
-
-
-def make_fn(body: str, extra: str = "") -> Callable[..., Any]:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text(
-        "import math\nimport numpy as np\n" + extra + "\n\n\ndef subject(x, y=2.0):\n" + body + "\n"
-    )
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.subject
 
 
 def vec_of(body: str, extra: str = "") -> tuple[Callable[..., Any], Callable[..., Any]]:
@@ -141,7 +123,7 @@ def test_protect_domains_no_warning_on_poles() -> None:
 
 
 def test_multiple_lambdas_on_one_line() -> None:
-    path = _TMPDIR / "multi_lambda.py"
+    path = TMPDIR / "multi_lambda.py"
     path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
@@ -200,7 +182,7 @@ def test_fallback_array_kwargs() -> None:
 
 
 def test_hidden_params_preserve_kwonly_defaults() -> None:
-    path = _TMPDIR / "kwonly_closure.py"
+    path = TMPDIR / "kwonly_closure.py"
     path.write_text(
         "import numpy as np\n"
         "C = np.asarray([2.0])\n"
@@ -222,7 +204,7 @@ def test_hidden_params_preserve_kwonly_defaults() -> None:
 
 
 def test_reserved_xp_param_keyword_call() -> None:
-    path = _TMPDIR / "xp_param.py"
+    path = TMPDIR / "xp_param.py"
     path.write_text("import numpy as np\n\n\ndef subject(xp):\n    return xp + 1\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None

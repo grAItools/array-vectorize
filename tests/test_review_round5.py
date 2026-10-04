@@ -2,31 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
-import itertools
-import tempfile
-from collections.abc import Callable
-from pathlib import Path
-from typing import Any
-
 import numpy as np
+from support import make_fn
 
 from vectorizer import vectorize
-
-_tmp = tempfile.TemporaryDirectory(prefix="vec_rev5_")
-_TMPDIR = Path(_tmp.name)
-_seq = itertools.count()
-
-
-def make_fn(body: str, defaults: str = "x, y=2.0") -> Callable[..., Any]:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text("import math\n\n\ndef subject(" + defaults + "):\n" + body + "\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.subject
-
 
 # 1: min/max literal promotion never truncates or overflows
 

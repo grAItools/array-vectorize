@@ -3,33 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
-import itertools
 import math
-import tempfile
-from collections.abc import Callable
-from pathlib import Path
-from typing import Any
 
 import numpy as np
+from support import TMPDIR, make_fn
 
 from vectorizer import vectorize
-
-_tmp = tempfile.TemporaryDirectory(prefix="vec_rev3_")
-_TMPDIR = Path(_tmp.name)
-_seq = itertools.count()
-
-
-def make_fn(body: str, extra: str = "") -> Callable[..., Any]:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text(
-        "import math\nimport numpy as np\n" + extra + "\n\n\ndef subject(x, y=2.0):\n" + body + "\n"
-    )
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.subject
-
 
 # 1: literal facts do not survive loop boundaries
 
@@ -123,7 +102,7 @@ def test_min_max_literal_args_strict() -> None:
 
 
 def test_lambda_signed_zero_constants() -> None:
-    path = _TMPDIR / "lam_zeros.py"
+    path = TMPDIR / "lam_zeros.py"
     path.write_text(
         "import math\n"
         "f1, f2 = (\n"
@@ -140,7 +119,7 @@ def test_lambda_signed_zero_constants() -> None:
 
 
 def test_lambda_int_vs_bool_vs_float_constants() -> None:
-    path = _TMPDIR / "lam_types.py"
+    path = TMPDIR / "lam_types.py"
     path.write_text("g1, g2, g3 = (lambda x: x + 1), (lambda x: x + True), (lambda x: x + 1.0)\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None

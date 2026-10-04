@@ -23,11 +23,16 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
 ]
+
+[project.urls]
+Source = "https://github.com/grAItools/vectorizer"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-benchmark>=4.0",
     "hypothesis>=6.100",
     "ruff>=0.6",
     "mypy>=1.11",
@@ -36,9 +41,20 @@ dev = [
     "array-api-strict>=1.0",
     "pre-commit>=3.5",
 ]
+docs = [
+    "zensical>=0.0.67",
+]
+notebooks = [
+    "marimo>=0.9",
+    "numpy>=1.24",
+    "array-api-strict>=1.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vectorizer"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/vectorizer/py.typed" = "vectorizer/py.typed"
 
 [tool.ruff]
 target-version = "py310"
@@ -68,7 +84,17 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --benchmark-disable"
+strict_markers = true
+filterwarnings = [
+    "error",
+    # numpy emits these from documented divergence paths (runtime pow
+    # overflow, div-by-zero on generated inputs); they are data-dependent,
+    # not code smells
+    "ignore:overflow encountered:RuntimeWarning",
+    "ignore:invalid value encountered:RuntimeWarning",
+    "ignore:divide by zero encountered:RuntimeWarning",
+]
 markers = [
     "slow: performance tests that are timing-sensitive",
 ]

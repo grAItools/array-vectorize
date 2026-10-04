@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
+from hypothesis import settings
+
+settings.register_profile("ci", derandomize=True, max_examples=300, deadline=None)
+settings.load_profile("ci" if os.environ.get("CI") else "default")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

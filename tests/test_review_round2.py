@@ -3,34 +3,16 @@
 from __future__ import annotations
 
 import importlib.util
-import itertools
 import math
-import tempfile
 import warnings
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from support import TMPDIR, make_fn
 
 from vectorizer import vectorize
-
-_tmp = tempfile.TemporaryDirectory(prefix="vec_rev2_")
-_TMPDIR = Path(_tmp.name)
-_seq = itertools.count()
-
-
-def make_fn(body: str, extra: str = "") -> Callable[..., Any]:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text(
-        "import math\nimport numpy as np\n" + extra + "\n\n\ndef subject(x, y=2.0):\n" + body + "\n"
-    )
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.subject
 
 
 def vec_of(body: str, extra: str = "") -> tuple[Callable[..., Any], Callable[..., Any]]:
@@ -171,7 +153,7 @@ def test_protect_domains_multiple_uses_or_liveness() -> None:
 
 
 def test_lambdas_differing_only_in_names() -> None:
-    path = _TMPDIR / "lam_names.py"
+    path = TMPDIR / "lam_names.py"
     path.write_text("import math\nf1, f2 = (lambda x: math.sin(x)), (lambda x: math.cos(x))\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
@@ -182,7 +164,7 @@ def test_lambdas_differing_only_in_names() -> None:
 
 
 def test_lambdas_differing_only_in_defaults() -> None:
-    path = _TMPDIR / "lam_defaults.py"
+    path = TMPDIR / "lam_defaults.py"
     path.write_text("g1, g2 = (lambda x, y=1: x + y), (lambda x, y=2: x + y)\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
@@ -196,7 +178,7 @@ def test_lambdas_differing_only_in_defaults() -> None:
 
 
 def test_namespace_var_rebinding_no_collision() -> None:
-    path = _TMPDIR / "xp_rebind.py"
+    path = TMPDIR / "xp_rebind.py"
     path.write_text("import math\n\n\ndef subject(xp):\n    xp = xp + 1\n    return math.sin(xp)\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
@@ -207,7 +189,7 @@ def test_namespace_var_rebinding_no_collision() -> None:
 
 
 def test_reserved_caller_name_param_not_renamed() -> None:
-    path = _TMPDIR / "reserved_caller.py"
+    path = TMPDIR / "reserved_caller.py"
     path.write_text(
         "def reserved_caller(reserved_caller_vec):\n    return reserved_caller_vec + 1\n"
     )
@@ -256,7 +238,7 @@ def test_loop_var_math_call_strict() -> None:
 def test_verify_on_strict_backend() -> None:
     import array_api_strict as xps
 
-    path = _TMPDIR / "identity_fn.py"
+    path = TMPDIR / "identity_fn.py"
     path.write_text("def subject(x):\n    return x\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None

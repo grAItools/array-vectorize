@@ -144,6 +144,10 @@ values. These are deliberate, tested (T8), and inherent:
 ```bash
 make check       # ruff + mypy (strict) + pytest + coverage (gate: 95%)
 make fmt         # format + autofix
+make fuzz        # grammar fuzzer on the CI seeds
+make bench       # pytest-benchmark suite (timings + dispatch gates)
+make docs        # build the docs site (Zensical, docs/)
+make notebook    # open the marimo example notebooks (examples/notebooks/)
 pytest --update-golden   # regenerate golden source snapshots
 python -m vectorizer.fuzz --seconds 60 --seed 0    # grammar fuzzer
 ```
@@ -152,4 +156,6 @@ python -m vectorizer.fuzz --seconds 60 --seed 0    # grammar fuzzer
   so formatting drift never breaks them.
 - Differential tests (Hypothesis) compare generated functions against the
   scalar originals on edge values (`0, ±1, subnormals, ±inf, NaN`).
+- The full docs live in `docs/` (build with `make docs`); interactive
+  examples live in `examples/notebooks/` (marimo).
 - See `PLAN.md` for the full design document and milestone history.
