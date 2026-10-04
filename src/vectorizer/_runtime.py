@@ -298,6 +298,28 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
             or isinstance(a, bool | int)
             for a in args
         )
+        u64s = [a for a in args if _is_u64(a)]
+        if not others_intish and op in ("add", "sub", "mul", "floordiv", "mod"):
+            # signed ARRAY operands: exact when a single integer dtype can
+            # hold the operands — int64 when every uint64 value fits
+            # (checked at runtime; handles negative results exactly), or
+            # modular uint64 for add/sub/mul when every signed value is
+            # non-negative. Mixed-sign per-lane results (a huge uint64
+            # plus a negative signed value) fit no single dtype: the
+            # lattice's float64 is the documented best effort.
+            signed_arrs = [
+                a
+                for a in args
+                if hasattr(a, "dtype")
+                and "int" in str(a.dtype)
+                and "uint" not in str(a.dtype)
+                and "bool" not in str(a.dtype)
+            ]
+            if signed_arrs:
+                if all(bool(xp.all(u <= 2**63 - 1)) for u in u64s):
+                    return fn(*[xp.asarray(a, dtype=xp.int64) for a in args])
+                if op in ("add", "sub", "mul") and all(bool(xp.all(s >= 0)) for s in signed_arrs):
+                    return fn(*[_to_u64(xp, a) for a in args])
         if others_intish:
             if op in ("add", "sub", "mul"):
                 return fn(_to_u64(xp, left), _to_u64(xp, right))

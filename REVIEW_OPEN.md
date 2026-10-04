@@ -1,28 +1,31 @@
-# Open review findings — round 20 (reviewer agent 94e52ea7, reviewed commit 68805f4)
+# Open review findings — round 21 (reviewer agent 94e52ea7, reviewed commit d31b287)
 
-STATUS: both round-20 findings fixed; round-21 request sent. Fix
-summary:
+STATUS: the round-21 finding fixed; round-22 request sent. Fix summary:
 
-1. MAJOR remainder by int64-min raised despite representable inputs —
-   FIXED. The negative-divisor remainder now ADDS the negative divisor
-   directly (`(a %% |d|) + d`) instead of subtracting the negated
-   positive (which forms |d| = 2**63, unrepresentable as an int64
-   scalar): max(x, True) % (-(2**63)) -> -9223372036854775807 on numpy
-   AND array_api_strict.
-   Tests: test_uint64_mod_int64_min_divisor,
-   test_uint64_mod_int64_min_divisor_strict.
+1. CRITICAL signed array operands forced lossy float64 arithmetic with
+   uint64 — FIXED with layered exactness in `_vec_arith`. When a uint64
+   array meets SIGNED array operands (no real float):
+   - int64 when every uint64 VALUE fits int64 (runtime check) — handles
+     negative results exactly; overflow beyond int64 is the documented
+     backend behavior;
+   - modular uint64 for add/sub/mul when every signed value is
+     non-negative (runtime check) — exact while the true result is in
+     [0, 2**64);
+   - mixed-sign per-lane results (a huge uint64 plus a negative signed
+     value) fit no single dtype: float64 approximation, now DOCUMENTED
+     in the README divergence table.
+   Repro: max(uint64[2**63+1], True) + int64[0] -> 9223372036854775809
+   exactly on numpy AND array_api_strict (previously the rounded
+   float64). Also exact: uint64[5] + int64[-3] -> 2 (int64 path) and
+   uint64[7] // int64[-2] -> -4.
+   Tests: test_uint64_plus_nonnegative_int64_array_exact,
+   test_uint64_plus_nonnegative_int64_array_strict,
+   test_uint64_fit_plus_negative_int64_array_exact,
+   test_uint64_floordiv_signed_array_exact,
+   test_uint64_mixed_sign_fallback_documented.
 
-2. MAJOR arithmetic helper results lost kind information — FIXED.
-   `_numeric_kind` infers `_vec_arith` result kinds: true division and
-   float operands give 'float'; known int/bool operands give 'int'
-   (bools are converted inside the helper, so results are never bool);
-   unknown operands stay None. Provably-integer arithmetic results
-   therefore keep receiving the negative-exponent float cast:
-   `a = (x > 0) + 1; a ** -1` -> 0.5 on both backends.
-   Tests: test_arith_result_negative_power,
-   test_arith_result_negative_power_strict,
-   test_arith_result_float_kind.
-
-Round-20 regressions: tests/test_review_round20.py (5 tests). make
-check green: 611 tests, ruff + mypy strict clean, 95% branch coverage.
-Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged.
+Round-21 regressions: tests/test_review_round21.py (5 tests). make
+check green: 616 tests, ruff + mypy strict clean, 95% branch coverage.
+Fuzzer clean on seeds 42/7/123/999/2024. Goldens unchanged
+(helper-internal logic only); README divergence row added for the
+mixed-sign fallback.

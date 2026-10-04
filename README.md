@@ -137,6 +137,7 @@ values. These are deliberate, tested (T8), and inherent:
 | bool arithmetic is integer (`True + True == 2`) | exact: bool operands are cast to float64 (strict backends reject bool arithmetic) |
 | scalar exceptions inside `verify=` | expected `NaN` lanes |
 | mixed int/float `min`/`max` siblings | strict backends require matching array dtypes; literals adopt a provably-int sibling's dtype, else float64 |
+| uint64 + signed arrays with mixed-sign per-lane results | float64 approximation (no single dtype holds both operand ranges) |
 
 ## Development
 
