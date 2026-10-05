@@ -40,7 +40,7 @@ VectorizationError: <file>:3:5: 'while' loops are not supported
 ## CLI
 
 ```bash
-python -m vectorizer.fuzz --seconds 60 --seed 0
+python -m array_vectorize.fuzz --seconds 60 --seed 0
 ```
 
 Runs the grammar fuzzer (differential checks of random scalar programs).

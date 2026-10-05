@@ -2,7 +2,7 @@
 icon: lucide/function-square
 ---
 
-# vectorizer
+# array-vectorize
 
 `vectorize(f)` compiles an inspectable **scalar** Python function into a
 **semantically equivalent function over arrays** that uses only the

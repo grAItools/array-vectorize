@@ -28,7 +28,7 @@ plain `pytest` skips nothing but keeps benchmarks disabled
 | differential (Hypothesis, edge values) | `tests/differential/` |
 | golden source snapshots | `tests/golden/` (`cases/`, ast.dump equality) |
 | inspectability (getsource, linecache) | `tests/test_inspectability.py` |
-| grammar fuzzer | `src/vectorizer/fuzz.py` + CI seeds |
+| grammar fuzzer | `src/array_vectorize/fuzz.py` + CI seeds |
 | fuzz smoke | `tests/test_fuzz_smoke.py` |
 | performance gate + benchmarks | `tests/test_perf.py`, `tests/test_bench.py` |
 
