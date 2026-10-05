@@ -9,7 +9,7 @@ from math import exp as fexp
 
 import numpy as np
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 SCALE = 3.0
 ARR = np.asarray([1.0, 2.0, 3.0])

@@ -1,9 +1,9 @@
 """Optimizer passes: const-fold, CSE, DCE (plan §8) and the pass pipeline.
 
-NOTE on imports: ``from vectorizer.optimize import cse`` (from-import) is
+NOTE on imports: ``from array_vectorize.optimize import cse`` (from-import) is
 the supported form. The same-named package attributes hold the pass
 functions after this package initializes, so attribute-style access like
-``vectorizer.optimize.cse`` resolves to the function, not the submodule.
+``array_vectorize.optimize.cse`` resolves to the function, not the submodule.
 """
 
 from __future__ import annotations

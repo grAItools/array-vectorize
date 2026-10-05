@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from support import just_vec, vec_of
 
-from vectorizer import VectorizationError, vectorize
+from array_vectorize import VectorizationError, vectorize
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_m3_")
 _TMPDIR = Path(_tmp.name)

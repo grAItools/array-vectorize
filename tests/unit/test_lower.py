@@ -13,9 +13,9 @@ from typing import Any
 import numpy as np
 import pytest
 
-from vectorizer.errors import VectorizationError
-from vectorizer.frontend.extract import extract_function
-from vectorizer.ir import (
+from array_vectorize.errors import VectorizationError
+from array_vectorize.frontend.extract import extract_function
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,
@@ -29,7 +29,7 @@ from vectorizer.ir import (
     UnaryOp,
     Where,
 )
-from vectorizer.lower import lower_function
+from array_vectorize.lower import lower_function
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_lower_")
 _TMPDIR = Path(_tmp.name)
@@ -512,7 +512,7 @@ def test_kinds_restore_revokes_post_snapshot_facts() -> None:
     # pass: restore REPLACES the kind facts (old dict-reassignment
     # semantics), it must not leave a present-None entry that blocks
     # setdefault
-    from vectorizer.lower.kinds import Kinds
+    from array_vectorize.lower.kinds import Kinds
 
     k = Kinds()
     snap = k.snapshot_facts()  # loop name not yet established
@@ -527,7 +527,7 @@ def test_kinds_restore_preserves_present_none_kind() -> None:
     # a pre-bound loop var with unknown kind establishes a present-None
     # fact; the restore must keep both presence and value so the later
     # "int" default stays blocked (old dict setdefault semantics)
-    from vectorizer.lower.kinds import Kinds
+    from array_vectorize.lower.kinds import Kinds
 
     k = Kinds()
     k.set_kind("i", None)  # phi with unknown kind

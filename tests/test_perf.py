@@ -21,7 +21,7 @@ from collections.abc import Callable
 import numpy as np
 import pytest
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 pytestmark = pytest.mark.slow
 

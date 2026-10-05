@@ -8,7 +8,7 @@ import traceback
 
 import numpy as np
 
-from vectorizer import get_source, vectorize
+from array_vectorize import get_source, vectorize
 
 
 def relu_fn(x: float) -> float:
@@ -41,7 +41,7 @@ def test_getsourcelines() -> None:
 def test_linecache_survives_checkcache() -> None:
     vec = vectorize(relu_fn)
     filename = vec.__code__.co_filename
-    assert filename == "<vectorizer:relu_fn>"
+    assert filename == "<array_vectorize:relu_fn>"
     linecache.checkcache(filename)
     assert linecache.cache[filename][2]  # still registered
     assert "array_namespace" in "".join(linecache.getlines(filename))
@@ -53,7 +53,7 @@ def test_traceback_renders_generated_lines() -> None:
         vec(1.0)  # no array among args -> namespace resolution fails
     except TypeError:
         text = traceback.format_exc()
-        assert "<vectorizer:relu_fn>" in text
+        assert "<array_vectorize:relu_fn>" in text
     else:
         raise AssertionError("expected TypeError for all-scalar call")
 

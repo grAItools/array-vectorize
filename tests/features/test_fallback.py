@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from support import make_fn
 
-from vectorizer import VectorizationError, vectorize
+from array_vectorize import VectorizationError, vectorize
 
 # ---- from test_composition (git history: tests/test_composition.py)
 

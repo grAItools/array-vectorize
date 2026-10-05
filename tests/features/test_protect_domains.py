@@ -7,7 +7,7 @@ import math
 import numpy as np
 from support import make_fn
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 # ---- from test_m4 (git history: tests/test_m4.py)
 

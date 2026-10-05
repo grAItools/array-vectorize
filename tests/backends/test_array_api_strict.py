@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from support import TMPDIR, make_fn, make_module
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 spec = importlib.util.spec_from_file_location(
     "vec_corpus_b", Path(__file__).parent.parent / "corpus.py"

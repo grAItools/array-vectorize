@@ -9,7 +9,7 @@ import numpy as np
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 CORPUS = corpus
 

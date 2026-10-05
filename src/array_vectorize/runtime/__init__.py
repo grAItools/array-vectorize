@@ -1,8 +1,8 @@
 """CALL-TIME runtime library injected into generated modules (from _runtime).
 
 Executes on the user's backend when a vectorized function is called.
-This package is a leaf: it imports nothing from the rest of vectorizer,
-only the stdlib. Generation-time loading lives in vectorizer.emit.
+This package is a leaf: it imports nothing from the rest of array_vectorize,
+only the stdlib. Generation-time loading lives in array_vectorize.emit.
 """
 
 from __future__ import annotations

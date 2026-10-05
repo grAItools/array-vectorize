@@ -25,7 +25,7 @@ check: lint type coverage
 
 fuzz:
 	for seed in 42 7 123 999 2024; do \
-		python -m vectorizer.fuzz --seed $$seed --cases 400 || exit 1; \
+		python -m array_vectorize.fuzz --seed $$seed --cases 400 || exit 1; \
 	done
 
 bench:

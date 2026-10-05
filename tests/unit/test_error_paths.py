@@ -11,12 +11,12 @@ from typing import Any
 
 import pytest
 
-from vectorizer import vectorize
-from vectorizer.errors import VectorizationError
-from vectorizer.frontend.extract import extract_function
-from vectorizer.ir import Binding, BinOp, Call, Literal, Program, Ref, SSAEnv, UnaryOp
-from vectorizer.optimize import const_fold, cse, optimize
-from vectorizer.optimize import dce as dce_pass
+from array_vectorize import vectorize
+from array_vectorize.errors import VectorizationError
+from array_vectorize.frontend.extract import extract_function
+from array_vectorize.ir import Binding, BinOp, Call, Literal, Program, Ref, SSAEnv, UnaryOp
+from array_vectorize.optimize import const_fold, cse, optimize
+from array_vectorize.optimize import dce as dce_pass
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_cov_")
 _TMPDIR = Path(_tmp.name)

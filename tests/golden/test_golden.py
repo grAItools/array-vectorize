@@ -9,7 +9,7 @@ import corpus
 import pytest
 from corpus import GOLDEN_NAMES
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 GOLDEN_DIR = Path(__file__).parent / "cases"
 

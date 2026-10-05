@@ -31,7 +31,7 @@ def _():
     import math
 
     import numpy as np
-    from vectorizer import vectorize
+    from array_vectorize import vectorize
 
     return math, np, vectorize
 
@@ -70,7 +70,7 @@ def _(mo):
 
         The strict reference backend enforces the standard aggressively:
         no boolean arithmetic, no implicit dtype promotion. The
-        vectorizer's runtime helpers handle those cases exactly — the
+        array-vectorize's runtime helpers handle those cases exactly — the
         same generated function works unchanged.
         """
     )

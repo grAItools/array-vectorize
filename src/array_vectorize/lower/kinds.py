@@ -9,7 +9,7 @@ lowerer previously smeared this state across:
   ``'float'`` / ``'bool'``, or ``None`` when unknown. Names are unique
   (SSA), so entries never go stale; this lets ``_numeric_kind`` see
   through ``Ref`` nodes.
-- ``literal`` (was ``name_literals``): the :class:`~vectorizer.ir.Literal`
+- ``literal`` (was ``name_literals``): the :class:`~array_vectorize.ir.Literal`
   value behind a binding of a plain literal, so later uses substitute the
   value instead of emitting casts on runtime plain scalars (which would
   crash ``xp.astype``/``xp.sqrt``).
