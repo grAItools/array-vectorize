@@ -51,7 +51,7 @@ def test_module_shape() -> None:
     src = gen(Program(("x",), (), Ref("x")))
     assert src.startswith("from array_api_compat import array_namespace")
     assert "def f_vec(x):" in src
-    assert '"""def f(x):\n    return x"""' in src
+    assert '"""\ndef f(x):\n    return x\n"""' in src
     assert "xp = array_namespace(" in src
     assert "hasattr(a, '__array_namespace__')" in src
 
