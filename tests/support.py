@@ -9,6 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from vectorizer import vectorize
+
 _tmp = tempfile.TemporaryDirectory(prefix="vec_support_")
 TMPDIR = Path(_tmp.name)
 _seq = itertools.count()
@@ -46,3 +48,12 @@ def make_module(source: str) -> Any:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def vec_of(body: str, extra: str = "") -> tuple[Callable[..., Any], Callable[..., Any]]:
+    fn = make_fn(body, extra)
+    return vectorize(fn), fn
+
+
+def just_vec(body: str, extra: str = "") -> Callable[..., Any]:
+    return vectorize(make_fn(body, extra))
