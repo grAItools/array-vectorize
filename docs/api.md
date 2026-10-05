@@ -4,7 +4,7 @@
 
 ```python
 vectorize(f, *, strict=True, fallback=False, protect_domains=False,
-          verify=None)
+          verify=None, namespace=None)
 ```
 
 Compile a scalar function into an Array API function.
@@ -15,9 +15,24 @@ Compile a scalar function into an Array API function.
 | `fallback` | `False` | emit a `UserWarning` when the element-loop fallback is used |
 | `protect_domains` | `False` | clamp partial-function arguments in provably dead lanes |
 | `verify` | `None` | example arguments for a differential check at generation time |
+| `namespace` | `None` | pin the array namespace at decoration time (see below) |
 
 Vectorization happens eagerly at decoration time. Signature, defaults,
 and kwarg names are preserved. `vectorize(vectorize(f))` is idempotent.
+
+### Namespace pinning
+
+`vectorize(f, namespace=np)` pins the array namespace: the generated code
+binds `xp` directly to it and never extracts the namespace from its
+arguments, so **all-scalar calls become legal**. Passing arguments
+compatible with the pinned namespace is the user's responsibility; an
+invalid namespace raises `TypeError` (a usage error, not a
+`VectorizationError`).
+
+Pinned generated source has no `array_namespace` import — paste-ready
+code must pass the hidden keyword-only parameter (`fn(..., _namespace=xp)`)
+or rebind `xp` by hand. `vec.with_namespace(xp)` (below) creates variants
+without touching the original.
 
 ## Vectorized functions
 
@@ -26,6 +41,13 @@ and kwarg names are preserved. `vectorize(vectorize(f))` is idempotent.
 | `vec.source` | the generated Python source (`str`) |
 | `inspect.getsource(vec)` | works; tracebacks show real generated lines |
 | `get_source(vec)` | helper that raises `VectorizationError` for non-vectorized input |
+| `vec.with_namespace(xp)` | returns a NEW callable pinned to `xp` (strict results and fallback wrappers) |
+
+`with_namespace` never mutates the original, preserves `.source`,
+`.__signature__`, and `._vectorized_original` (the scalar original), is
+memoized (identical pins return the same object), and chains
+(`vec.with_namespace(a).with_namespace(b)`). Variants do not re-run
+`verify=` — the body code is unchanged, only the `xp` binding differs.
 
 ## Errors
 

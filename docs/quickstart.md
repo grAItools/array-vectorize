@@ -44,6 +44,26 @@ sigmoid(sx)                   # same values, strict backend
 Torch, JAX, and CuPy work the same way (their arrays are
 standard-compliant via `array_api_compat`).
 
+### Pinning the namespace
+
+Instead of detecting the backend from the arguments, you can pin it up
+front — the generated code binds `xp` directly to that namespace and never
+inspects its arguments (so all-scalar calls work too). Passing compatible
+arguments is then your responsibility:
+
+```python
+sigmoid_np = vectorize(sigmoid, namespace=np)   # pinned at decoration time
+sigmoid_np(x)                                   # runs on NumPy
+
+sigmoid_xps = sigmoid.with_namespace(xps)       # a NEW callable, pinned to strict
+sigmoid_xps(sx)
+```
+
+`with_namespace` returns a new callable (the original is untouched),
+keeps `.source` and the signature, and chains. Note that pinned generated
+source has no `array_namespace` import — if you paste it elsewhere, pass
+the hidden `_namespace=` keyword or rebind `xp`.
+
 ## Options
 
 ```python
