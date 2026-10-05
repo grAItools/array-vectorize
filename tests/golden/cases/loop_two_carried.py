@@ -10,7 +10,7 @@ def loop_two_carried_vec(x):
             b = b * 2.0
         return a + b
     """
-    xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x)
     a = 0.0
     b = 1.0
     a_1 = a

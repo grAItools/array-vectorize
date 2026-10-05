@@ -13,10 +13,13 @@ def generated_name(name: str) -> str:
 
 
 #: Names the generated code cannot rename: ``array_namespace`` is imported
-#: by that name and ``hasattr`` is called by the namespace-detection
-#: comprehension. User variables with these base names are mangled with a
-#: trailing underscore. The namespace variable ``xp`` is NOT reserved: it is
-#: chosen dynamically to avoid user names (see _lower.lower_function).
+#: by that name. ``hasattr`` is kept reserved defensively: generated code no
+#: longer calls it (the namespace preamble passes arguments straight to
+#: array_namespace), but reserving it stays zero-risk and keeps older
+#: snapshots' name allocation stable. User variables with these base names
+#: are mangled with a trailing underscore. The namespace variable ``xp``
+#: is NOT reserved: it is chosen dynamically to avoid user names
+#: (see _lower.lower_function).
 RESERVED_NAMES = frozenset({"array_namespace", "hasattr"})
 
 

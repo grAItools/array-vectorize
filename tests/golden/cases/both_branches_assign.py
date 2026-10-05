@@ -11,7 +11,7 @@ def both_branches_assign_vec(x):
             z = 2.0
         return y + z
     """
-    xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x)
     y_1 = x
     z_1 = 1.0
     y_2 = -x

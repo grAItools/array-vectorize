@@ -5,5 +5,5 @@ def unary_ops_vec(x):
     def unary_ops(x):
         return -x + +x - ~x
     """
-    xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x)
     return -x + +x - ~x

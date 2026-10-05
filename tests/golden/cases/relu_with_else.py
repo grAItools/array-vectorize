@@ -9,7 +9,7 @@ def relu_with_else_vec(x):
             r = 0.0
         return r
     """
-    xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x)
     r_1 = x
     r_2 = 0.0
     r = xp.where(x > 0, r_1, r_2)

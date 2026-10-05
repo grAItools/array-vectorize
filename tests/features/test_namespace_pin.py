@@ -91,7 +91,10 @@ def test_all_scalar_minmax_with_pin() -> None:
 def test_all_scalar_call_without_pin_raises() -> None:
     fn = make_fn("    return math.sqrt(x * x)", defaults="x")
     vec = vectorize(fn)
-    with pytest.raises(TypeError, match="array_namespace requires at least one non-scalar"):
+    # message wording varies across array-api-compat versions: 1.10 says
+    # "Unrecognized array input", newer releases "requires at least one
+    # non-scalar array input" — the contract is the TypeError itself
+    with pytest.raises(TypeError, match=r"at least one non-scalar|Unrecognized array input"):
         vec(3.0)
 
 

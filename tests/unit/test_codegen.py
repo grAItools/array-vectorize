@@ -53,7 +53,7 @@ def test_module_shape() -> None:
     assert "def f_vec(x):" in src
     assert '"""\n    def f(x):\n        return x\n    """' in src
     assert "xp = array_namespace(" in src
-    assert "hasattr(a, '__array_namespace__')" in src
+    assert "hasattr" not in src
 
 
 def test_operators_stay_operators() -> None:
@@ -171,7 +171,7 @@ def test_hidden_params_kwonly_none() -> None:
     )
     src = generate_source(lowered, lowered.program)
     assert "def f_vec(x, *, ARR=None):" in src
-    assert "hasattr(a, '__array_namespace__')" in src
+    assert "xp = array_namespace(x, ARR)" in src
 
 
 def test_posonly_marker() -> None:

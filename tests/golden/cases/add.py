@@ -5,5 +5,5 @@ def add_vec(x, y):
     def add(x, y):
         return x + y
     """
-    xp = array_namespace(*[a for a in (x, y) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x, y)
     return x + y

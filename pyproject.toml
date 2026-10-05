@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "BSD-3-Clause" }
 dependencies = [
-    "array-api-compat>=1.7",
+    "array-api-compat>=1.10",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

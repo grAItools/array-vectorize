@@ -142,25 +142,14 @@ def _gen_expr(node: Node, ns: str) -> ast.expr:
 
 
 def _namespace_line(ns: str, param_names: list[str]) -> ast.Assign:
-    # xp = array_namespace(*[a for a in (x, y) if hasattr(a, "__array_namespace__")])
-    # 'a' is comprehension-scoped, so it cannot collide with user names.
-    element = _load("a")
-    generator = ast.comprehension(
-        target=ast.Name(id="a", ctx=ast.Store()),
-        iter=ast.Tuple(elts=[_load(p) for p in param_names], ctx=ast.Load()),
-        ifs=[
-            ast.Call(
-                func=_load("hasattr"),
-                args=[_load("a"), ast.Constant(value="__array_namespace__")],
-                keywords=[],
-            )
-        ],
-        is_async=False,
-    )
-    filtered = ast.ListComp(elt=element, generators=[generator])
+    # xp = array_namespace(x, y)
+    # array_namespace itself ignores Python scalars/None (array-api-compat
+    # >= 1.10) and dispatches backend arrays that lack
+    # __array_namespace__ (torch.Tensor, CuPy), so every parameter is
+    # passed straight through; an all-scalar call still raises TypeError.
     call = ast.Call(
         func=_load("array_namespace"),
-        args=[ast.Starred(value=filtered, ctx=ast.Load())],
+        args=[_load(p) for p in param_names],
         keywords=[],
     )
     return ast.Assign(targets=[ast.Name(id=ns, ctx=ast.Store())], value=call)
