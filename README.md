@@ -163,4 +163,7 @@ python -m array_vectorize.fuzz --seconds 60 --seed 0    # grammar fuzzer
   scalar originals on edge values (`0, ±1, subnormals, ±inf, NaN`).
 - The full docs live in `docs/` (build with `make docs`); interactive
   examples live in `examples/notebooks/` (marimo).
+- The docs site is tested and deployed to
+  <https://grAItools.github.io/array-vectorize/> automatically on every
+  push to `main`.
 - See `PLAN.md` for the full design document and milestone history.

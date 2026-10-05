@@ -45,6 +45,9 @@ numeric warnings (`overflow encountered`, `invalid value`,
   (Hypothesis derandomized).
 - **fuzz** — the five fixed fuzzer seeds.
 - **docs** — builds this site with `--strict`.
+- **pages** — runs the test suite and deploys this site to
+  [GitHub Pages](https://grAItools.github.io/array-vectorize/) on every
+  push to `main`.
 
 ## History
 
