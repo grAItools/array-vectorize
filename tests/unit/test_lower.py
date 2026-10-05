@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 
 from vectorizer._errors import VectorizationError
-from vectorizer._extract import extract_function
-from vectorizer._ir import (
+from vectorizer.frontend.extract import extract_function
+from vectorizer.ir import (
     Binding,
     BinOp,
     Call,
@@ -29,7 +29,7 @@ from vectorizer._ir import (
     UnaryOp,
     Where,
 )
-from vectorizer._lower import lower_function
+from vectorizer.lower import lower_function
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_lower_")
 _TMPDIR = Path(_tmp.name)

@@ -17,10 +17,9 @@ regular suite never pays the timing cost). Compare runs with
 
 from __future__ import annotations
 
-import importlib.util
 import math
-from pathlib import Path
 
+import corpus as CORPUS
 import numpy as np
 import pytest
 
@@ -29,11 +28,6 @@ from vectorizer.runtime.arith import _ARITH_OPS, _vec_arith
 from vectorizer.runtime.minmax import _vec_minmax
 
 pytestmark = pytest.mark.slow
-
-spec = importlib.util.spec_from_file_location("vec_corpus_b", Path(__file__).parent / "corpus.py")
-assert spec is not None and spec.loader is not None
-CORPUS = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(CORPUS)
 
 # representative kernels: plain arithmetic, branch-heavy, loop-accumulated
 # (name, function, positional argument count)

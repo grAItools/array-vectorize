@@ -479,7 +479,7 @@ def test_min_float16_overflow_literal_promotes() -> None:
 
 
 def test_fits_dtype_defensive_branches() -> None:
-    from vectorizer._runtime import _fits_dtype
+    from vectorizer.runtime.dtype import _fits_dtype
 
     class _FakeDtype:
         def __init__(self, name: str) -> None:

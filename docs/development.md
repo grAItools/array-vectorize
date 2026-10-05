@@ -21,12 +21,19 @@ plain `pytest` skips nothing but keeps benchmarks disabled
 
 | Layer | Where |
 |---|---|
-| unit (IR, optimizer, codegen, validator) | `tests/test_*.py` |
-| golden source snapshots | `tests/golden/cases/` (ast.dump equality) |
-| differential (Hypothesis, edge values) | `tests/test_differential.py` |
+| unit (per source module: frontend, ir, lower, optimize, codegen, runtime) | `tests/unit/` |
+| behavior (black-box semantics on NumPy) | `tests/behavior/` |
+| features (public options: fallback, protect, verify) | `tests/features/` |
+| backends (array-api-strict) | `tests/backends/` |
+| differential (Hypothesis, edge values) | `tests/differential/` |
+| golden source snapshots | `tests/golden/` (`cases/`, ast.dump equality) |
+| inspectability (getsource, linecache) | `tests/test_inspectability.py` |
 | grammar fuzzer | `src/vectorizer/fuzz.py` + CI seeds |
-| adversarial-review regressions | `tests/test_review_round1..25.py` |
+| fuzz smoke | `tests/test_fuzz_smoke.py` |
 | performance gate + benchmarks | `tests/test_perf.py`, `tests/test_bench.py` |
+
+The historical review-round regression tests are dissolved into
+`behavior/` and `features/` (provenance in git history).
 
 Warnings are errors in the test suite, except numpy's data-dependent
 numeric warnings (`overflow encountered`, `invalid value`,

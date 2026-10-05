@@ -14,11 +14,9 @@ Two gates:
 
 from __future__ import annotations
 
-import importlib.util
 import math
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -26,11 +24,6 @@ import pytest
 from vectorizer import vectorize
 
 pytestmark = pytest.mark.slow
-
-spec = importlib.util.spec_from_file_location("vec_corpus_p", Path(__file__).parent / "corpus.py")
-assert spec is not None and spec.loader is not None
-CORPUS = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(CORPUS)
 
 
 def _best_of(fn: Callable[[], object], repeats: int = 3) -> float:

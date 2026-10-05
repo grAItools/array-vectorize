@@ -13,10 +13,10 @@ import pytest
 
 from vectorizer import vectorize
 from vectorizer._errors import VectorizationError
-from vectorizer._extract import extract_function
-from vectorizer._ir import Binding, BinOp, Call, Literal, Program, Ref, SSAEnv, UnaryOp
-from vectorizer._optimize import const_fold, cse, optimize
-from vectorizer._optimize import dce as dce_pass
+from vectorizer.frontend.extract import extract_function
+from vectorizer.ir import Binding, BinOp, Call, Literal, Program, Ref, SSAEnv, UnaryOp
+from vectorizer.optimize import const_fold, cse, optimize
+from vectorizer.optimize import dce as dce_pass
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_cov_")
 _TMPDIR = Path(_tmp.name)

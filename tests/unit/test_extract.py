@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from vectorizer._errors import VectorizationError
-from vectorizer._extract import extract_function
+from vectorizer.frontend.extract import extract_function
 
 K = 2.5
 ARR = np.asarray([1.0, 2.0])
@@ -221,7 +221,7 @@ def test_lambda_probe_fallback_identifies_sibling() -> None:
     import pathlib
     import tempfile
 
-    from vectorizer._extract import _find_target
+    from vectorizer.frontend.lambda_id import _find_target
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     path = tmp / "probe_siblings.py"
@@ -249,7 +249,7 @@ def test_lambda_probe_fallback_interchangeable() -> None:
     import pathlib
     import tempfile
 
-    from vectorizer._extract import _find_target
+    from vectorizer.frontend.lambda_id import _find_target
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     path = tmp / "probe_twin.py"
@@ -271,7 +271,7 @@ def test_lambda_probe_fallback_rejects_unidentifiable() -> None:
     import pathlib
     import tempfile
 
-    from vectorizer._extract import _find_target
+    from vectorizer.frontend.lambda_id import _find_target
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     path = tmp / "probe_none.py"

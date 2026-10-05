@@ -63,17 +63,29 @@ memoized per (callee, protect) pair.
 
 ## Testing strategy
 
-- **Golden snapshots** (`tests/golden/cases/`) — generated source
-  compared via `ast.dump` equality, immune to formatting drift.
-- **Differential tests** — Hypothesis compares generated functions
+Tests are organized by level and behavior, never by discovery date:
+
+- `tests/unit/` — white-box tests, one file per source module
+  (frontend, ir, lower, optimize, codegen, runtime).
+- `tests/behavior/` — black-box end-to-end semantics on NumPy:
+  arithmetic dtype exactness, control flow, loops, calls/math/casts,
+  closures and helpers, documented divergences.
+- `tests/features/` — public-option behaviors: fallback, protected
+  domains, differential verification.
+- `tests/backends/` — array-api-strict compatibility.
+- `tests/differential/` — Hypothesis compares generated functions
   against the scalar originals on edge values
   (`0, ±1, subnormals, ±inf, NaN`).
-- **Grammar fuzzer** — `python -m vectorizer.fuzz` generates random
-  scalar programs, vectorizes, and differentially checks them; CI runs
-  fixed seeds.
-- **Adversarial review regressions** — `tests/test_review_round1..25.py`
-  capture every finding from a 26-round independent adversarial review.
-- **Performance gate** — `tests/test_perf.py` asserts the vectorized
-  output is within 5x of the hand-written array expression and >= 10x
-  faster than `np.vectorize`; `tests/test_bench.py` tracks detailed
-  timings (run `make bench`).
+- `tests/golden/` — generated-source snapshots (`cases/`) compared
+  via `ast.dump` equality, immune to formatting drift.
+- Top level — `tests/test_inspectability.py` (source/`getsource`
+  attributes), `tests/test_perf.py` (performance gate: within 5x of
+  the hand-written array expression and >= 10x faster than
+  `np.vectorize`), `tests/test_bench.py` (detailed timings, run
+  `make bench`), and `tests/test_fuzz_smoke.py`.
+
+The regression corpus from the 26-round independent adversarial
+review is preserved inside `behavior/` and `features/` (provenance in
+git history). A grammar fuzzer complements the suite:
+`python -m vectorizer.fuzz` generates random scalar programs,
+vectorizes, and differentially checks them; CI runs fixed seeds.

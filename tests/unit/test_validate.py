@@ -15,8 +15,8 @@ import pytest
 
 from vectorizer import vectorize
 from vectorizer._errors import VectorizationError
-from vectorizer._extract import extract_function
-from vectorizer._validate import _EXPR_MESSAGES, validate
+from vectorizer.frontend.extract import extract_function
+from vectorizer.frontend.validate import _EXPR_MESSAGES, validate
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_validate_")
 _TMPDIR = Path(_tmp.name)

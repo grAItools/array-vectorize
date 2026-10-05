@@ -6,7 +6,7 @@ import math
 
 import array_api_strict as xps
 
-from vectorizer._builtins import (
+from vectorizer.frontend.tables import (
     BUILTIN_CASTS,
     BUILTIN_FOLDS,
     BUILTIN_UNARY,
