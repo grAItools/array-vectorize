@@ -3,29 +3,19 @@
 from __future__ import annotations
 
 import ast
-import importlib.util
 from pathlib import Path
 
+import corpus
 import pytest
+from corpus import GOLDEN_NAMES
 
 from vectorizer import vectorize
 
-GOLDEN_DIR = Path(__file__).parent / "golden" / "cases"
-
-
-def _load_corpus():
-    spec = importlib.util.spec_from_file_location("vec_corpus", Path(__file__).parent / "corpus.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-CORPUS = _load_corpus()
+GOLDEN_DIR = Path(__file__).parent / "cases"
 
 
 def _generated_source(name: str) -> str:
-    fn = getattr(CORPUS, name)
+    fn = getattr(corpus, name)
     return vectorize(fn).source
 
 
@@ -37,7 +27,7 @@ def _tree(source: str) -> str:
     return ast.dump(ast.parse(source))
 
 
-@pytest.mark.parametrize("name", CORPUS.GOLDEN_NAMES)
+@pytest.mark.parametrize("name", GOLDEN_NAMES)
 def test_golden_source(name: str, request: pytest.FixtureRequest) -> None:
     source = _generated_source(name)
     path = _golden_path(name)

@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
 from typing import Any
 
+import corpus
 import numpy as np
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from vectorizer import vectorize
 
-spec = importlib.util.spec_from_file_location("vec_corpus_d", Path(__file__).parent / "corpus.py")
-assert spec is not None and spec.loader is not None
-CORPUS = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(CORPUS)
+CORPUS = corpus
 
 settings.register_profile("ci", derandomize=True, max_examples=100, deadline=None)
 settings.load_profile("ci")

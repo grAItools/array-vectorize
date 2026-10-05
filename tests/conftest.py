@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from importlib import import_module
+from types import ModuleType
 
 import pytest
 from hypothesis import settings
@@ -19,3 +21,15 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Regenerate golden files for source snapshots",
     )
+
+
+@pytest.fixture
+def xps() -> ModuleType:
+    """The array-api-strict backend (lazy: non-strict runs skip the import)."""
+    return import_module("array_api_strict")
+
+
+@pytest.fixture(scope="session")
+def corpus() -> ModuleType:
+    """The shared scalar-function corpus (tests/corpus.py, via pythonpath)."""
+    return import_module("corpus")

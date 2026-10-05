@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from vectorizer import vectorize
 from vectorizer._errors import VectorizationError
 from vectorizer._extract import extract_function
 from vectorizer._validate import _EXPR_MESSAGES, validate
@@ -303,3 +304,57 @@ def test_template_string_rejected() -> None:
     # here (the validator's guarded message-table entry covers both)
     with pytest.raises(VectorizationError, match="t-strings"):
         check('t"x"')
+
+
+# ------------------------------------- targeted validator error branches
+# (merged from test_validate_branches.py; make_fn takes the original
+# "x, y=2.0" signature via keyword)
+
+
+@pytest.mark.parametrize(
+    ("body", "msg"),
+    [
+        ("    x //= 2\n    return x", None),  # control: valid augassign
+        ("    x @= 2\n    return x", "augmented assignment"),
+        ("    x = y = 1\n    return x", "multiple assignment targets"),
+        ("    x.foo = 1\n    return x", "attribute assignment"),
+        ("    del x\n    return x", None if False else "not supported"),
+        ("    for i in range(3):\n        pass\n    else:\n        pass\n    return x", "for/else"),
+        ("    return x + 9223372036854775808", "int64 range"),
+        ("    return x", None),
+    ],
+)
+def test_validator_branches(body: str, msg: str | None) -> None:
+    if msg is None:
+        validate(extract_function(make_fn(body, signature="x, y=2.0")))
+        return
+    with pytest.raises(VectorizationError, match=msg):
+        validate(extract_function(make_fn(body, signature="x, y=2.0")))
+
+
+def test_attribute_assignment() -> None:
+    with pytest.raises(VectorizationError, match="attribute assignment"):
+        validate(
+            extract_function(make_fn("    a = x\n    a.f = 1\n    return a", signature="x, y=2.0"))
+        )
+
+
+def test_generic_attribute_access_rejected() -> None:
+    with pytest.raises(VectorizationError, match="attribute access"):
+        validate(extract_function(make_fn("    return x.real", signature="x, y=2.0")))
+
+
+def test_starred_call_argument_rejected() -> None:
+    with pytest.raises(VectorizationError, match="starred call arguments"):
+        validate(extract_function(make_fn("    return math.hypot(*[x, y])", signature="x, y=2.0")))
+
+
+def test_unknown_expression_falls_through() -> None:
+    # Starred in a non-call context hits the generic expression message
+    with pytest.raises(VectorizationError, match="not supported"):
+        validate(extract_function(make_fn("    return x + (y := 1)", signature="x, y=2.0")))
+
+
+def test_del_is_rejected_by_vectorize() -> None:
+    with pytest.raises(VectorizationError, match="statements are not supported"):
+        vectorize(make_fn("    del x\n    return 1.0", signature="x, y=2.0"))
