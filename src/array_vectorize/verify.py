@@ -47,8 +47,11 @@ def verify_match(
         broadcast = xp.broadcast_arrays(*arrays)
         shape = broadcast[0].shape
         # constant-return functions produce a Python scalar or 0-d array;
-        # broadcast it to the input shape so element-wise comparison works
-        got_arr = got if hasattr(got, "shape") else xp.asarray(got)
+        # broadcast it to the input shape so element-wise comparison works.
+        # asarray on a plain Python scalar uses the backend's default dtype
+        # (torch: float32) — build it in float64 so precision survives to
+        # the comparison below
+        got_arr = got if hasattr(got, "shape") else xp.asarray(got, dtype=xp.float64)
         if got_arr.shape == ():
             got_arr = xp.broadcast_to(got_arr, shape)
         if tuple(got_arr.shape) != tuple(shape):
@@ -78,7 +81,10 @@ def verify_match(
         # compare values with their natural types (bools as 0/1) via float64;
         # coercing the expected side to the output dtype could hide miscompiles
         got_f = xp.astype(got_flat, xp.float64)
-        exp_f = xp.astype(xp.reshape(xp.asarray(expected_values), (-1,)), xp.float64)
+        # asarray on a list of Python scalars uses the backend's default
+        # dtype (torch: float32), which would lose precision BEFORE the
+        # astype below — build the expected side in float64 directly
+        exp_f = xp.reshape(xp.asarray(expected_values, dtype=xp.float64), (-1,))
         # exact equality first (covers matching infinities and identical values);
         # the tolerance term is gated on finiteness so inf-vs-finite mismatches
         # cannot slip through as inf <= inf

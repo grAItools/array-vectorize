@@ -11,6 +11,7 @@ import types
 from collections.abc import Callable
 from typing import Any
 
+from ..compat import _is_array
 from ..errors import _reject
 from .info import FunctionInfo, Param, ParamKind, _AstFunction
 from .lambda_id import _find_target
@@ -72,7 +73,7 @@ def _classify_closures(target: types.FunctionType, info: FunctionInfo) -> None:
             info.math_funcs[var] = attr
         elif isinstance(value, bool | int | float):
             info.closure_scalars[var] = value
-        elif hasattr(value, "__array_namespace__"):
+        elif _is_array(value):
             info.closure_arrays[var] = value
         elif isinstance(value, types.FunctionType):
             info.user_funcs[var] = value
