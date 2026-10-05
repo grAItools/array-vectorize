@@ -29,6 +29,10 @@ classifiers = [
 Source = "https://github.com/grAItools/array-vectorize"
 
 [project.optional-dependencies]
+backends = [
+    "jax>=0.4",
+    "torch>=2.2",
+]
 dev = [
     "pytest>=8.0",
     "pytest-benchmark>=4.0",
@@ -95,6 +99,9 @@ filterwarnings = [
     "ignore:overflow encountered:RuntimeWarning",
     "ignore:invalid value encountered:RuntimeWarning",
     "ignore:divide by zero encountered:RuntimeWarning",
+    # torch.compile (detected mode) traces array_api_compat's lru_cache-
+    # wrapped type dispatch on first compile; dynamo's informational notice
+    "ignore:Dynamo detected a call to a `functools.lru_cache`-wrapped function:UserWarning",
 ]
 markers = [
     "slow: performance tests that are timing-sensitive",
