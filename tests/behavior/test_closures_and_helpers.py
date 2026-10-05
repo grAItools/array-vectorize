@@ -87,7 +87,7 @@ def test_helper_call_composition() -> None:
     assert np.allclose(got, np.sqrt(2 * xs**2))
     assert "square_vec(" in vec.source
     # the helper itself is vectorized and memoized
-    from vectorizer import _HELPER_CACHE
+    from vectorizer.api import _HELPER_CACHE
 
     assert (mod.square, False) in _HELPER_CACHE
 
@@ -145,7 +145,7 @@ def test_helper_with_loop_calling_helper() -> None:
     ys = np.asarray([3.0])
     assert np.allclose(vec(xs, ys), [2 * 3 * 3 * 2])
     # the loop lives in the helper's generated source, not the caller's
-    from vectorizer import _HELPER_CACHE
+    from vectorizer.api import _HELPER_CACHE
 
     helper_src = _HELPER_CACHE[(mod.addmul, False)].source
     assert "for i in range(0, 3):" in helper_src

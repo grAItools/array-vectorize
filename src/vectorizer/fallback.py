@@ -15,31 +15,9 @@ from typing import Any
 
 from array_api_compat import array_namespace
 
+from .compat import _is_array, _py_scalar
+
 __all__ = ["make_fallback"]
-
-
-def _is_array(value: Any) -> bool:
-    return hasattr(value, "__array_namespace__")
-
-
-def _py_scalar(value: Any) -> Any:
-    """Backend element -> plain Python scalar (scalar code expects scalars).
-
-    NumPy/Torch/JAX elements have ``.item()``; array-api-strict elements do
-    not, so convert by dtype name instead.
-    """
-    item = getattr(value, "item", None)
-    if item is not None:
-        return item()
-    dtype = getattr(value, "dtype", None)
-    if hasattr(value, "__array_namespace__") and dtype is not None:
-        name = str(dtype)
-        if "bool" in name:
-            return bool(value)
-        if "int" in name:
-            return int(value)
-        return float(value)
-    return value
 
 
 def make_fallback(func: Callable[..., Any], reason: str) -> Callable[..., Any]:

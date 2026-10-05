@@ -1,6 +1,6 @@
 # Restructuring Plan: `vectorizer`
 
-Status: **proposed — not yet executed.**
+Status: **executed — phases 0–6 complete (commits 89c5cb5..HEAD); gates green throughout.**
 Base: commit `d24ceaf` (includes the upstream quality pass `ea24c71`,
 lambda-identification fix `5ebff7d`, and its regression coverage `d24ceaf`).
 Gates at base: ruff, mypy (strict), ~650 tests, 95% branch coverage, fuzzer
@@ -143,7 +143,7 @@ src/vectorizer/
 ├── api.py               # vectorize(): option handling, fallback decision,
 │                        #   helper cache + recursion detection (from __init__)
 ├── errors.py            # VectorizationError, Diagnostic            (was _errors)
-├── pipeline.py          # compile(): extract→validate→lower→optimize→
+├── pipeline.py          # compile_function(): extract→validate→lower→optimize→
 │                        #   codegen→emit (was __init__._vectorize_strict)
 │
 ├── frontend/            # "understand the scalar function"

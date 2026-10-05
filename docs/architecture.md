@@ -1,7 +1,11 @@
 # Architecture
 
 `vectorizer` is a source-to-source compiler. The pipeline runs eagerly
-at decoration time:
+at decoration time. Orchestration lives in two modules at the top of
+the package: `vectorizer/pipeline.py` (`compile_function`, the strict
+stages below) and `vectorizer/api.py` (`vectorize` option handling, the
+fallback decision, and the memoized helper cache); `__init__.py` is a
+thin re-export of the public API.
 
 ```mermaid
 flowchart LR
@@ -16,24 +20,27 @@ flowchart LR
 
 ## Stages
 
-- **extract** — reads the function's AST, signature, defaults, and
-  closure environment; resolves lambdas and nested pure functions.
-- **validate** — rejects unsupported constructs, collecting *all*
-  violations with line/column positions before failing.
-- **lower** — the semantic core: scalar control flow (`if`/`else`, early
-  returns, `range` loops) becomes `xp.where` merges and explicit loop
+- **extract** (`frontend/extract.py`) — reads the function's AST,
+  signature, defaults, and closure environment; resolves lambdas and
+  nested pure functions.
+- **validate** (`frontend/validate.py`) — rejects unsupported constructs,
+  collecting *all* violations with line/column positions before failing.
+- **lower** (`lower/`) — the semantic core: scalar control flow (`if`/`else`,
+  early returns, `range` loops) becomes `xp.where` merges and explicit loop
   phis; scalar operations become Array API calls; dtype/kind inference
   (`_numeric_kind`, maybe-bool tracking) decides where the exactness
   helpers are needed.
-- **optimize** — IR-level constant folding, dead-code elimination, and
-  common-subexpression elimination on the scalar program.
-- **codegen** — emits readable Python source from the lowered IR (SSA
-  names, real loop structure).
-- **exec + wrap** — compiles the source and wraps it so the namespace is
-  taken from the call arguments (`array_api_compat.array_namespace`);
-  `vec.source` and `inspect.getsource` expose the generated text.
-- **verify** — with `verify=example_args`, runs a differential check of
-  the generated function against the scalar original at generation time.
+- **optimize** (`optimize/`) — IR-level constant folding, dead-code
+  elimination, and common-subexpression elimination on the scalar program.
+- **codegen** (`codegen/`) — emits readable Python source from the lowered
+  IR (SSA names, real loop structure).
+- **exec + wrap** (`emit.py`) — compiles the source and wraps it so the
+  namespace is taken from the call arguments
+  (`array_api_compat.array_namespace`); `vec.source` and
+  `inspect.getsource` expose the generated text.
+- **verify** (`verify.py`) — with `verify=example_args`, runs a
+  differential check of the generated function against the scalar original
+  at generation time.
 
 ## Runtime helpers
 

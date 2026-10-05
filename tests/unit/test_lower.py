@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from vectorizer._errors import VectorizationError
+from vectorizer.errors import VectorizationError
 from vectorizer.frontend.extract import extract_function
 from vectorizer.ir import (
     Binding,

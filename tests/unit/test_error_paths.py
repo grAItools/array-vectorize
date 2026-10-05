@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from vectorizer import vectorize
-from vectorizer._errors import VectorizationError
+from vectorizer.errors import VectorizationError
 from vectorizer.frontend.extract import extract_function
 from vectorizer.ir import Binding, BinOp, Call, Literal, Program, Ref, SSAEnv, UnaryOp
 from vectorizer.optimize import const_fold, cse, optimize

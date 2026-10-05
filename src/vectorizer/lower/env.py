@@ -14,7 +14,7 @@ import ast
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from .._errors import VectorizationError
+from ..errors import VectorizationError
 from ..frontend.info import FunctionInfo
 from ..ir import (
     Binding,

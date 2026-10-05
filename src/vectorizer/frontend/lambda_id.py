@@ -14,7 +14,7 @@ import types
 from collections.abc import Iterator
 from typing import Any
 
-from .._errors import _reject
+from ..errors import _reject
 from .info import _AstFunction
 
 

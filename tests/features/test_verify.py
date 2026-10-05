@@ -7,7 +7,7 @@ import pytest
 from support import make_fn
 
 from vectorizer import VectorizationError, vectorize
-from vectorizer._verify import verify_match
+from vectorizer.verify import verify_match
 
 # ---- from test_m4 (git history: tests/test_m4.py)
 

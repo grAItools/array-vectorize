@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 
 from vectorizer import vectorize
-from vectorizer._errors import VectorizationError
+from vectorizer.errors import VectorizationError
 
 _UNARY_MATH = [
     f"math.{name}"

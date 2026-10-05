@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 
-from .._errors import Diagnostic, VectorizationError
+from ..errors import Diagnostic, VectorizationError
 from .info import FunctionInfo
 from .tables import MATH_CONSTS, MATH_FUNCS, MATH_SPECIAL
 

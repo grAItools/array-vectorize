@@ -11,7 +11,7 @@ import types
 from collections.abc import Callable
 from typing import Any
 
-from .._errors import _reject
+from ..errors import _reject
 from .info import FunctionInfo, Param, ParamKind, _AstFunction
 from .lambda_id import _find_target
 from .tables import MATH_FUNCS, MATH_SPECIAL

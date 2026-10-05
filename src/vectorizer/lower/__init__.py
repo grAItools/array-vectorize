@@ -17,7 +17,7 @@ from __future__ import annotations
 import ast
 from typing import Any
 
-from .._errors import VectorizationError
+from ..errors import VectorizationError
 from ..frontend.info import FunctionInfo
 from ..ir import Node, Program, generated_name
 from ..runtime.registry import RUNTIME_HELPERS
