@@ -15,7 +15,7 @@ def _():
 def _(mo):
     mo.md(
         r"""
-        # vectorizer — intro tour
+        # array-vectorize — intro tour
 
         `vectorize(f)` compiles a **scalar** Python function into a
         semantically equivalent function over arrays, using only the
@@ -34,7 +34,7 @@ def _():
     import math
 
     import numpy as np
-    from vectorizer import vectorize
+    from array_vectorize import vectorize
 
     return math, np, vectorize
 

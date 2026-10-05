@@ -1,4 +1,4 @@
-"""The vectorizer IR: node dataclasses, SSA naming, and the tree algebra."""
+"""The array_vectorize IR: node dataclasses, SSA naming, and the tree algebra."""
 
 from __future__ import annotations
 

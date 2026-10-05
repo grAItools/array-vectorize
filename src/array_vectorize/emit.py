@@ -4,7 +4,7 @@
 side: it compiles and execs the generated module source, registers it in
 ``linecache``, and attaches the wrapper attributes.
 
-This is deliberately separate from ``vectorizer.runtime``, the CALL-TIME
+This is deliberately separate from ``array_vectorize.runtime``, the CALL-TIME
 library (``_vec_arith``, ``_vec_minmax``, dtype analysis) injected into
 generated modules and executed on the user's backend: generation-time
 and call-time code never share a module (plan §5).
@@ -31,14 +31,14 @@ def compile_vectorized(
 ) -> Callable[..., Any]:
     """Compile the generated module and return the callable itself.
 
-    - compiles as ``<vectorizer:{name}>`` and registers the source in
+    - compiles as ``<array_vectorize:{name}>`` and registers the source in
       ``linecache`` with ``mtime=None`` (survives ``checkcache``), so
       ``inspect.getsource`` and tracebacks show the real generated lines;
     - injects closure-array defaults into ``__kwdefaults__`` and vectorized
       helper functions into the module namespace;
     - sets ``.source`` and the ``_vectorized_original`` marker.
     """
-    filename = f"<vectorizer:{name}>"
+    filename = f"<array_vectorize:{name}>"
     code = compile(source, filename, "exec")
     namespace: dict[str, Any] = {}
     exec(code, namespace)

@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from support import make_fn, make_module, vec_of
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 spec = importlib.util.spec_from_file_location(
     "vec_corpus_b", Path(__file__).parent.parent / "corpus.py"
@@ -479,7 +479,7 @@ def test_min_float16_overflow_literal_promotes() -> None:
 
 
 def test_fits_dtype_defensive_branches() -> None:
-    from vectorizer.runtime.dtype import _fits_dtype
+    from array_vectorize.runtime.dtype import _fits_dtype
 
     class _FakeDtype:
         def __init__(self, name: str) -> None:

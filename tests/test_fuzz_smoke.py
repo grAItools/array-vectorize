@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vectorizer.fuzz import main
+from array_vectorize.fuzz import main
 
 
 def test_fuzzer_smoke() -> None:
@@ -12,7 +12,7 @@ def test_fuzzer_smoke() -> None:
 
 def test_fuzzer_detects_mismatch(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # sabotage the oracle to prove the fuzzer fails loudly on mismatch
-    import vectorizer.fuzz as fz
+    import array_vectorize.fuzz as fz
 
     original = fz.vectorize
 

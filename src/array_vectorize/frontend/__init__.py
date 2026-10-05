@@ -2,7 +2,7 @@
 
 NOTE: the ``validate`` function is deliberately NOT re-exported here —
 binding it would clobber the ``frontend.validate`` submodule attribute.
-Import it as ``from vectorizer.frontend.validate import validate``.
+Import it as ``from array_vectorize.frontend.validate import validate``.
 """
 
 from __future__ import annotations

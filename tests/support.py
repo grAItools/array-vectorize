@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_support_")
 TMPDIR = Path(_tmp.name)

@@ -20,7 +20,7 @@ def _(mo):
         The hard part of scalar-to-array compilation is the numeric edges:
         booleans, mixed-width integers, `min`/`max` over mixed operands.
         Naive lowering either crashes on strict backends or silently
-        rounds. `vectorizer` routes these through runtime helpers that
+        rounds. `array-vectorize` routes these through runtime helpers that
         stay **exact whenever a single dtype can hold the result**.
 
         Every case below comes from the 26-round adversarial review that
@@ -33,7 +33,7 @@ def _(mo):
 @app.cell
 def _():
     import numpy as np
-    from vectorizer import vectorize
+    from array_vectorize import vectorize
 
     return np, vectorize
 

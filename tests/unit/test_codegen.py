@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import ast
 
-from vectorizer.codegen import generate_source
-from vectorizer.frontend.info import Param
-from vectorizer.ir import (
+from array_vectorize.codegen import generate_source
+from array_vectorize.frontend.info import Param
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,
@@ -19,7 +19,7 @@ from vectorizer.ir import (
     UnaryOp,
     Where,
 )
-from vectorizer.lower.types import LoweredFunction
+from array_vectorize.lower.types import LoweredFunction
 
 
 def make_lowered(params: list[Param], program: Program, name: str = "f") -> LoweredFunction:

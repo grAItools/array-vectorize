@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from vectorizer.ir import (
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,

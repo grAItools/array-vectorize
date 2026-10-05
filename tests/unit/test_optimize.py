@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from vectorizer.ir import (
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,
@@ -16,7 +16,7 @@ from vectorizer.ir import (
     UnaryOp,
     Where,
 )
-from vectorizer.optimize import const_fold, cse, dce, optimize
+from array_vectorize.optimize import const_fold, cse, dce, optimize
 
 
 def lit(v: float | int, kind: str = "auto") -> Literal:

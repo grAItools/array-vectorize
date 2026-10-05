@@ -1,7 +1,7 @@
 """vectorize(f): compile a scalar Python function into an Array API vectorized function.
 
-Public API re-export only — implementation lives in ``vectorizer.api``
-(and ``vectorizer.pipeline`` for the strict compilation stages).
+Public API re-export only — implementation lives in ``array_vectorize.api``
+(and ``array_vectorize.pipeline`` for the strict compilation stages).
 """
 
 from __future__ import annotations

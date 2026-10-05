@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "vectorizer"
+name = "array-vectorize"
 version = "0.1.0"
 description = "Source-to-source array vectorization: scalar Python functions compiled to Array API (NumPy/PyTorch/JAX/CuPy) functions"
 readme = "README.md"
@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 [project.urls]
-Source = "https://github.com/grAItools/vectorizer"
+Source = "https://github.com/grAItools/array-vectorize"
 
 [project.optional-dependencies]
 dev = [
@@ -51,10 +51,10 @@ notebooks = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vectorizer"]
+packages = ["src/array_vectorize"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/vectorizer/py.typed" = "vectorizer/py.typed"
+"src/array_vectorize/py.typed" = "array_vectorize/py.typed"
 
 [tool.ruff]
 target-version = "py312"
@@ -102,7 +102,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/vectorizer"]
+source = ["src/array_vectorize"]
 branch = true
 
 [tool.coverage.report]

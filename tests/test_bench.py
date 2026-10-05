@@ -23,9 +23,9 @@ import corpus as CORPUS
 import numpy as np
 import pytest
 
-from vectorizer import vectorize
-from vectorizer.runtime.arith import _ARITH_OPS, _vec_arith
-from vectorizer.runtime.minmax import _vec_minmax
+from array_vectorize import vectorize
+from array_vectorize.runtime.arith import _ARITH_OPS, _vec_arith
+from array_vectorize.runtime.minmax import _vec_minmax
 
 pytestmark = pytest.mark.slow
 

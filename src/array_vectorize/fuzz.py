@@ -1,4 +1,4 @@
-"""Grammar fuzzer CLI (plan T12, M4): ``python -m vectorizer.fuzz``.
+"""Grammar fuzzer CLI (plan T12, M4): ``python -m array_vectorize.fuzz``.
 
 Generates random programs from the supported grammar, vectorizes them, and
 differentially checks the result against the scalar original on NumPy.
@@ -21,8 +21,8 @@ from typing import Any
 
 import numpy as np
 
-from vectorizer import vectorize
-from vectorizer.errors import VectorizationError
+from array_vectorize import vectorize
+from array_vectorize.errors import VectorizationError
 
 _UNARY_MATH = [
     f"math.{name}"
@@ -138,7 +138,7 @@ def make_program(rng: random.Random) -> str:
 def _run_one(rng: random.Random) -> str:
     src = make_program(rng)
     # vectorize() requires inspectable source: define the case in a real file
-    case_dir = Path(tempfile.mkdtemp(prefix="vectorizer_fuzz_"))
+    case_dir = Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
     path = case_dir / "fuzz_case_mod.py"
     path.write_text("import math\n\n\n" + src)
     spec = importlib.util.spec_from_file_location("fuzz_case_mod", path)
@@ -200,7 +200,7 @@ def _check_case(rng: random.Random, src: str, fn: Any) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="vectorizer.fuzz", description=__doc__)
+    parser = argparse.ArgumentParser(prog="array_vectorize.fuzz", description=__doc__)
     parser.add_argument("--seconds", type=float, default=60.0, help="time budget")
     parser.add_argument("--seed", type=int, default=None, help="random seed (reproducible)")
     parser.add_argument("--cases", type=int, default=None, help="max cases (overrides time)")
@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
 
     seed = args.seed if args.seed is not None else random.randrange(2**32)
     rng = random.Random(seed)
-    print(f"vectorizer.fuzz: seed={seed} seconds={args.seconds} cases={args.cases}")
+    print(f"array_vectorize.fuzz: seed={seed} seconds={args.seconds} cases={args.cases}")
     deadline = time.monotonic() + args.seconds
     stats = {"ok": 0, "rejected": 0, "edge-skip": 0}
     cases = 0

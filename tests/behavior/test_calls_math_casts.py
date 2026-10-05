@@ -9,8 +9,8 @@ from typing import Any
 import numpy as np
 from support import make_fn
 
-import vectorizer
-from vectorizer import vectorize
+import array_vectorize
+from array_vectorize import vectorize
 
 spec = importlib.util.spec_from_file_location(
     "vec_corpus_b", Path(__file__).parent.parent / "corpus.py"
@@ -92,7 +92,7 @@ def test_round_half_even() -> None:
 
 
 def test_import() -> None:
-    assert vectorizer.__version__
+    assert array_vectorize.__version__
 
 
 # ---- from test_review_round3 (git history: tests/test_review_round3.py)

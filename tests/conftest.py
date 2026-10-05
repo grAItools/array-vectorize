@@ -14,7 +14,7 @@ settings.load_profile("ci" if os.environ.get("CI") else "default")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    group = parser.getgroup("vectorizer")
+    group = parser.getgroup("array_vectorize")
     group.addoption(
         "--update-golden",
         action="store_true",

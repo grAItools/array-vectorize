@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from support import make_fn
 
-from vectorizer import VectorizationError, vectorize
-from vectorizer.verify import verify_match
+from array_vectorize import VectorizationError, vectorize
+from array_vectorize.verify import verify_match
 
 # ---- from test_m4 (git history: tests/test_m4.py)
 
