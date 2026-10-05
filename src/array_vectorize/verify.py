@@ -27,13 +27,18 @@ def verify_match(
     vec: Callable[..., Any],
     original: Callable[..., Any],
     example_args: tuple[Any, ...],
+    namespace: Any = None,
 ) -> None:
-    """Check ``vec(*example_args)`` against element-wise ``original`` calls."""
+    """Check ``vec(*example_args)`` against element-wise ``original`` calls.
+
+    With ``namespace`` set (a pinned vectorization), that namespace is used
+    directly instead of extracting it from the example arrays.
+    """
     positions = [i for i, a in enumerate(example_args) if _is_array(a)]
     if not positions:
         raise VectorizationError("verify= needs at least one Array API array in the example inputs")
     arrays = [example_args[i] for i in positions]
-    xp = array_namespace(*arrays)
+    xp = namespace if namespace is not None else array_namespace(*arrays)
     with warnings.catch_warnings():
         # out-of-domain lanes are expected (plan D3); their warnings are noise
         # (including inf-inf in the comparison below)
