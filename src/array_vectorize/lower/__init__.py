@@ -101,6 +101,19 @@ def lower_function(
         emitted = lowerer.ssa.bind(var)
         lowerer.definite[var] = emitted
         hidden.append((emitted, array))
+    # the hidden kw-only namespace parameter for pinned mode
+    # (vectorize(namespace=...)): allocated AFTER user params and
+    # closure-hidden params take their names, so a user parameter named
+    # ``_namespace`` keeps its name and ours is mangled instead; reserved
+    # like ``xp`` so body bindings can never collide with it. Not a
+    # program parameter: the namespace is only consumed by the codegen-
+    # level ``xp`` binding, never by body IR.
+    ns_param = (
+        "_namespace"
+        if lowerer.ssa.is_free("_namespace")
+        else lowerer.ssa.bind("_namespace", force_suffix=True)
+    )
+    lowerer.ssa.reserve(ns_param)
 
     tree = info.tree
     maybe_result: Node | None
@@ -128,5 +141,6 @@ def lower_function(
         source=info.source,
         helpers=lowerer.helpers,
         namespace_var=ns,
+        namespace_param=ns_param,
         emitted_names=frozenset(lowerer.ssa.emitted),
     )
