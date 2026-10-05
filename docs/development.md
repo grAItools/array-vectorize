@@ -44,6 +44,12 @@ numeric warnings (`overflow encountered`, `invalid value`,
 - **check** — the full `make check` gate on Python 3.12–3.14
   (Hypothesis derandomized).
 - **fuzz** — the five fixed fuzzer seeds.
+- **compile** — proves the generated source traces correctly under
+  `jax.jit` and `torch.compile` (jit/compile compatibility of the
+  generated code). Compiling detected-mode (unpinned) functions with
+  `torch.compile` additionally requires `array-api-compat>=1.15`
+  ("array_namespace can now be used under torch.compile"); pinned mode
+  (`namespace=`) has no such requirement.
 - **docs** — builds this site with `--strict`.
 - **pages** — runs the test suite and deploys this site to
   [GitHub Pages](https://grAItools.github.io/array-vectorize/) on every
