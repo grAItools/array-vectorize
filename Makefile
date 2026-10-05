@@ -1,4 +1,4 @@
-.PHONY: install fmt lint type test coverage check fuzz bench docs docs-serve notebook
+.PHONY: install fmt lint type test coverage check fuzz bench backends docs docs-serve notebook
 
 install:
 	python -m pip install -e ".[dev]"
@@ -32,6 +32,9 @@ bench:
 	python -m pytest tests/test_bench.py -m slow --benchmark-enable \
 		--benchmark-only --benchmark-columns=min,median,ops \
 		--benchmark-group-by=func
+
+backends:
+	python -m pytest tests/backends/test_jax_torch_compilation.py -v -rs
 
 docs:
 	python -m zensical build --strict
