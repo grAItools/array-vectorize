@@ -89,7 +89,7 @@ def test_helper_call_composition() -> None:
     # the helper itself is vectorized and memoized
     from array_vectorize.api import _HELPER_CACHE
 
-    assert (mod.square, False) in _HELPER_CACHE
+    assert (mod.square, False, None) in _HELPER_CACHE
 
 
 def test_helper_partial_application() -> None:
@@ -147,7 +147,7 @@ def test_helper_with_loop_calling_helper() -> None:
     # the loop lives in the helper's generated source, not the caller's
     from array_vectorize.api import _HELPER_CACHE
 
-    helper_src = _HELPER_CACHE[(mod.addmul, False)].source
+    helper_src = _HELPER_CACHE[(mod.addmul, False, None)].source
     assert "for i in range(0, 3):" in helper_src
     assert "addmul_vec" in vec.source
 

@@ -50,7 +50,8 @@ def compile_function(
 
     With ``namespace`` set (pinned mode), the generated code binds ``xp``
     to that namespace directly instead of extracting it from the arguments
-    (so all-scalar calls become legal).
+    (so all-scalar calls become legal); the namespace is threaded to
+    helper vectorization and verification.
     """
     info = extract_function(func)
     validate(info)
@@ -68,5 +69,5 @@ def compile_function(
         source, lowered.name, hidden_params, original=func, helpers=lowered.helpers
     )
     if verify_args is not None:
-        verify_match(vec, func, verify_args)
+        verify_match(vec, func, verify_args, namespace=namespace)
     return vec
