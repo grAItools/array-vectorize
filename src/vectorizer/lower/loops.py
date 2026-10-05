@@ -123,10 +123,10 @@ class _LoopLowerer(_StatementLowerer):
             self.kinds.set_kind(loop_carried_name, self.kinds.kind(pre_name))
             # the phi feeds the pre-loop value on zero-trip loops: a raw
             # scalar stays a raw scalar, so track that for call sites
-            if pre_name in self._scalar_names or self.kinds.literal(pre_name) is not None:
-                self._scalar_names.add(loop_carried_name)
-            if pre_name in self._maybe_bool_names:
-                self._maybe_bool_names.add(loop_carried_name)
+            if self.kinds.is_scalar(pre_name):
+                self.kinds.mark_scalar(loop_carried_name)
+            if self.kinds.is_maybe_bool(pre_name):
+                self.kinds.mark_maybe_bool(loop_carried_name)
 
         phi_end = len(self.bindings)
 
@@ -175,7 +175,7 @@ class _LoopLowerer(_StatementLowerer):
             self.active_carried.append((dict(carried), self.branch_depth))
             self.definite[loop_var] = loop_name
             self.kinds.setdefault_kind(loop_name, "int")  # loop vars are Python ints
-            self._scalar_names.add(loop_name)  # raw Python ints per iteration
+            self.kinds.mark_scalar(loop_name)  # raw Python ints per iteration
             self.maybe.discard(loop_var)
             try:
                 result = self.lower_stmts(stmt.body, loop_body=True)

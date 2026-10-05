@@ -95,7 +95,7 @@ def lower_function(
         lowerer.definite[param.name] = emitted
         # parameters can arrive as raw scalars (omitted defaults); operators
         # promote them, xp.* call sites wrap them (see _sanitize_xp_arg)
-        lowerer._scalar_names.add(emitted)
+        lowerer.kinds.mark_scalar(emitted)
     hidden: list[tuple[str, Any]] = []
     for var, array in info.closure_arrays.items():
         emitted = lowerer.ssa.bind(var)

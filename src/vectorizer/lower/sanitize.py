@@ -41,14 +41,11 @@ class _Sanitizer(_LowererBase):
         Operators promote such scalars fine; xp.* function arguments do
         not (strict backends reject plain scalars)."""
 
-        def is_scalar_name(name: str) -> bool:
-            return name in self._scalar_names or self.kinds.literal(name) is not None
-
         def walk(n: Node) -> bool:
             if isinstance(n, Literal):
                 return True
             if isinstance(n, Ref):
-                return is_scalar_name(n.name)
+                return self.kinds.is_scalar(n.name)
             if isinstance(n, DType):
                 return False
             return any(walk(c) for c in children(n))

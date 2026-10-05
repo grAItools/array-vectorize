@@ -82,20 +82,9 @@ class _LowererBase:
         #: A carried variable's runtime kind is the union of its phi kind and
         #: every body assignment; mixed kinds need conservative handling.
         self._carried_assign_kinds: list[dict[str, set[Kind | None]]] = []
-        #: emitted names whose runtime value may be a raw Python scalar:
-        #: parameters (omitted defaults), loop variables (raw ints per
-        #: iteration), literal bindings, and locals computed from them.
-        #: Operators promote scalars fine; xp.* function arguments do not
-        #: (strict backends reject plain scalars), so call sites wrap these.
-        self._scalar_names: set[str] = set()
         #: the generated namespace variable ('xp' unless taken); set by
         #: lower_function before lowering starts
         self.ns_var: str = "xp"
-        #: names whose value is a min/max result with unknown static kind:
-        #: the runtime dtype may be boolean (parameter operands), so
-        #: arithmetic must use the runtime-polymorphic intify (a no-op for
-        #: numeric dtypes)
-        self._maybe_bool_names: set[str] = set()
         #: allocated names of the runtime promotion/selection helpers (set
         #: by lower_function; collision-free against user names)
         self.minmax_name = RUNTIME_HELPERS["vec_minmax"][0]
@@ -185,7 +174,7 @@ class _LowererBase:
                 kt, ke = self.kinds.kind(nt), self.kinds.kind(ne)
                 self.kinds.set_kind(name, kt if kt == ke else None)
                 if self._maybe_bool_result(merged_expr):
-                    self._maybe_bool_names.add(name)
+                    self.kinds.mark_maybe_bool(name)
             else:
                 # bound on one path only (and not before the if): maybe-unbound
                 self.definite.pop(var, None)

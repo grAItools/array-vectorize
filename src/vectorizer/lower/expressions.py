@@ -341,7 +341,7 @@ class _ExpressionLowerer(_Sanitizer):
         if isinstance(node, FuncCall) and node.fn == self.minmax_name:
             return self._numeric_kind(node) is None
         if isinstance(node, Ref):
-            return node.name in self._maybe_bool_names
+            return self.kinds.is_maybe_bool(node.name)
         if isinstance(node, Where):
             # branch merge of maybe-bool values is maybe-bool
             return self._maybe_bool_result(node.then) or self._maybe_bool_result(node.other)

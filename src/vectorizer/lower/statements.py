@@ -51,13 +51,13 @@ class _StatementLowerer(_ExpressionLowerer):
         else:
             self.kinds.drop_literal(name)
         if self._possibly_scalar(value):
-            self._scalar_names.add(name)
+            self.kinds.mark_scalar(name)
         else:
-            self._scalar_names.discard(name)
+            self.kinds.unmark_scalar(name)
         if self._maybe_bool_result(value):
-            self._maybe_bool_names.add(name)
+            self.kinds.mark_maybe_bool(name)
         else:
-            self._maybe_bool_names.discard(name)
+            self.kinds.unmark_maybe_bool(name)
         if self.active_carried:
             for carried, _depth in self.active_carried:
                 if var in carried:
