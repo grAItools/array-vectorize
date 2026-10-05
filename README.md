@@ -55,16 +55,21 @@ vectorize(f, strict=False)          # fall back to an element loop on failure
 vectorize(f, fallback=True)         # same, with an explicit UserWarning
 vectorize(f, protect_domains=True)  # clamp partial functions in dead lanes
 vectorize(f, verify=example_args)   # differential check at generation time
+vectorize(f, namespace=np)          # pin the backend (all-scalar calls work)
 
 vec.source                          # generated source (str)
 inspect.getsource(vec)              # also works; tracebacks show real lines
 get_source(vec)                     # helper that raises for non-vectorized input
+vec.with_namespace(xps)             # new callable pinned to another backend
 VectorizationError                  # raised on unsupported constructs
 ```
 
 - Vectorization happens eagerly at decoration time (fail fast).
 - Signature, defaults, and kwarg names are preserved.
 - `vectorize(vectorize(f))` is idempotent.
+- Namespace pinning: `vectorize(f, namespace=xp)` binds `xp` directly at
+  decoration time (never extracted from arguments, so all-scalar calls
+  work); `vec.with_namespace(xp)` returns a new pinned callable.
 - `python -m array_vectorize.fuzz --seconds 60` runs the grammar fuzzer
   (reproducible with `--seed`).
 
