@@ -5,11 +5,18 @@ verifier and the element-loop fallback need; ``_check_namespace`` validates
 explicit namespace pins (``vectorize(namespace=...)``). They live here so
 none of their users duplicates them (and so api.py and fallback.py can
 share the check without an import cycle).
+
+Array detection is fully delegated to ``array_api_compat``: no homegrown
+``hasattr(value, "__array_namespace__")`` partial implementations of the
+standard's detection machinery, which miss backends whose arrays never
+exposed that attribute (torch.Tensor, CuPy).
 """
 
 from __future__ import annotations
 
 from typing import Any
+
+from array_api_compat import array_namespace
 
 __all__ = ["_check_namespace", "_is_array", "_py_scalar"]
 
@@ -35,7 +42,18 @@ def _check_namespace(namespace: Any) -> None:
 
 
 def _is_array(value: Any) -> bool:
-    return hasattr(value, "__array_namespace__")
+    """True if array-api-compat recognizes ``value`` as an array.
+
+    Fully delegated to ``array_namespace``: it ignores Python scalars/None,
+    dispatches torch tensors (which never exposed ``__array_namespace__``),
+    and duck-types any standard-compliant array — no homegrown hasattr
+    checks that miss backends.
+    """
+    try:
+        array_namespace(value)
+    except TypeError:
+        return False
+    return True
 
 
 def _py_scalar(value: Any) -> Any:
@@ -50,6 +68,8 @@ def _py_scalar(value: Any) -> Any:
     if item is not None:
         return item()
     dtype = getattr(value, "dtype", None)
+    # not backend detection: a conversion fallback for elements without
+    # .item() (array-api-strict); torch/numpy/jax elements all have .item()
     if hasattr(value, "__array_namespace__") and dtype is not None:
         name = str(dtype)
         if "bool" in name:
