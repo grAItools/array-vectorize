@@ -61,8 +61,10 @@ class _StatementLowerer(_ExpressionLowerer):
         if self.active_carried:
             for carried, _depth in self.active_carried:
                 if var in carried:
-                    for frame in self._carried_assign_kinds:
-                        frame.setdefault(carried[var], set()).add(kind)
+                    # a carried variable's runtime kind is the union of its
+                    # phi kind and every body assignment; record this
+                    # assignment's kind in every active loop frame
+                    self.kinds.record_carried_kind(carried[var], kind)
         self.maybe.discard(var)
 
     def lower_if(self, stmt: ast.If) -> Node | None:

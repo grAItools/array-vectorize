@@ -1,7 +1,9 @@
 """The explicit kind lattice: per-name kind-inference facts.
 
-One :class:`VarInfo` per tracked (emitted) name consolidates the five
-concerns the lowerer previously smeared across parallel dicts:
+One :class:`VarInfo` per tracked (emitted) name consolidates the
+per-name concerns; :class:`Kinds` adds the per-loop carried-frame
+stack on top — together they replace the five parallel dicts the
+lowerer previously smeared this state across:
 
 - ``kind`` (was ``name_kinds``): the provable numeric kind — ``'int'`` /
   ``'float'`` / ``'bool'``, or ``None`` when unknown. Names are unique

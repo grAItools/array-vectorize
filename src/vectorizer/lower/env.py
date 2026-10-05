@@ -75,13 +75,9 @@ class _LowererBase:
         self.loop_vars: set[str] = set()
         #: stack of ({var: loop-carried emitted name}, entry branch depth) per loop
         self.active_carried: list[tuple[dict[str, str], int]] = []
-        #: kind/literal/scalar/bool bookkeeping for emitted names (see
-        #: kinds.VarInfo for what each fact means)
+        #: kind/literal/scalar/bool bookkeeping for emitted names, plus the
+        #: per-loop carried-assign kind frames (see kinds.Kinds)
         self.kinds = Kinds()
-        #: per active loop: {loop-carried name -> kinds assigned in the body}.
-        #: A carried variable's runtime kind is the union of its phi kind and
-        #: every body assignment; mixed kinds need conservative handling.
-        self._carried_assign_kinds: list[dict[str, set[Kind | None]]] = []
         #: the generated namespace variable ('xp' unless taken); set by
         #: lower_function before lowering starts
         self.ns_var: str = "xp"

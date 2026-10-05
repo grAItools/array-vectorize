@@ -169,7 +169,7 @@ class _LoopLowerer(_StatementLowerer):
                 list(self.deferred),
                 self.kinds.snapshot_facts(),
             )
-            self._carried_assign_kinds.append({})
+            self.kinds.push_carried_frame()
             self.loop_depth += 1
             self.loop_vars.add(loop_var)
             self.active_carried.append((dict(carried), self.branch_depth))
@@ -183,7 +183,7 @@ class _LoopLowerer(_StatementLowerer):
                 self.loop_depth -= 1
                 self.loop_vars.discard(loop_var)
                 self.active_carried.pop()
-                frame = self._carried_assign_kinds.pop()
+                frame = self.kinds.pop_carried_frame()
             if result is not None:  # pragma: no cover - returns rejected in bodies
                 raise self.error(stmt, "returns inside loop bodies are not supported")
             labels, mixed = union_labels(frame)
