@@ -31,7 +31,7 @@ class _Sanitizer(_LowererBase):
         ):
             return Literal(-arg.operand.value, arg.operand.kind)
         if isinstance(arg, Ref):
-            return self.name_literals.get(arg.name)
+            return self.kinds.literal(arg.name)
         return None
 
     def _possibly_scalar(self, node: Node) -> bool:
@@ -42,7 +42,7 @@ class _Sanitizer(_LowererBase):
         not (strict backends reject plain scalars)."""
 
         def is_scalar_name(name: str) -> bool:
-            return name in self._scalar_names or name in self.name_literals
+            return name in self._scalar_names or self.kinds.literal(name) is not None
 
         def walk(n: Node) -> bool:
             if isinstance(n, Literal):

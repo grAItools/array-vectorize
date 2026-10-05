@@ -111,7 +111,7 @@ class _LoopLowerer(_StatementLowerer):
         # emit a phi (the for-statement overwrites it on real iterations)
         if loop_var in pre_definite:
             self.bindings.append(Binding(loop_name, Ref(pre_definite[loop_var])))
-            self.name_kinds.setdefault(loop_name, self.name_kinds.get(pre_definite[loop_var]))
+            self.kinds.setdefault_kind(loop_name, self.kinds.kind(pre_definite[loop_var]))
 
         # phis for loop-carried variables, emitted just before the loop
         for var, pre_name in carried.items():
@@ -119,11 +119,11 @@ class _LoopLowerer(_StatementLowerer):
             carried[var] = loop_carried_name
             self.bindings.append(Binding(loop_carried_name, Ref(pre_name)))
             self.definite[var] = loop_carried_name
-            phi_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
-            self.name_kinds[loop_carried_name] = self.name_kinds.get(pre_name)
+            phi_kinds[loop_carried_name] = self.kinds.kind(pre_name)
+            self.kinds.set_kind(loop_carried_name, self.kinds.kind(pre_name))
             # the phi feeds the pre-loop value on zero-trip loops: a raw
             # scalar stays a raw scalar, so track that for call sites
-            if pre_name in self._scalar_names or pre_name in self.name_literals:
+            if pre_name in self._scalar_names or self.kinds.literal(pre_name) is not None:
                 self._scalar_names.add(loop_carried_name)
             if pre_name in self._maybe_bool_names:
                 self._maybe_bool_names.add(loop_carried_name)
@@ -167,15 +167,14 @@ class _LoopLowerer(_StatementLowerer):
                 dict(self.definite),
                 set(self.maybe),
                 list(self.deferred),
-                dict(self.name_kinds),
-                dict(self.name_literals),
+                self.kinds.snapshot_facts(),
             )
             self._carried_assign_kinds.append({})
             self.loop_depth += 1
             self.loop_vars.add(loop_var)
             self.active_carried.append((dict(carried), self.branch_depth))
             self.definite[loop_var] = loop_name
-            self.name_kinds.setdefault(loop_name, "int")  # loop vars are Python ints
+            self.kinds.setdefault_kind(loop_name, "int")  # loop vars are Python ints
             self._scalar_names.add(loop_name)  # raw Python ints per iteration
             self.maybe.discard(loop_var)
             try:
@@ -191,20 +190,21 @@ class _LoopLowerer(_StatementLowerer):
             if labels == prev_labels or not mixed or attempt == max_passes - 1:
                 break
             # restore the pre-body state and re-lower with the widened
-            # labels pre-applied
+            # labels pre-applied (kind + literal facts only; scalar/bool
+            # flags persist across passes)
             prev_labels = labels
-            (definite, maybe, deferred, name_kinds, name_literals) = pre_body
+            (definite, maybe, deferred, facts) = pre_body
             del self.bindings[phi_end:]
             self.definite, self.maybe, self.deferred = definite, maybe, deferred
-            self.name_kinds, self.name_literals = name_kinds, name_literals
-            self.name_kinds.update(labels)
+            self.kinds.restore_facts(facts)
+            self.kinds.update_kinds(labels)
         for loop_carried_name, kind in labels.items():
-            self.name_kinds[loop_carried_name] = kind
+            self.kinds.set_kind(loop_carried_name, kind)
         # literal facts are invalid across the loop boundary: the phi feeds
         # pre-loop values on zero-trip loops, and body assignments feed
         # later iterations — neither is the recorded literal
         for loop_carried_name in carried.values():
-            self.name_literals.pop(loop_carried_name, None)
+            self.kinds.drop_literal(loop_carried_name)
         body_stmts = tuple(self.bindings[phi_end:])
         del self.bindings[phi_end:]
         self.bindings.append(Loop(loop_name, start, stop, step, body_stmts))
@@ -221,5 +221,5 @@ class _LoopLowerer(_StatementLowerer):
                 if current is not None and current != loop_name:
                     self.bindings.append(Binding(loop_name, Ref(current)))
                     self.definite[var] = loop_name
-                    self.name_kinds[loop_name] = self.name_kinds.get(current)
-                    self.name_literals.pop(loop_name, None)
+                    self.kinds.set_kind(loop_name, self.kinds.kind(current))
+                    self.kinds.drop_literal(loop_name)

@@ -29,6 +29,7 @@ from ..ir import (
     is_bool,
 )
 from ..runtime.registry import RUNTIME_HELPERS
+from .kinds import Kinds
 from .types import HelperVectorizer
 
 __all__ = ["_LowererBase"]
@@ -74,14 +75,9 @@ class _LowererBase:
         self.loop_vars: set[str] = set()
         #: stack of ({var: loop-carried emitted name}, entry branch depth) per loop
         self.active_carried: list[tuple[dict[str, str], int]] = []
-        #: emitted name -> provable numeric kind ('int'/'float'/'bool' or
-        #: None when unknown). Names are unique (SSA), so entries never go
-        #: stale; this lets _numeric_kind see through Ref nodes.
-        self.name_kinds: dict[str, Kind | None] = {}
-        #: emitted name -> its Literal value, for bindings of plain literals
-        #: (lets later uses substitute the value instead of emitting casts on
-        #: runtime plain scalars, which would crash xp.astype/xp.sqrt)
-        self.name_literals: dict[str, Literal] = {}
+        #: kind/literal/scalar/bool bookkeeping for emitted names (see
+        #: kinds.VarInfo for what each fact means)
+        self.kinds = Kinds()
         #: per active loop: {loop-carried name -> kinds assigned in the body}.
         #: A carried variable's runtime kind is the union of its phi kind and
         #: every body assignment; mixed kinds need conservative handling.
@@ -186,8 +182,8 @@ class _LowererBase:
                 merged_expr: Node = Where(cond, Ref(nt), Ref(ne))
                 self.bindings.append(Binding(name, merged_expr))
                 self.definite[var] = name
-                kt, ke = self.name_kinds.get(nt), self.name_kinds.get(ne)
-                self.name_kinds[name] = kt if kt == ke else None
+                kt, ke = self.kinds.kind(nt), self.kinds.kind(ne)
+                self.kinds.set_kind(name, kt if kt == ke else None)
                 if self._maybe_bool_result(merged_expr):
                     self._maybe_bool_names.add(name)
             else:

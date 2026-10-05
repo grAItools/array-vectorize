@@ -260,7 +260,7 @@ class _ExpressionLowerer(_Sanitizer):
             case Literal():
                 return node.kind
             case Ref():
-                return self.name_kinds.get(node.name)
+                return self.kinds.kind(node.name)
             case Logical():
                 return "bool"
             case Where():

@@ -45,11 +45,11 @@ class _StatementLowerer(_ExpressionLowerer):
         self.bindings.append(Binding(name, value))
         self.definite[var] = name
         kind = self._numeric_kind(value)
-        self.name_kinds[name] = kind
+        self.kinds.set_kind(name, kind)
         if isinstance(value, Literal):
-            self.name_literals[name] = value
+            self.kinds.set_literal(name, value)
         else:
-            self.name_literals.pop(name, None)
+            self.kinds.drop_literal(name)
         if self._possibly_scalar(value):
             self._scalar_names.add(name)
         else:

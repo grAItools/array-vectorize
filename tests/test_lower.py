@@ -505,3 +505,35 @@ def test_lambda_lowering() -> None:
     spec.loader.exec_module(mod)
     lf = lower_function(extract_function(mod.subject))
     assert lf.program.result == BinOp("add", Ref("x"), Literal(1.0, "float"))
+
+
+def test_kinds_restore_revokes_post_snapshot_facts() -> None:
+    # the loop-var "int" insert must be re-insertable on every fixed-point
+    # pass: restore REPLACES the kind facts (old dict-reassignment
+    # semantics), it must not leave a present-None entry that blocks
+    # setdefault
+    from vectorizer.lower.kinds import Kinds
+
+    k = Kinds()
+    snap = k.snapshot_facts()  # loop name not yet established
+    k.setdefault_kind("i", "int")  # post-snapshot insert (loop-var default)
+    k.restore_facts(snap)  # widening re-lower: state rolls back
+    assert k.kind("i") is None  # fact gone ...
+    k.setdefault_kind("i", "int")  # ... so the insert fires again
+    assert k.kind("i") == "int"
+
+
+def test_kinds_restore_preserves_present_none_kind() -> None:
+    # a pre-bound loop var with unknown kind establishes a present-None
+    # fact; the restore must keep both presence and value so the later
+    # "int" default stays blocked (old dict setdefault semantics)
+    from vectorizer.lower.kinds import Kinds
+
+    k = Kinds()
+    k.set_kind("i", None)  # phi with unknown kind
+    snap = k.snapshot_facts()
+    k.set_kind("i", "int")  # discarded pass wrote a kind
+    k.restore_facts(snap)
+    assert k.kind("i") is None
+    k.setdefault_kind("i", "int")  # blocked: presence survived the restore
+    assert k.kind("i") is None
