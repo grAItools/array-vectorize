@@ -14,6 +14,7 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
+from .compat import _check_namespace
 from .errors import VectorizationError
 from .fallback import make_fallback
 from .pipeline import compile_function
@@ -31,12 +32,14 @@ def _vectorize_strict(
     *,
     protect: bool = False,
     verify_args: tuple[Any, ...] | None = None,
+    namespace: Any = None,
 ) -> Callable[..., Any]:
     """Run the pipeline with helper vectorization wired to the api cache."""
     return compile_function(
         func,
         protect=protect,
         verify_args=verify_args,
+        namespace=namespace,
         # helpers inherit the caller's protect_domains setting
         helper_vectorizer=lambda callee: _vectorize_helper(callee, protect=protect),
     )
@@ -68,6 +71,7 @@ def vectorize(
     fallback: bool = False,
     protect_domains: bool = False,
     verify: tuple[Any, ...] | None = None,
+    namespace: Any = None,
 ) -> Callable[..., Any]:
     """Compile an inspectable scalar function into a vectorized one.
 
@@ -86,9 +90,19 @@ def vectorize(
 
     ``verify=example_args`` differentially checks the generated function
     against the scalar original on the given inputs at generation time.
+
+    ``namespace=xp`` pins the array namespace at decoration time: the
+    generated code binds ``xp`` directly to it and never extracts the
+    namespace from its arguments — all-scalar calls become legal. Passing
+    arguments compatible with the pinned namespace is the USER's
+    responsibility. An invalid namespace raises ``TypeError``.
     """
+    if namespace is not None:
+        _check_namespace(namespace)  # usage error: fail fast, before compiling
     try:
-        return _vectorize_strict(func, protect=protect_domains, verify_args=verify)
+        return _vectorize_strict(
+            func, protect=protect_domains, verify_args=verify, namespace=namespace
+        )
     except VectorizationError as exc:
         if fallback or not strict:
             reason = str(exc).splitlines()[0]

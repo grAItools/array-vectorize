@@ -30,6 +30,10 @@ class LoweredFunction:
     source: str  # original scalar source (embedded verbatim in the docstring)
     helpers: list[tuple[str, Any]]  # (emitted name, vectorized helper callable)
     namespace_var: str  # the generated code's ``xp`` (renamed on collision)
+    #: the allocated, collision-free name of the hidden kw-only namespace
+    #: parameter bound in pinned mode (``vectorize(namespace=...)``); never
+    #: referenced by body IR, so it is not a program parameter
+    namespace_param: str
     emitted_names: frozenset[str]  # every binding/param name the lowering emitted
 
 

@@ -2,7 +2,10 @@
 
 Builds an ``ast.Module`` and uses ``ast.unparse``: correct docstring/literal
 escaping for free, normalized stable formatting. Generated code contains only
-``xp.*`` calls plus one ``from array_api_compat import array_namespace``.
+``xp.*`` calls plus one ``from array_api_compat import array_namespace`` —
+except in pinned mode (``vectorize(namespace=...)``), where the namespace is
+taken from a hidden keyword-only parameter instead and the import is omitted
+(pinned generated source has zero imports).
 """
 
 from __future__ import annotations
@@ -163,7 +166,7 @@ def _namespace_line(ns: str, param_names: list[str]) -> ast.Assign:
     return ast.Assign(targets=[ast.Name(id=ns, ctx=ast.Store())], value=call)
 
 
-def _build_signature(lowered: LoweredFunction) -> ast.arguments:
+def _build_signature(lowered: LoweredFunction, namespace_param: str | None = None) -> ast.arguments:
     posonly: list[ast.arg] = []
     positional: list[ast.arg] = []
     defaults: list[ast.expr] = []
@@ -190,6 +193,11 @@ def _build_signature(lowered: LoweredFunction) -> ast.arguments:
     for name, _default in lowered.hidden_params:
         kwonly.append(ast.arg(arg=name, annotation=None))
         kw_defaults.append(ast.Constant(value=None))  # real default injected at runtime
+    if namespace_param is not None:
+        # pinned mode: the hidden namespace parameter, mirroring how
+        # hidden_params are emitted (the real default is injected at runtime)
+        kwonly.append(ast.arg(arg=namespace_param, annotation=None))
+        kw_defaults.append(ast.Constant(value=None))
     return ast.arguments(
         posonlyargs=posonly,
         args=positional,
@@ -231,38 +239,55 @@ def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
             assert_never(stmt)
 
 
-def generate_source(lowered: LoweredFunction, program: Program) -> str:
-    """Generate the vectorized function source (plan §9)."""
+def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool = False) -> str:
+    """Generate the vectorized function source (plan §9).
+
+    With ``pinned=True`` (``vectorize(namespace=...)``) the namespace is
+    never extracted from the arguments: ``xp`` binds directly to the hidden
+    keyword-only ``namespace_param``, whose real default is injected at
+    runtime, and the ``array_namespace`` import is omitted.
+    """
     func_name = generated_name(lowered.name)
     ns = lowered.namespace_var
     all_params = lowered.param_names + [name for name, _ in lowered.hidden_params]
 
+    if pinned:
+        # xp = _namespace (the hidden kw-only parameter's runtime default)
+        ns_line: ast.stmt = ast.Assign(
+            targets=[ast.Name(id=ns, ctx=ast.Store())], value=_load(lowered.namespace_param)
+        )
+    else:
+        ns_line = _namespace_line(ns, all_params)
     body: list[ast.stmt] = [
         ast.Expr(value=ast.Constant(value=lowered.source)),  # original source, verbatim
-        _namespace_line(ns, all_params),
+        ns_line,
     ]
     for stmt in program.bindings:
         body.append(_gen_stmt(stmt, ns))
     body.append(ast.Return(value=_gen_expr(program.result, ns)))
 
-    module = ast.Module(
-        body=[
+    module_body: list[ast.stmt] = []
+    if not pinned:
+        module_body.append(
             ast.ImportFrom(
                 module="array_api_compat",
                 names=[ast.alias(name="array_namespace", asname=None)],
                 level=0,
+            )
+        )
+    module_body.append(
+        ast.FunctionDef(
+            name=func_name,
+            args=_build_signature(
+                lowered, namespace_param=lowered.namespace_param if pinned else None
             ),
-            ast.FunctionDef(
-                name=func_name,
-                args=_build_signature(lowered),
-                body=body,
-                decorator_list=[],
-                returns=None,
-                type_comment=None,
-                type_params=[],
-            ),
-        ],
-        type_ignores=[],
+            body=body,
+            decorator_list=[],
+            returns=None,
+            type_comment=None,
+            type_params=[],
+        )
     )
+    module = ast.Module(body=module_body, type_ignores=[])
     ast.fix_missing_locations(module)
     return ast.unparse(module) + "\n"

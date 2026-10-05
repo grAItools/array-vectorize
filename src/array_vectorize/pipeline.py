@@ -29,6 +29,7 @@ def compile_function(
     protect: bool = False,
     verify_args: tuple[Any, ...] | None = None,
     helper_vectorizer: HelperVectorizer | None = None,
+    namespace: Any = None,
 ) -> Callable[..., Any]:
     """Run the strict pipeline over ``func``.
 
@@ -46,6 +47,10 @@ def compile_function(
     6. **compile** (``emit``) — exec + linecache registration.
     7. **verify** (``verify``) — optional differential check against the
        scalar original on ``verify_args``.
+
+    With ``namespace`` set (pinned mode), the generated code binds ``xp``
+    to that namespace directly instead of extracting it from the arguments
+    (so all-scalar calls become legal).
     """
     info = extract_function(func)
     validate(info)
@@ -53,9 +58,14 @@ def compile_function(
     program = optimize(lowered.program, user_names=info.user_names | lowered.emitted_names)
     if protect:
         program = protect_domains(program)
-    source = generate_source(lowered, program)
+    source = generate_source(lowered, program, pinned=namespace is not None)
+    hidden_params = lowered.hidden_params
+    if namespace is not None:
+        # the pinned namespace rides as the hidden kw-only parameter's
+        # runtime default (the existing __kwdefaults__ injection handles it)
+        hidden_params = [*lowered.hidden_params, (lowered.namespace_param, namespace)]
     vec = compile_vectorized(
-        source, lowered.name, lowered.hidden_params, original=func, helpers=lowered.helpers
+        source, lowered.name, hidden_params, original=func, helpers=lowered.helpers
     )
     if verify_args is not None:
         verify_match(vec, func, verify_args)

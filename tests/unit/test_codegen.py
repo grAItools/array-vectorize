@@ -31,6 +31,7 @@ def make_lowered(params: list[Param], program: Program, name: str = "f") -> Lowe
         hidden_params=[],
         helpers=[],
         namespace_var="xp",
+        namespace_param="_namespace",
         emitted_names=frozenset(["x"]),
         source="def f(x):\n    return x",
     )
@@ -164,6 +165,7 @@ def test_hidden_params_kwonly_none() -> None:
         hidden_params=[("ARR", "placeholder")],
         helpers=[],
         namespace_var="xp",
+        namespace_param="_namespace",
         emitted_names=frozenset(["x", "ARR"]),
         source="def f(x):\n    return ARR",
     )
@@ -189,6 +191,7 @@ def test_reserved_param_kept_namespace_renamed() -> None:
         hidden_params=[],
         helpers=[],
         namespace_var="xp_1",
+        namespace_param="_namespace",
         emitted_names=frozenset(["xp"]),
         source="def f(xp):\n    return xp",
     )
