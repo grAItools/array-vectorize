@@ -8,7 +8,7 @@ def loop_start_stop_step_vec(x):
             s = s * i
         return s + x
     """
-    xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x)
     s = 1.0
     s_1 = s
     for i in range(2, 8, 3):

@@ -37,7 +37,7 @@ inspectable.
                 return 0.0
             return x * math.exp(-x)
         """
-        xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+        xp = array_namespace(x)
         return xp.where(x < 0, 0.0, x * xp.exp(-x))
     ```
 

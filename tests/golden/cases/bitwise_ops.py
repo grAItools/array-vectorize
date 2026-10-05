@@ -5,5 +5,5 @@ def bitwise_ops_vec(x, y):
     def bitwise_ops(x, y):
         return (x & y) | (x ^ 3) << 1 >> 2
     """
-    xp = array_namespace(*[a for a in (x, y) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x, y)
     return x & y | (x ^ 3) << 1 >> 2

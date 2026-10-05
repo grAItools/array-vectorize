@@ -11,7 +11,7 @@ def loop_with_branch_vec(x):
                 s = s - 1.0
         return s
     """
-    xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
+    xp = array_namespace(x)
     s = 0.0
     s_1 = s
     for i in range(0, 4):
