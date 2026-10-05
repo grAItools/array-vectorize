@@ -1,4 +1,4 @@
-# vectorizer
+# array-vectorize
 
 `vectorize(f)` compiles an inspectable **scalar** Python function into a
 **semantically equivalent function over arrays** that uses only the
@@ -11,7 +11,7 @@ generated source is readable and inspectable.
 ```python
 import math
 import numpy as np
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 @vectorize
 def psi(x):
@@ -65,7 +65,7 @@ VectorizationError                  # raised on unsupported constructs
 - Vectorization happens eagerly at decoration time (fail fast).
 - Signature, defaults, and kwarg names are preserved.
 - `vectorize(vectorize(f))` is idempotent.
-- `python -m vectorizer.fuzz --seconds 60` runs the grammar fuzzer
+- `python -m array_vectorize.fuzz --seconds 60` runs the grammar fuzzer
   (reproducible with `--seed`).
 
 ## Supported subset
@@ -149,7 +149,7 @@ make bench       # pytest-benchmark suite (timings + dispatch gates)
 make docs        # build the docs site (Zensical, docs/)
 make notebook    # open the marimo example notebooks (examples/notebooks/)
 pytest --update-golden   # regenerate golden source snapshots
-python -m vectorizer.fuzz --seconds 60 --seed 0    # grammar fuzzer
+python -m array_vectorize.fuzz --seconds 60 --seed 0    # grammar fuzzer
 ```
 
 - Golden snapshots (`tests/golden/cases/`) compare via `ast.dump` equality,

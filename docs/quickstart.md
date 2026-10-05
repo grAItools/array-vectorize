@@ -5,7 +5,7 @@
 ```python
 import math
 import numpy as np
-from vectorizer import vectorize
+from array_vectorize import vectorize
 
 @vectorize
 def sigmoid(x):

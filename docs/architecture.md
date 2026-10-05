@@ -1,9 +1,9 @@
 # Architecture
 
-`vectorizer` is a source-to-source compiler. The pipeline runs eagerly
+`array-vectorize` is a source-to-source compiler. The pipeline runs eagerly
 at decoration time. Orchestration lives in two modules at the top of
-the package: `vectorizer/pipeline.py` (`compile_function`, the strict
-stages below) and `vectorizer/api.py` (`vectorize` option handling, the
+the package: `array_vectorize/pipeline.py` (`compile_function`, the strict
+stages below) and `array_vectorize/api.py` (`vectorize` option handling, the
 fallback decision, and the memoized helper cache); `__init__.py` is a
 thin re-export of the public API.
 
@@ -59,9 +59,9 @@ generated code calls small runtime helpers injected into its globals:
   per-lane-exact uint64 `mod`/`floordiv` formulas for negative divisors
   and result-aware subtraction.
 
-The helpers live in `vectorizer/runtime/` (`minmax.py`, `arith.py`,
+The helpers live in `array_vectorize/runtime/` (`minmax.py`, `arith.py`,
 `dtype.py`), a stdlib-only leaf. Lowering does not import them directly:
-it goes through the `vectorizer/runtime/registry.py` seam
+it goes through the `array_vectorize/runtime/registry.py` seam
 (`RUNTIME_HELPERS`), which maps each stable key to the emitted base
 name and the injected callable.
 
@@ -94,5 +94,5 @@ Tests are organized by level and behavior, never by discovery date:
 The regression corpus from the 26-round independent adversarial
 review is preserved inside `behavior/` and `features/` (provenance in
 git history). A grammar fuzzer complements the suite:
-`python -m vectorizer.fuzz` generates random scalar programs,
+`python -m array_vectorize.fuzz` generates random scalar programs,
 vectorizes, and differentially checks them; CI runs fixed seeds.

@@ -1,9 +1,9 @@
 [project]
-site_name = "vectorizer"
+site_name = "array-vectorize"
 site_description = "Source-to-source array vectorization: scalar Python compiled to Array API functions"
 site_author = "grAItools"
-repo_url = "https://github.com/grAItools/vectorizer"
-repo_name = "grAItools/vectorizer"
+repo_url = "https://github.com/grAItools/array-vectorize"
+repo_name = "grAItools/array-vectorize"
 
 nav = [
   { "Get started" = "index.md" },
@@ -54,7 +54,7 @@ toggle.name = "Switch to system preference"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/grAItools/vectorizer"
+link = "https://github.com/grAItools/array-vectorize"
 
 [project.markdown_extensions]
 abbr = {}
