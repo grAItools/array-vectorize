@@ -2,14 +2,14 @@ from array_api_compat import array_namespace
 
 def loop_two_carried_vec(x):
     """
-def loop_two_carried(x):
-    a = 0.0
-    b = 1.0
-    for i in range(3):  # noqa: B007
-        a = a + x
-        b = b * 2.0
-    return a + b
-"""
+    def loop_two_carried(x):
+        a = 0.0
+        b = 1.0
+        for i in range(3):  # noqa: B007
+            a = a + x
+            b = b * 2.0
+        return a + b
+    """
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
     a = 0.0
     b = 1.0

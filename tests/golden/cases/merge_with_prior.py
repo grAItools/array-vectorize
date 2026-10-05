@@ -2,12 +2,12 @@ from array_api_compat import array_namespace
 
 def merge_with_prior_vec(x):
     """
-def merge_with_prior(x):
-    r = 0.0
-    if x > 0:
-        r = x
-    return r
-"""
+    def merge_with_prior(x):
+        r = 0.0
+        if x > 0:
+            r = x
+        return r
+    """
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
     r = 0.0
     r_1 = x

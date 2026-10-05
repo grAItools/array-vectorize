@@ -258,10 +258,18 @@ def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool 
         )
     else:
         ns_line = _namespace_line(ns, all_params)
+    # original source, verbatim — the docstring is cleandoc-exact:
+    # ast.get_docstring / inspect.getdoc on the generated function recover
+    # the original scalar source verbatim
+    indent = "    "  # docstring is always the first statement, body level
+    doc_value = (
+        "\n"
+        + "\n".join(indent + line if line.strip() else "" for line in lowered.source.splitlines())
+        + "\n"
+        + indent
+    )
     body: list[ast.stmt] = [
-        # original source, verbatim; surrounding newlines put the triple
-        # quotes on their own lines
-        ast.Expr(value=ast.Constant(value=f"\n{lowered.source}\n")),
+        ast.Expr(value=ast.Constant(value=doc_value)),
         ns_line,
     ]
     for stmt in program.bindings:

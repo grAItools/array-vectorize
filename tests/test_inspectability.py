@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 import linecache
 import traceback
@@ -84,6 +85,17 @@ def test_name_and_docstring() -> None:
     assert vec.__name__ == "relu_fn"
     assert "def relu_fn(x:" in (vec.__doc__ or "")
     assert "if x < 0:" in (vec.__doc__ or "")
+
+
+def test_docstring_cleandoc_exact() -> None:
+    # the docstring indents the original source to body level; cleandoc
+    # (ast.get_docstring / inspect.getdoc) recovers the original verbatim
+    vec = vectorize(relu_fn)
+    fn_def = ast.parse(vec.source).body[-1]
+    assert isinstance(fn_def, ast.FunctionDef)
+    original = inspect.getsource(relu_fn).strip()
+    assert ast.get_docstring(fn_def) == original
+    assert inspect.getdoc(vec) == original
 
 
 def test_idempotent_revectorization() -> None:

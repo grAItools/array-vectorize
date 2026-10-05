@@ -2,15 +2,15 @@ from array_api_compat import array_namespace
 
 def loop_with_branch_vec(x):
     """
-def loop_with_branch(x):
-    s = 0.0
-    for i in range(4):  # noqa: B007
-        if x > 0:  # noqa: SIM108
-            s = s + x
-        else:
-            s = s - 1.0
-    return s
-"""
+    def loop_with_branch(x):
+        s = 0.0
+        for i in range(4):  # noqa: B007
+            if x > 0:  # noqa: SIM108
+                s = s + x
+            else:
+                s = s - 1.0
+        return s
+    """
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
     s = 0.0
     s_1 = s
