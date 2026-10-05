@@ -2,13 +2,13 @@ from array_api_compat import array_namespace
 
 def nested_loops_vec(x):
     """
-def nested_loops(x):
-    s = 0.0
-    for i in range(3):  # noqa: B007
-        for j in range(2):  # noqa: B007  # noqa: B007
-            s = s + x
-    return s
-"""
+    def nested_loops(x):
+        s = 0.0
+        for i in range(3):  # noqa: B007
+            for j in range(2):  # noqa: B007  # noqa: B007
+                s = s + x
+        return s
+    """
     xp = array_namespace(*[a for a in (x,) if hasattr(a, '__array_namespace__')])
     s = 0.0
     s_1 = s
