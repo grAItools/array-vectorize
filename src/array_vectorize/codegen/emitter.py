@@ -259,7 +259,9 @@ def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool 
     else:
         ns_line = _namespace_line(ns, all_params)
     body: list[ast.stmt] = [
-        ast.Expr(value=ast.Constant(value=lowered.source)),  # original source, verbatim
+        # original source, verbatim; surrounding newlines put the triple
+        # quotes on their own lines
+        ast.Expr(value=ast.Constant(value=f"\n{lowered.source}\n")),
         ns_line,
     ]
     for stmt in program.bindings:
