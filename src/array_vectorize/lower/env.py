@@ -14,9 +14,9 @@ import ast
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from ..errors import VectorizationError
-from ..frontend.info import FunctionInfo
-from ..ir import (
+from array_vectorize.errors import VectorizationError
+from array_vectorize.frontend.info import FunctionInfo
+from array_vectorize.ir import (
     Binding,
     Compare,
     Kind,
@@ -28,9 +28,9 @@ from ..ir import (
     Where,
     is_bool,
 )
-from ..runtime.registry import RUNTIME_HELPERS
-from .kinds import Kinds
-from .types import HelperVectorizer
+from array_vectorize.lower.kinds import Kinds
+from array_vectorize.lower.types import HelperVectorizer
+from array_vectorize.runtime.registry import RUNTIME_HELPERS
 
 __all__ = ["_LowererBase"]
 

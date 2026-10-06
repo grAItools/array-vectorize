@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import ast
 
-from ..ir import Binding, Kind, Literal, Loop, Node, Ref
-from ..optimize.constfold import _const_fold_expr
-from .statements import _StatementLowerer
+from array_vectorize.ir import Binding, Kind, Literal, Loop, Node, Ref
+from array_vectorize.lower.statements import _StatementLowerer
+from array_vectorize.optimize.constfold import _const_fold_expr
 
 __all__ = ["_LoopLowerer"]
 

@@ -15,8 +15,8 @@ from typing import Any
 
 from array_api_compat import array_namespace
 
-from .codegen.docstring import prefixed_summary
-from .compat import _check_namespace, _is_array, _py_scalar
+from array_vectorize.codegen.docstring import prefixed_summary
+from array_vectorize.compat import _check_namespace, _is_array, _py_scalar
 
 __all__ = ["make_fallback"]
 

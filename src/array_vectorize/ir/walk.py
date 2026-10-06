@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import assert_never
 
-from .nodes import (
+from array_vectorize.ir.nodes import (
     BinOp,
     Call,
     Compare,

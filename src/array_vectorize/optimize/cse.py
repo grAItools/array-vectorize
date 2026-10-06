@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections import Counter
 
-from ..ir import Binding, Call, Loop, Node, Program, Ref, Stmt, Where, walk
-from ..ir.ssa import SSAEnv
-from ..ir.walk import children
+from array_vectorize.ir import Binding, Call, Loop, Node, Program, Ref, Stmt, Where, walk
+from array_vectorize.ir.ssa import SSAEnv
+from array_vectorize.ir.walk import children
 
 __all__ = ["cse"]
 

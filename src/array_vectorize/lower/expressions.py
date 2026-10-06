@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import ast
 
-from ..frontend.tables import (
+from array_vectorize.frontend.tables import (
     BUILTIN_CASTS,
     BUILTIN_FOLDS,
     BUILTIN_UNARY,
@@ -20,7 +20,7 @@ from ..frontend.tables import (
     MATH_FUNCS,
     MATH_SPECIAL,
 )
-from ..ir import (
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,
@@ -36,8 +36,8 @@ from ..ir import (
     Where,
     is_bool,
 )
-from ..runtime.registry import ArithOp
-from .sanitize import _Sanitizer
+from array_vectorize.lower.sanitize import _Sanitizer
+from array_vectorize.runtime.registry import ArithOp
 
 __all__ = ["_ExpressionLowerer"]
 

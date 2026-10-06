@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import ast
 
-from ..ir import Binding, Literal, Logical, Node, UnaryOp, Where, is_bool
-from .expressions import _ExpressionLowerer
+from array_vectorize.ir import Binding, Literal, Logical, Node, UnaryOp, Where, is_bool
+from array_vectorize.lower.expressions import _ExpressionLowerer
 
 __all__ = ["_StatementLowerer"]
 

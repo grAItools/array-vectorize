@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .emitter import generate_source
+from array_vectorize.codegen.emitter import generate_source
 
 __all__ = ["generate_source"]

@@ -6,8 +6,8 @@ Public API re-export only — implementation lives in ``array_vectorize.api``
 
 from __future__ import annotations
 
-from .api import get_source, vectorize
-from .errors import VectorizationError
+from array_vectorize.api import get_source, vectorize
+from array_vectorize.errors import VectorizationError
 
 __version__ = "0.1.0"
 

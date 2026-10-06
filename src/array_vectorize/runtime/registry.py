@@ -11,8 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .arith import ArithOp, _vec_arith
-from .minmax import _vec_minmax
+from array_vectorize.runtime.arith import ArithOp, _vec_arith
+from array_vectorize.runtime.minmax import _vec_minmax
 
 __all__ = ["RUNTIME_HELPERS", "ArithOp"]
 

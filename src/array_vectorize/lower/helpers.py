@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import ast
 
-from ..ir import FuncCall, Node, generated_name
-from .loops import _LoopLowerer
+from array_vectorize.ir import FuncCall, Node, generated_name
+from array_vectorize.lower.loops import _LoopLowerer
 
 __all__ = ["_HelperLowerer"]
 

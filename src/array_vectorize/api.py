@@ -20,12 +20,12 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
-from .compat import _check_namespace
-from .errors import VectorizationError
-from .fallback import make_fallback
-from .frontend.extract import resolve_original
-from .pipeline import compile_function
-from .verify import verify_match
+from array_vectorize.compat import _check_namespace
+from array_vectorize.errors import VectorizationError
+from array_vectorize.fallback import make_fallback
+from array_vectorize.frontend.extract import resolve_original
+from array_vectorize.pipeline import compile_function
+from array_vectorize.verify import verify_match
 
 __all__ = ["get_source", "vectorize"]
 

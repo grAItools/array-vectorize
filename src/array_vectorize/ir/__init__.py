@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .nodes import (
+from array_vectorize.ir.nodes import (
     Binding,
     BinOp,
     Call,
@@ -21,8 +21,8 @@ from .nodes import (
     Where,
     is_bool,
 )
-from .ssa import RESERVED_NAMES, SSAEnv, generated_name
-from .walk import children, rewrite
+from array_vectorize.ir.ssa import RESERVED_NAMES, SSAEnv, generated_name
+from array_vectorize.ir.walk import children, rewrite
 
 __all__ = [
     "RESERVED_NAMES",

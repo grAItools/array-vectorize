@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import ast
 
-from ..errors import Diagnostic, VectorizationError
-from .info import FunctionInfo
-from .tables import MATH_CONSTS, MATH_FUNCS, MATH_SPECIAL
+from array_vectorize.errors import Diagnostic, VectorizationError
+from array_vectorize.frontend.info import FunctionInfo
+from array_vectorize.frontend.tables import MATH_CONSTS, MATH_FUNCS, MATH_SPECIAL
 
 __all__ = ["validate"]
 

@@ -10,9 +10,9 @@ argument — directly, negated, or via a literal binding.
 
 from __future__ import annotations
 
-from ..ir import Call, DType, Literal, Node, Ref, UnaryOp
-from ..ir.walk import children
-from .env import _LowererBase
+from array_vectorize.ir import Call, DType, Literal, Node, Ref, UnaryOp
+from array_vectorize.ir.walk import children
+from array_vectorize.lower.env import _LowererBase
 
 __all__ = ["_Sanitizer"]
 

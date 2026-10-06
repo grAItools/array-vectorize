@@ -12,8 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ..frontend.info import Param
-from ..ir import Program
+from array_vectorize.frontend.info import Param
+from array_vectorize.ir import Program
 
 __all__ = ["HelperVectorizer", "LoweredFunction"]
 

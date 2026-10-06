@@ -12,13 +12,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .codegen import generate_source
-from .emit import compile_vectorized
-from .frontend.extract import extract_function, resolve_original
-from .frontend.validate import validate
-from .lower import HelperVectorizer, lower_function
-from .optimize import optimize, protect_domains
-from .verify import verify_match
+from array_vectorize.codegen import generate_source
+from array_vectorize.emit import compile_vectorized
+from array_vectorize.frontend.extract import extract_function, resolve_original
+from array_vectorize.frontend.validate import validate
+from array_vectorize.lower import HelperVectorizer, lower_function
+from array_vectorize.optimize import optimize, protect_domains
+from array_vectorize.verify import verify_match
 
 __all__ = ["compile_function"]
 

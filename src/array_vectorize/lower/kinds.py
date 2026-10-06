@@ -45,7 +45,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from ..ir import Kind, Literal
+from array_vectorize.ir import Kind, Literal
 
 __all__ = ["FactsSnapshot", "Kinds", "VarInfo"]
 

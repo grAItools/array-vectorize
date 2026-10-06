@@ -7,10 +7,10 @@ Import it as ``from array_vectorize.frontend.validate import validate``.
 
 from __future__ import annotations
 
-from .extract import extract_function
-from .info import FunctionInfo, Param, ParamKind
-from .lambda_id import _find_target
-from .tables import (
+from array_vectorize.frontend.extract import extract_function
+from array_vectorize.frontend.info import FunctionInfo, Param, ParamKind
+from array_vectorize.frontend.lambda_id import _find_target
+from array_vectorize.frontend.tables import (
     BUILTIN_CASTS,
     BUILTIN_FOLDS,
     BUILTIN_UNARY,

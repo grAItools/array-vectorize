@@ -96,7 +96,15 @@ select = [
     "RUF", # ruff-specific
     "C4",  # flake8-comprehensions
     "PT",  # flake8-pytest-style
+    "TID252", # flake8-tidy-imports: absolute imports only
 ]
+# the TID252 fix is unsafe-only by default; make `ruff check --fix` apply it
+extend-safe-fixes = ["TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# ruff's default ("parents") only flags `..` imports; every import in the
+# tree is absolute
+ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 # scalar functions written for vectorize loop over range(N) for its trip

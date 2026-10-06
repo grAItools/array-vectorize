@@ -14,8 +14,8 @@ import types
 from collections.abc import Iterator
 from typing import Any
 
-from ..errors import _reject
-from .info import _AstFunction
+from array_vectorize.errors import _reject
+from array_vectorize.frontend.info import _AstFunction
 
 
 def _lambdas_in_source_order(tree: ast.AST) -> Iterator[ast.Lambda]:

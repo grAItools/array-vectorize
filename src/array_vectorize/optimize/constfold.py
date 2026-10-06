@@ -6,7 +6,7 @@ import math
 import operator
 from typing import Any
 
-from ..ir import (
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,
@@ -20,7 +20,7 @@ from ..ir import (
     Stmt,
     UnaryOp,
 )
-from ..ir.walk import rewrite
+from array_vectorize.ir.walk import rewrite
 
 __all__ = ["const_fold"]
 

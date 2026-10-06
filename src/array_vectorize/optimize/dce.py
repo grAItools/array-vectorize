@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..ir import Binding, Loop, Node, Program, Ref, Stmt
-from ..ir.walk import children
+from array_vectorize.ir import Binding, Loop, Node, Program, Ref, Stmt
+from array_vectorize.ir.walk import children
 
 __all__ = ["dce"]
 

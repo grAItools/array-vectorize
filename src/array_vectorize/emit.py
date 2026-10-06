@@ -17,7 +17,7 @@ import linecache
 from collections.abc import Callable
 from typing import Any, cast
 
-from .ir.ssa import generated_name
+from array_vectorize.ir.ssa import generated_name
 
 __all__ = ["compile_vectorized"]
 

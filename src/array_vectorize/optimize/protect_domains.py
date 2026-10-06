@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..ir import (
+from array_vectorize.ir import (
     Binding,
     Call,
     Compare,
@@ -17,7 +17,7 @@ from ..ir import (
     Where,
     walk,
 )
-from ..ir.walk import children
+from array_vectorize.ir.walk import children
 
 __all__ = ["protect_domains"]
 

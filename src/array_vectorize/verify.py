@@ -14,8 +14,8 @@ from typing import Any
 
 from array_api_compat import array_namespace
 
-from .compat import _is_array, _py_scalar
-from .errors import VectorizationError
+from array_vectorize.compat import _is_array, _py_scalar
+from array_vectorize.errors import VectorizationError
 
 __all__ = ["verify_match"]
 

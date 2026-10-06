@@ -10,7 +10,7 @@ import enum
 import operator
 from typing import Any
 
-from .dtype import _describe_dtype, _dtype_bits
+from array_vectorize.runtime.dtype import _describe_dtype, _dtype_bits
 
 __all__ = [
     "_ARITH_FNS",

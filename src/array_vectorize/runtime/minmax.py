@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from .dtype import _describe_dtype, _dtype_bits, _fits_dtype, _minmax_bound_kind
+from array_vectorize.runtime.dtype import (
+    _describe_dtype,
+    _dtype_bits,
+    _fits_dtype,
+    _minmax_bound_kind,
+)
 
 __all__ = ["_vec_minmax"]
 

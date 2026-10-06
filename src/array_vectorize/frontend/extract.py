@@ -11,11 +11,11 @@ import types
 from collections.abc import Callable
 from typing import Any
 
-from ..compat import _is_array
-from ..errors import _reject
-from .info import FunctionInfo, Param, ParamKind, _AstFunction
-from .lambda_id import _find_target
-from .tables import MATH_FUNCS, MATH_SPECIAL
+from array_vectorize.compat import _is_array
+from array_vectorize.errors import _reject
+from array_vectorize.frontend.info import FunctionInfo, Param, ParamKind, _AstFunction
+from array_vectorize.frontend.lambda_id import _find_target
+from array_vectorize.frontend.tables import MATH_FUNCS, MATH_SPECIAL
 
 __all__ = ["FunctionInfo", "Param", "ParamKind", "extract_function", "resolve_original"]
 

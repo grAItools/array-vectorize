@@ -22,7 +22,8 @@ import math
 from inspect import cleandoc
 from typing import assert_never
 
-from ..ir import (
+from array_vectorize.codegen.docstring import build_docstring, extract_scalar_source
+from array_vectorize.ir import (
     Binding,
     BinOp,
     Call,
@@ -38,10 +39,9 @@ from ..ir import (
     Stmt,
     UnaryOp,
     Where,
-    generated_name,  # re-export helper
+    generated_name,
 )
-from ..lower.types import LoweredFunction
-from .docstring import build_docstring, extract_scalar_source
+from array_vectorize.lower.types import LoweredFunction
 
 __all__ = ["generate_source"]
 
