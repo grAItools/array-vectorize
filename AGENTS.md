@@ -66,11 +66,28 @@ the behavior, not the bug that found it).
   live in real files. Use `support.make_fn` / `make_module` for snippets.
 - Warnings are errors (`filterwarnings = ["error", ...]` in `pyproject.toml`).
 
-## Recipes
+## Skills
 
-- Adding a supported construct: follow `.claude/skills/add-construct/SKILL.md`.
-- Hunting miscompiles: `.claude/agents/semantics-reviewer.md` defines an
-  adversarial reviewer.
+Skills live in `.agents/skills/` in the [Agent Skills](https://agentskills.io)
+format. Load the matching one before starting:
+
+- Extending the supported subset: `.agents/skills/add-construct/SKILL.md`.
+- Reviewing compiler changes for miscompiles:
+  `.agents/skills/semantics-review/SKILL.md`.
+
+## Agent configuration
+
+The shared sources are `AGENTS.md` and `.agents/`. Harness directories only
+adapt them: `CLAUDE.md` imports this file, `.claude/skills/<name>` symlinks
+to `.agents/skills/<name>`, and `.claude/agents/` wraps skills as Claude
+subagents. `.claude/settings.json` and `.claude/hooks/` hold Claude-only
+permissions and hooks, which call the `make` targets above.
+`tests/test_agent_layout.py` enforces this layout.
+
+To add a skill, create `.agents/skills/<name>/SKILL.md` with only the
+standard frontmatter fields (`name` matching the directory, `description`),
+then link it for Claude:
+`ln -s ../../.agents/skills/<name> .claude/skills/<name>`.
 
 ## Docs and commits
 

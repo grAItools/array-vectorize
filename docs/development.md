@@ -80,6 +80,26 @@ numeric warnings (`overflow encountered`, `invalid value`,
 - **pages** — after CI passes on a push to `main`, deploys this site to
   [GitHub Pages](https://grAItools.github.io/array-vectorize/).
 
+## Coding agents
+
+Instructions and skills for coding agents are harness-agnostic; each
+harness's own directory only forwards to them:
+
+| Path | Role |
+|---|---|
+| `AGENTS.md` | the project instructions every agent reads |
+| `.agents/skills/<name>/SKILL.md` | shared skills ([Agent Skills](https://agentskills.io) format, standard frontmatter only): `add-construct`, `semantics-review` |
+| `CLAUDE.md` | Claude Code adapter: imports `AGENTS.md` |
+| `.claude/skills/<name>` | Claude Code adapter: symlink to `.agents/skills/<name>` |
+| `.claude/agents/semantics-reviewer.md` | Claude Code subagent that preloads the `semantics-review` skill |
+| `.claude/settings.json`, `.claude/hooks/` | Claude Code only: command allowlist, a format-on-edit hook, and a stop hook that runs `make lint type` |
+
+Edit the shared files; the adapters pick up changes through the import
+and the symlinks. `tests/test_agent_layout.py` fails when a skill uses
+harness-specific frontmatter or lacks its `.claude/skills` link. On
+Windows, the symlinks need `git config core.symlinks true` (and Developer
+Mode or an elevated shell) to check out as links.
+
 ## History
 
 The original design document, the restructuring plan, and the log of
