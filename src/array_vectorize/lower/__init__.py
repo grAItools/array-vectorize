@@ -139,6 +139,7 @@ def lower_function(
         param_names=param_names,
         hidden_params=hidden,
         source=info.source,
+        docstring=info.docstring,
         helpers=lowerer.helpers,
         namespace_var=ns,
         namespace_param=ns_param,

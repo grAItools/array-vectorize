@@ -17,9 +17,24 @@ from .info import FunctionInfo, Param, ParamKind, _AstFunction
 from .lambda_id import _find_target
 from .tables import MATH_FUNCS, MATH_SPECIAL
 
-__all__ = ["FunctionInfo", "Param", "ParamKind", "extract_function"]
+__all__ = ["FunctionInfo", "Param", "ParamKind", "extract_function", "resolve_original"]
 
 _MATH_FUNC_NAMES = (*MATH_FUNCS, *MATH_SPECIAL)
+
+
+def resolve_original(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Unwrap ``__wrapped__`` and ``_vectorized_original`` chains.
+
+    The result is the scalar function the callable stands for (decorator
+    wrappers and prior vectorizations included); canonical vectorizations
+    are memoized and back-referenced by it.
+    """
+    target: Callable[..., Any] = inspect.unwrap(func)
+    while True:
+        original = getattr(target, "_vectorized_original", None)
+        if not isinstance(original, types.FunctionType):
+            return target
+        target = original
 
 
 def _check_default(param: str, node: ast.expr) -> int | float | bool:
@@ -88,13 +103,7 @@ def _classify_closures(target: types.FunctionType, info: FunctionInfo) -> None:
 
 def extract_function(func: Callable[..., Any]) -> FunctionInfo:
     """Unwrap, read source, parse, and capture closures."""
-    target = inspect.unwrap(func)
-    # follow our own marker: vectorize(vectorize(f)) re-extracts the original
-    while True:
-        original = getattr(target, "_vectorized_original", None)
-        if not isinstance(original, types.FunctionType):
-            break
-        target = original
+    target = resolve_original(func)
     if not isinstance(target, types.FunctionType):
         if inspect.isbuiltin(target):
             _reject(

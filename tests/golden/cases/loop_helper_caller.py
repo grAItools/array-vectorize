@@ -2,11 +2,16 @@ from array_api_compat import array_namespace
 
 def loop_helper_caller_vec(x):
     """
-    def loop_helper_caller(x):
-        s = 0.0
-        for i in range(3):  # noqa: B007
-            s = s + helper_inner(x)
-        return s
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def loop_helper_caller(x):
+                s = 0.0
+                for i in range(3):  # noqa: B007
+                    s = s + helper_inner(x)
+                return s
     """
     xp = array_namespace(x)
     s = 0.0

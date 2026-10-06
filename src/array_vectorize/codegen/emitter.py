@@ -6,12 +6,20 @@ escaping for free, normalized stable formatting. Generated code contains only
 except in pinned mode (``vectorize(namespace=...)``), where the namespace is
 taken from a hidden keyword-only parameter instead and the import is omitted
 (pinned generated source has zero imports).
+
+The function's docstring is assembled by ``codegen/docstring.py``: the
+original's documentation with a ``(array-vectorized)`` summary prefix, plus
+the verbatim scalar source in a ``Notes:`` section. The round trip is
+self-checked here; when it cannot be guaranteed (the marker quoted inside
+the original's own docs, tab-indented source that ``cleandoc`` would
+expand), the legacy source-only docstring is emitted instead.
 """
 
 from __future__ import annotations
 
 import ast
 import math
+from inspect import cleandoc
 from typing import assert_never
 
 from ..ir import (
@@ -33,6 +41,7 @@ from ..ir import (
     generated_name,  # re-export helper
 )
 from ..lower.types import LoweredFunction
+from .docstring import build_docstring, extract_scalar_source
 
 __all__ = ["generate_source"]
 
@@ -228,6 +237,33 @@ def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
             assert_never(stmt)
 
 
+def _indent_to_body(text: str) -> str:
+    # docstring is always the first statement, body level; the leading
+    # newline keeps the summary on its own line and the trailing indent
+    # line keeps the closing quotes aligned
+    indent = "    "
+    return (
+        "\n"
+        + "\n".join(indent + line if line.strip() else "" for line in text.splitlines())
+        + "\n"
+        + indent
+    )
+
+
+def _docstring_value(docstring: str | None, source: str) -> str:
+    """Body-level docstring constant: combined format, or legacy on mismatch."""
+    value = _indent_to_body(build_docstring(docstring, source))
+    try:
+        # simulate exactly what ast.get_docstring / inspect.getdoc return
+        if extract_scalar_source(cleandoc(value)) == source:
+            return value
+    except ValueError:
+        pass
+    # pathological docstring or source — degrade to the legacy source-only
+    # docstring; presentation degrades, compiled semantics never do
+    return _indent_to_body(source)
+
+
 def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool = False) -> str:
     """Generate the vectorized function source.
 
@@ -247,16 +283,7 @@ def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool 
         )
     else:
         ns_line = _namespace_line(ns, all_params)
-    # original source, verbatim — the docstring is cleandoc-exact:
-    # ast.get_docstring / inspect.getdoc on the generated function recover
-    # the original scalar source verbatim
-    indent = "    "  # docstring is always the first statement, body level
-    doc_value = (
-        "\n"
-        + "\n".join(indent + line if line.strip() else "" for line in lowered.source.splitlines())
-        + "\n"
-        + indent
-    )
+    doc_value = _docstring_value(lowered.docstring, lowered.source)
     body: list[ast.stmt] = [
         ast.Expr(value=ast.Constant(value=doc_value)),
         ns_line,

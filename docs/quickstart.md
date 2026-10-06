@@ -26,6 +26,7 @@ every lane (see [semantics](semantics.md#eager-branches-dead-lanes)).
 ```python
 print(sigmoid.source)         # the generated Python source
 inspect.getsource(sigmoid)    # also works
+help(sigmoid)                 # original docstring (prefixed) + scalar source in Notes
 ```
 
 The generated function is plain Array API code — you can paste it into

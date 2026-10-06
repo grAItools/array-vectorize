@@ -28,6 +28,7 @@ class LoweredFunction:
     param_names: list[str]  # emitted names, aligned with params
     hidden_params: list[tuple[str, Any]]  # (emitted name, array default)
     source: str  # original scalar source (embedded verbatim in the docstring)
+    docstring: str | None  # the original's docstring (None when absent)
     helpers: list[tuple[str, Any]]  # (emitted name, vectorized helper callable)
     namespace_var: str  # the generated code's ``xp`` (renamed on collision)
     #: the allocated, collision-free name of the hidden kw-only namespace

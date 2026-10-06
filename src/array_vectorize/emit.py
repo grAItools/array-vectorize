@@ -62,6 +62,10 @@ def compile_vectorized(
 
     func.__name__ = original.__name__
     func.__qualname__ = getattr(original, "__qualname__", original.__name__)
+    # module attribution: pydoc renders "Help on function f in module m"
+    # instead of a moduleless header; safe because getsource/getsourcelines
+    # use co_filename + linecache, never __module__
+    func.__module__ = original.__module__
     # NOTE: __wrapped__ is intentionally NOT set: inspect.getsourcelines
     # unwraps unconditionally, which would hide the generated source. The
     # signature is preserved via __signature__ and the original is reachable

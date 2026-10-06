@@ -112,9 +112,10 @@ def test_with_namespace_identity_stable() -> None:
 
 
 def test_with_namespace_memoized_across_compilations() -> None:
-    # the cache keys on the scalar original, not on the compiled wrapper
-    vf1 = vectorize(corpus.psi)
-    vf2 = vectorize(corpus.psi)
+    # the cache keys on the scalar original, not on the compiled wrapper:
+    # distinct compilations (protected ones are never memoized) share pins
+    vf1 = vectorize(corpus.psi, protect_domains=True)
+    vf2 = vectorize(corpus.psi, protect_domains=True)
     assert vf1 is not vf2
     assert vf1.with_namespace(np) is vf2.with_namespace(np)
 

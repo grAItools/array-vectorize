@@ -2,16 +2,20 @@
 
 Option handling and the fallback decision live here; the strict compilation
 stages live in ``pipeline.compile_function``. This module owns the global
-helper cache: memoized vectorized helpers are keyed by
+caches: memoized vectorized helpers are keyed by
 ``(function object, protect flag, namespace)`` and are never evicted — a
 protected or pinned compilation must not reuse a helper compiled with
 different options (and vice versa), and helper recursion is detected via
 ``_ACTIVE_HELPERS``. It also owns ``_PIN_CACHE``, memoizing the strict
-``with_namespace`` variants per ``(original, protect, namespace)``.
+``with_namespace`` variants per ``(original, protect, namespace)``, and
+``_CANONICAL_CACHE``, memoizing canonical results (no protect, no pin) per
+resolved scalar original — that memoization is what keeps
+``original.__array_vectorized__`` identity-stable.
 """
 
 from __future__ import annotations
 
+import types
 import warnings
 from collections.abc import Callable
 from typing import Any
@@ -19,11 +23,13 @@ from typing import Any
 from .compat import _check_namespace
 from .errors import VectorizationError
 from .fallback import make_fallback
+from .frontend.extract import resolve_original
 from .pipeline import compile_function
+from .verify import verify_match
 
 __all__ = ["get_source", "vectorize"]
 
-#: memoized vectorized helpers, keyed by (function object, protect, namespace)
+#: memoized vectorized helpers, keyed by (function, protect, namespace)
 #: (D7): pin and protect options must not leak between cached helpers
 _HELPER_CACHE: dict[tuple[Callable[..., Any], bool, Any], Callable[..., Any]] = {}
 #: functions currently being vectorized (recursion detection)
@@ -31,6 +37,11 @@ _ACTIVE_HELPERS: set[Callable[..., Any]] = set()
 #: memoized strict ``with_namespace`` variants, keyed by
 #: (scalar original, protect, namespace) — identity-stable across calls
 _PIN_CACHE: dict[tuple[Callable[..., Any], bool, Any], Callable[..., Any]] = {}
+#: canonical results (``vectorize(f)`` without protect/pin), keyed by the
+#: resolved scalar original — repeated calls return the same object and
+#: ``original.__array_vectorized__`` points at it. Option variants and
+#: fallback wrappers are never stored here.
+_CANONICAL_CACHE: dict[Callable[..., Any], Callable[..., Any]] = {}
 
 
 def _vectorize_strict(
@@ -98,6 +109,17 @@ def _attach_namespace_api(vec: Callable[..., Any], *, protect: bool) -> None:
     vec.with_namespace = with_namespace  # type: ignore[attr-defined]
 
 
+def _set_backref(vec: Callable[..., Any], original: Callable[..., Any]) -> None:
+    """Point ``original.__array_vectorized__`` at its canonical vectorization.
+
+    Only plain functions carry the marker: callables without a writable
+    ``__dict__`` (builtins, C callables) are skipped — the forward markers
+    (``_vectorized_original``, ``.source``) still work for them.
+    """
+    if isinstance(original, types.FunctionType):
+        original.__array_vectorized__ = vec  # type: ignore[attr-defined]
+
+
 def vectorize(
     func: Callable[..., Any],
     *,
@@ -111,7 +133,9 @@ def vectorize(
 
     The returned callable runs over any Array API backend (NumPy, PyTorch,
     JAX, CuPy, array-api-strict, ...) using only standard functions. The
-    generated source is available as ``.source`` and via ``inspect.getsource``.
+    generated source is available as ``.source`` and via ``inspect.getsource``
+    (the docstring carries the original's documentation, prefixed, plus the
+    scalar source in a ``Notes:`` section).
 
     Raises :class:`VectorizationError` (never silently miscompiles) when the
     function uses constructs outside the supported subset. With
@@ -133,9 +157,36 @@ def vectorize(
     pinned to ``xp`` (``.source``, ``.__signature__`` and
     ``._vectorized_original`` are preserved; identical pins return the
     same object). An invalid namespace raises ``TypeError``.
+
+    Canonical calls (no ``protect_domains``, no ``namespace``) are memoized
+    per scalar original: repeated calls — including
+    ``vectorize(vectorize(f))`` — return the same object, ``verify=`` still
+    runs on every call, and ``original.__array_vectorized__`` points at it.
+    Option variants never take over that marker; fallback wrappers set it
+    but are rebuilt (and re-warn) on every call.
     """
     if namespace is not None:
         _check_namespace(namespace)  # usage error: fail fast, before compiling
+    original = resolve_original(func)
+    canonical = not protect_domains and namespace is None
+    cached: Callable[..., Any] | None = None
+    if canonical:
+        try:
+            cached = _CANONICAL_CACHE.get(original)
+        except TypeError:
+            # unhashable input (a list, an array, a callable without
+            # __hash__): skip the cache so the pipeline's extractor
+            # rejects it with a positioned VectorizationError
+            cached = None
+    if cached is not None:
+        if verify is not None:
+            # verify= is a check, not a compile option: cache hits still run
+            # it (the user may pass different example args on each call).
+            # The comparison target is the resolved scalar original — the
+            # callable the cached function was compiled from.
+            verify_match(cached, original, verify)
+        _attach_namespace_api(cached, protect=False)
+        return cached
     try:
         vec = _vectorize_strict(
             func, protect=protect_domains, verify_args=verify, namespace=namespace
@@ -149,8 +200,14 @@ def vectorize(
                 UserWarning,
                 stacklevel=2,
             )
-            return make_fallback(func, reason, namespace=namespace)
+            wrapper = make_fallback(func, reason, namespace=namespace)
+            if canonical:
+                _set_backref(wrapper, original)
+            return wrapper
         raise
+    if canonical:
+        _CANONICAL_CACHE[original] = vec
+        _set_backref(vec, original)
     # strict results (not internally compiled helpers) carry with_namespace
     _attach_namespace_api(vec, protect=protect_domains)
     return vec

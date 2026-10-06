@@ -240,7 +240,65 @@ def loop_helper_caller(x):
     return s
 
 
+def docstring_google(x, y):
+    """Add two values, scaled.
+
+    Long description exercising the summary/body split.
+
+    Args:
+        x: first value
+        y: second value
+
+    Returns:
+        the scaled sum
+    """
+    return (x + y) * SCALE
+
+
+def docstring_numpy(x, y):
+    """Add two values, scaled.
+
+    Parameters
+    ----------
+    x : float
+        first value
+    y : float
+        second value
+
+    Returns
+    -------
+    float
+        the scaled sum
+    """
+    return (x + y) * SCALE
+
+
+def docstring_existing_notes(x):
+    """Clamp nonnegative values.
+
+    Notes:
+        Pre-existing note.
+    """
+    if x < 0.0:
+        return 0.0
+    return x
+
+
+def docstring_numpy_notes(x):
+    """Double the input.
+
+    Notes
+    -----
+    Pre-existing note.
+    """
+    return x * 2.0
+
+
 GOLDEN_NAMES = [
+    "docstring_google",
+    "docstring_numpy",
+    "docstring_existing_notes",
+    "docstring_numpy_notes",
     "loop_accumulate",
     "loop_start_stop_step",
     "loop_two_carried",

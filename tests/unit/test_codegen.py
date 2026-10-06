@@ -22,7 +22,9 @@ from array_vectorize.ir import (
 from array_vectorize.lower.types import LoweredFunction
 
 
-def make_lowered(params: list[Param], program: Program, name: str = "f") -> LoweredFunction:
+def make_lowered(
+    params: list[Param], program: Program, name: str = "f", docstring: str | None = None
+) -> LoweredFunction:
     return LoweredFunction(
         program=program,
         name=name,
@@ -34,6 +36,7 @@ def make_lowered(params: list[Param], program: Program, name: str = "f") -> Lowe
         namespace_param="_namespace",
         emitted_names=frozenset(["x"]),
         source="def f(x):\n    return x",
+        docstring=docstring,
     )
 
 
@@ -51,9 +54,19 @@ def test_module_shape() -> None:
     src = gen(Program(("x",), (), Ref("x")))
     assert src.startswith("from array_api_compat import array_namespace")
     assert "def f_vec(x):" in src
-    assert '"""\n    def f(x):\n        return x\n    """' in src
+    assert '"""\n    (array-vectorized) no docstring on the scalar original.' in src
+    assert "Notes:\n        Vectorized by array-vectorize from this scalar original::" in src
+    assert "def f(x):\n                return x\n" in src
     assert "xp = array_namespace(" in src
     assert "hasattr" not in src
+
+
+def test_module_shape_with_docstring() -> None:
+    program = Program(("x",), (), Ref("x"))
+    lowered = make_lowered([Param("x", "arg")], program, docstring="Double x.")
+    src = generate_source(lowered, program)
+    assert "(array-vectorized) Double x." in src
+    assert "no docstring on the scalar original" not in src
 
 
 def test_operators_stay_operators() -> None:
@@ -168,6 +181,7 @@ def test_hidden_params_kwonly_none() -> None:
         namespace_param="_namespace",
         emitted_names=frozenset(["x", "ARR"]),
         source="def f(x):\n    return ARR",
+        docstring=None,
     )
     src = generate_source(lowered, lowered.program)
     assert "def f_vec(x, *, ARR=None):" in src
@@ -194,6 +208,7 @@ def test_reserved_param_kept_namespace_renamed() -> None:
         namespace_param="_namespace",
         emitted_names=frozenset(["xp"]),
         source="def f(xp):\n    return xp",
+        docstring=None,
     )
     src = generate_source(lowered, lowered.program)
     assert "def f_vec(xp):" in src

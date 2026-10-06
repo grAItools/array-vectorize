@@ -46,7 +46,26 @@ without touching the original.
 | `vec.source` | the generated Python source (`str`) |
 | `inspect.getsource(vec)` | works; tracebacks show real generated lines |
 | `get_source(vec)` | helper that raises `VectorizationError` for non-vectorized input |
+| `vec.__doc__` | the original's docstring with a `(array-vectorized)` summary prefix; the scalar source in a `Notes:` section (Google style, or NumPy style when the original's docstring uses NumPy section headers) |
 | `vec.with_namespace(xp)` | returns a NEW callable pinned to `xp` (strict results and fallback wrappers) |
+| `f.__array_vectorized__` | on the scalar original: its canonical vectorization |
+
+The docstring's `Notes:` section embeds the scalar source verbatim after a
+fixed lead-in line, so `help(vec)` shows documentation first and the compiled
+function's provenance below. When that round trip cannot be guaranteed (the
+lead-in quoted inside the original's own docs, tab-indented source), the
+legacy source-only docstring is emitted instead.
+
+Canonical calls — `vectorize(f)` without `protect_domains` or `namespace` —
+are memoized per scalar original: repeated calls (including
+`vectorize(vectorize(f))`) return the same object, `verify=` still runs on
+every call, and `f.__array_vectorized__` points at it. The first
+compilation wins: closure scalars are frozen at that point (design D8), so
+re-decorating after reassigning a global that `f` reads does not re-capture
+it — the same semantics `with_namespace` pins have always had. Option
+variants (protected, pinned) never take over the back-reference marker;
+fallback wrappers set it but are rebuilt (and re-warn) on every call. Only
+plain functions carry the marker — builtins and C callables cannot.
 
 `with_namespace` never mutates the original, preserves `.source`,
 `.__signature__`, and `._vectorized_original` (the scalar original), is

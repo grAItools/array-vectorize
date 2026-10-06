@@ -2,12 +2,17 @@ from array_api_compat import array_namespace
 
 def nested_loops_vec(x):
     """
-    def nested_loops(x):
-        s = 0.0
-        for i in range(3):  # noqa: B007
-            for j in range(2):  # noqa: B007  # noqa: B007
-                s = s + x
-        return s
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def nested_loops(x):
+                s = 0.0
+                for i in range(3):  # noqa: B007
+                    for j in range(2):  # noqa: B007  # noqa: B007
+                        s = s + x
+                return s
     """
     xp = array_namespace(x)
     s = 0.0

@@ -2,8 +2,13 @@ from array_api_compat import array_namespace
 
 def casts_vec(x):
     """
-    def casts(x):
-        return int(x) + float(x) + bool(x) + math.trunc(x)
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def casts(x):
+                return int(x) + float(x) + bool(x) + math.trunc(x)
     """
     xp = array_namespace(x)
     t_1 = xp.asarray(x)

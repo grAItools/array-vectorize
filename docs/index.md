@@ -31,14 +31,19 @@ inspectable.
 
     def psi_vec(x):
         """
-        @vectorize
-        def psi(x):
-            if x < 0:
-                return 0.0
-            return x * math.exp(-x)
+        (array-vectorized) no docstring on the scalar original.
+
+        Notes:
+            Vectorized by array-vectorize from this scalar original::
+
+                @vectorize
+                def psi(x):
+                    if x < 0:
+                        return 0.0
+                    return x * math.exp(-x)
         """
         xp = array_namespace(x)
-        return xp.where(x < 0, 0.0, x * xp.exp(-x))
+        return xp.where(x < 0, 0.0, x * xp.exp(xp.astype(xp.asarray(-x), xp.float64)))
     ```
 
 ```python
@@ -70,7 +75,10 @@ see [Development](development.md) (`make install`, then `make check`).
   exact results whenever a single dtype can hold them
   ([semantics](semantics.md)).
 - **Inspectable output** — `vec.source` (and `inspect.getsource`) show the
-  generated function; tracebacks map to real lines.
-- **Differentially tested** — Hypothesis differential tests, 45 golden
+  generated function; tracebacks map to real lines; the docstring keeps the
+  original's documentation (summary prefixed `(array-vectorized)`) with the
+  scalar source in a `Notes:` section, and the scalar original grows an
+  `__array_vectorized__` back-reference.
+- **Differentially tested** — Hypothesis differential tests, 46 golden
   source snapshots, a grammar fuzzer, and a 26-round adversarial review
   with every finding regression-tested.

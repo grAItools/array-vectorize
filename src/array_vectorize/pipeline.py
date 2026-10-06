@@ -14,7 +14,7 @@ from typing import Any
 
 from .codegen import generate_source
 from .emit import compile_vectorized
-from .frontend.extract import extract_function
+from .frontend.extract import extract_function, resolve_original
 from .frontend.validate import validate
 from .lower import HelperVectorizer, lower_function
 from .optimize import optimize, protect_domains
@@ -69,5 +69,8 @@ def compile_function(
         source, lowered.name, hidden_params, original=func, helpers=lowered.helpers
     )
     if verify_args is not None:
-        verify_match(vec, func, verify_args, namespace=namespace)
+        # compare against the resolved scalar original (what was actually
+        # compiled), not the callable as passed — a prior vectorization
+        # passed back in cannot serve as the element-wise oracle
+        verify_match(vec, resolve_original(func), verify_args, namespace=namespace)
     return vec

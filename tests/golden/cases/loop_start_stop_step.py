@@ -2,11 +2,16 @@ from array_api_compat import array_namespace
 
 def loop_start_stop_step_vec(x):
     """
-    def loop_start_stop_step(x):
-        s = 1.0
-        for i in range(2, 8, 3):
-            s = s * i
-        return s + x
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def loop_start_stop_step(x):
+                s = 1.0
+                for i in range(2, 8, 3):
+                    s = s * i
+                return s + x
     """
     xp = array_namespace(x)
     s = 1.0

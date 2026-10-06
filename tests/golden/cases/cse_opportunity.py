@@ -2,8 +2,13 @@ from array_api_compat import array_namespace
 
 def cse_opportunity_vec(x):
     """
-    def cse_opportunity(x):
-        return math.sqrt(x) * math.sqrt(x) + math.sqrt(x)
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def cse_opportunity(x):
+                return math.sqrt(x) * math.sqrt(x) + math.sqrt(x)
     """
     xp = array_namespace(x)
     t_1 = xp.asarray(x)

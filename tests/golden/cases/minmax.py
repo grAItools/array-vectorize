@@ -2,8 +2,13 @@ from array_api_compat import array_namespace
 
 def minmax_vec(x, y):
     """
-    def minmax(x, y):
-        return min(x, y) + max(x, y, 3.0)
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def minmax(x, y):
+                return min(x, y) + max(x, y, 3.0)
     """
     xp = array_namespace(x, y)
     t_1 = xp.asarray(x)

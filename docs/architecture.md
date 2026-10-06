@@ -105,10 +105,21 @@ consequences are spelled out in [Semantics & divergences](semantics.md).
 Inspectability rests on two implementation choices: codegen builds an
 `ast.Module` and calls `ast.unparse` (never string templating), and
 `emit.py` registers the source in `linecache` with `mtime=None` so
-`inspect.getsource` and tracebacks show the generated lines. The wrapper
-deliberately does **not** set `__wrapped__` (CPython's `getsourcelines`
-would unwrap to the scalar original); it sets `__signature__` and a
-`_vectorized_original` marker instead.
+`inspect.getsource` and tracebacks show the generated lines. The docstring
+carries the original's documentation with a `(array-vectorized)` prefix on
+the summary line plus the verbatim scalar source in a `Notes:` section
+(Google style, or NumPy style when the original's docstring uses NumPy
+section headers — `codegen/docstring.py`); codegen self-checks that the
+source is recoverable from the built docstring and falls back to the legacy
+source-only docstring when it cannot be. The wrapper deliberately does
+**not** set `__wrapped__` (CPython's `getsourcelines` would unwrap to the
+scalar original); it sets `__signature__`, `__name__`/`__qualname__`/
+`__module__` from the original, and the `_vectorized_original` marker
+instead. Canonical compilations (`vectorize(f)` without
+`protect_domains`/`namespace`) are memoized per resolved original
+(`api._CANONICAL_CACHE`) and point back at it via
+`original.__array_vectorized__`; that is what keeps the back-reference
+identity-stable.
 
 ## Testing strategy
 

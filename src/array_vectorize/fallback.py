@@ -15,6 +15,7 @@ from typing import Any
 
 from array_api_compat import array_namespace
 
+from .codegen.docstring import prefixed_summary
 from .compat import _check_namespace, _is_array, _py_scalar
 
 __all__ = ["make_fallback"]
@@ -62,6 +63,13 @@ def make_fallback(
         return make_fallback(func, reason, namespace=xp)
 
     wrapper.with_namespace = with_namespace  # type: ignore[attr-defined]
+    # functools.wraps copied the original's __doc__ verbatim; re-prefix its
+    # summary so help() marks the wrapper as vectorized like the strict
+    # results are (the scalar source stays reachable via the original —
+    # it is often unavailable here, which is a common fallback reason).
+    # A pathological non-str __doc__ is left exactly as wraps left it.
+    if isinstance(func.__doc__, str):
+        wrapper.__doc__ = prefixed_summary(func.__doc__)
     wrapper.source = (  # type: ignore[attr-defined]
         f"# fallback element-loop wrapper around {func.__name__!r}\n"
         f"# (source-to-source vectorization failed: {reason})"

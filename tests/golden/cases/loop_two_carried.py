@@ -2,13 +2,18 @@ from array_api_compat import array_namespace
 
 def loop_two_carried_vec(x):
     """
-    def loop_two_carried(x):
-        a = 0.0
-        b = 1.0
-        for i in range(3):  # noqa: B007
-            a = a + x
-            b = b * 2.0
-        return a + b
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def loop_two_carried(x):
+                a = 0.0
+                b = 1.0
+                for i in range(3):  # noqa: B007
+                    a = a + x
+                    b = b * 2.0
+                return a + b
     """
     xp = array_namespace(x)
     a = 0.0

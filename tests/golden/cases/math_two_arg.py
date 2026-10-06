@@ -2,8 +2,13 @@ from array_api_compat import array_namespace
 
 def math_two_arg_vec(x, y):
     """
-    def math_two_arg(x, y):
-        return math.atan2(x, y) + math.hypot(x, y) + math.copysign(x, y)
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def math_two_arg(x, y):
+                return math.atan2(x, y) + math.hypot(x, y) + math.copysign(x, y)
     """
     xp = array_namespace(x, y)
     t_1 = xp.asarray(x)

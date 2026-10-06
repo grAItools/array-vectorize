@@ -61,6 +61,22 @@ def test_fallback_signature_and_source() -> None:
     assert "fallback" in vec.source
 
 
+def test_fallback_non_str_docstring_left_verbatim() -> None:
+    # a pathological non-str __doc__ (Python allows arbitrary objects
+    # there) is copied verbatim by functools.wraps and must not crash
+    # the summary prefixing
+    def bad(x: float) -> float:
+        while x > 0:
+            x = x - 1
+        return x
+
+    bad.__doc__ = 42  # type: ignore[assignment]
+    with pytest.warns(UserWarning, match="falling back"):
+        vec = vectorize(bad, fallback=True)
+    assert vec.__doc__ == 42
+    assert np.allclose(vec(np.asarray([5.0, -2.0])), [0.0, -2.0])
+
+
 # ------------------------------------ strict=False and the no-fallback default
 
 

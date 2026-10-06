@@ -58,6 +58,26 @@ def test_unwrap_follows_wrapped() -> None:
     assert info.name == "fn_plain"
 
 
+def test_resolve_original_follows_marker_chains() -> None:
+    import functools
+
+    from array_vectorize import vectorize
+    from array_vectorize.frontend.extract import resolve_original
+
+    @functools.wraps(fn_plain)
+    def wrapper(x: float) -> float:
+        raise AssertionError("never called")
+
+    # __wrapped__ chains resolve to the innermost function...
+    assert resolve_original(wrapper) is fn_plain
+    # ...and prior vectorizations chain to the scalar original
+    vec = vectorize(fn_plain)
+    assert resolve_original(vec) is fn_plain
+    assert resolve_original(vectorize(vec)) is fn_plain
+    # plain functions pass through unchanged
+    assert resolve_original(fn_plain) is fn_plain
+
+
 def test_builtin_rejected() -> None:
     with pytest.raises(VectorizationError, match="builtin"):
         extract_function(math.sqrt)  # type: ignore[arg-type]

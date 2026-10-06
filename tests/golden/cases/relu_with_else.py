@@ -2,12 +2,17 @@ from array_api_compat import array_namespace
 
 def relu_with_else_vec(x):
     """
-    def relu_with_else(x):
-        if x > 0:  # noqa: SIM108
-            r = x
-        else:
-            r = 0.0
-        return r
+    (array-vectorized) no docstring on the scalar original.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            def relu_with_else(x):
+                if x > 0:  # noqa: SIM108
+                    r = x
+                else:
+                    r = 0.0
+                return r
     """
     xp = array_namespace(x)
     r_1 = x
