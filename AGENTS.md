@@ -95,5 +95,11 @@ then link it for Claude:
   divergences, and API. `README.md` only links to it. A user-visible
   change updates the matching page in the same commit; moving modules
   updates `docs/architecture.md`.
-- Commit subjects are `area: summary` in lowercase, e.g. `codegen: ...`,
-  `lower: ...`, `tests: ...`, `docs: ...`, `ci: ...`, `build: ...`.
+- Commit subjects follow [Conventional Commits 1.0.0]
+  (https://conventionalcommits.org): `type(scope): summary`, lowercase.
+  Types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
+  `refactor`, `revert`, `style`, `test`. The scope is optional but
+  recommended, from the package areas: `codegen`, `lower`, `optimize`,
+  `frontend`, `ir`, `runtime`, `api`, `pipeline`, `fuzz`, `agents`.
+  Mark breaking changes with `!` after the type/scope, or with a
+  `BREAKING CHANGE` footer.

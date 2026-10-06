@@ -106,6 +106,32 @@ git push origin main --tags
 or the lock is stale; tagging stays a manual step so a re-run of the
 target can never move a tag.
 
+## Commit messages
+
+Commit subjects follow [Conventional Commits 1.0.0]
+(https://conventionalcommits.org): `type(scope): summary`, lowercase.
+Types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`,
+`revert`, `style`, `test`. The scope is optional but recommended, from
+the package areas: `codegen`, `lower`, `optimize`, `frontend`, `ir`,
+`runtime`, `api`, `pipeline`, `fuzz`, `agents`. Mark breaking changes
+with `!` after the type/scope, or with a `BREAKING CHANGE` footer. A
+`commit-msg` hook (`conventional-pre-commit`) enforces the format.
+
+The history before the switch used `area: summary` subjects; map them
+to the new format like this:
+
+| Old subject | Conventional equivalent |
+|---|---|
+| `codegen: x` | `feat(codegen): x` or `fix(codegen): x` |
+| `agents: x` | `chore(agents): x` |
+| `tests: x` | `test: x` (type, no scope) |
+| `docs: x` | `docs: x` (type, no scope) |
+| `ci: x` | `ci: x` (type, no scope) |
+| `build: x` | `build: x` (type, no scope) |
+
+Existing clones must re-run `make install` once to pick up the new
+commit-msg hook.
+
 ## Coding agents
 
 Instructions and skills for coding agents are harness-agnostic; each
