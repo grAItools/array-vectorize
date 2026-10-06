@@ -60,7 +60,8 @@ generated code calls small runtime helpers injected into its globals:
   and result-aware subtraction.
 
 The helpers live in `array_vectorize/runtime/` (`minmax.py`, `arith.py`,
-`dtype.py`), a stdlib-only leaf. Lowering does not import them directly:
+`dtype.py`), a stdlib-only leaf (enforced, with the other import
+boundaries, by `tests/unit/test_layering.py`). Lowering does not import them directly:
 it goes through the `array_vectorize/runtime/registry.py` seam
 (`RUNTIME_HELPERS`), which maps each stable key to the emitted base
 name and the injected callable.
