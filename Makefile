@@ -3,6 +3,7 @@
 # to be activated first.
 UV ?= uv
 RUN := $(UV) run
+PY_PATHS := src tests scripts examples .claude/hooks
 
 .PHONY: install fmt lint type test coverage check smoke fuzz bench backends docs docs-serve notebook
 
@@ -11,12 +12,12 @@ install:
 	$(RUN) pre-commit install
 
 fmt:
-	$(RUN) ruff check --fix src tests
-	$(RUN) ruff format src tests
+	$(RUN) ruff check --fix $(PY_PATHS)
+	$(RUN) ruff format $(PY_PATHS)
 
 lint:
-	$(RUN) ruff check src tests
-	$(RUN) ruff format --check src tests
+	$(RUN) ruff check $(PY_PATHS)
+	$(RUN) ruff format --check $(PY_PATHS)
 
 type:
 	$(RUN) mypy

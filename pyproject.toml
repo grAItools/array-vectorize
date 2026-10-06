@@ -78,7 +78,8 @@ packages = ["src/array_vectorize"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-extend-exclude = ["tests/golden/cases"]
+# golden cases are compared to generated code; marimo owns the notebook format
+extend-exclude = ["tests/golden/cases", "examples/notebooks"]
 
 [tool.ruff.lint]
 select = [
@@ -91,6 +92,11 @@ select = [
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# scalar functions written for vectorize loop over range(N) for its trip
+# count; the index is often unused by design
+"examples/*" = ["B007"]
 
 [tool.mypy]
 python_version = "3.12"
