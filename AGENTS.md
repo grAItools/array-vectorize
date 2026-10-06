@@ -19,7 +19,10 @@ locked environment (`uv.lock`).
 - Area-specific: `make fuzz` (lowering, optimizer, runtime), `make backends`
   (codegen, namespace handling), `make docs` (anything in `docs/`),
   `make smoke` (public API, examples, notebooks).
+- Other Python versions: `make check PY=3.13` (own `.venv-3.13`).
 - Dependencies: edit `pyproject.toml`, run `uv lock`, commit `uv.lock`.
+  Floors are real: when one changes, or a test needs a newer library,
+  run `make lowest` and raise the floor until it passes.
 
 ## Before changing `src/`
 

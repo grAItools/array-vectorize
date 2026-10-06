@@ -15,13 +15,17 @@ Optional dependency groups: `backends` (jax, CPU torch), `docs`
 (zensical), `notebooks` (marimo). The `make` targets that need them
 (`backends`, `docs`, `notebook`, `smoke`) select them automatically.
 After editing dependencies in `pyproject.toml`, run `uv lock` and commit
-`uv.lock`.
+`uv.lock`. The lock pins the newest compatible versions; `make lowest`
+proves the declared minimums by running the suite with every direct
+dependency at its floor (`--resolution lowest-direct`) on Python 3.12.
 
 ## Commands
 
 ```bash
 make check        # ruff + mypy (strict) + pytest + coverage (gate: 95%)
+make check PY=3.13    # any target on another Python (env: .venv-3.13)
 make lint type test   # the same gates without coverage
+make lowest       # the test suite at the minimum dependency versions
 make fmt          # format + autofix
 make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
 make fuzz         # grammar fuzzer on the CI seeds
@@ -64,6 +68,7 @@ numeric warnings (`overflow encountered`, `invalid value`,
 
 - **check** — the full `make check` gate on Python 3.12–3.14
   (Hypothesis derandomized), then `make smoke`.
+- **lowest** — `make lowest`: the suite at the declared dependency floors.
 - **fuzz** — the five fixed fuzzer seeds.
 - **compile** — proves the generated source traces correctly under
   `jax.jit` and `torch.compile` (jit/compile compatibility of the

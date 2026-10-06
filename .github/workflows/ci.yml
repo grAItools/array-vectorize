@@ -36,6 +36,16 @@ jobs:
       - name: Examples and notebooks
         run: make smoke
 
+  lowest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - name: Test at the declared dependency floors
+        run: make lowest
+
   fuzz:
     runs-on: ubuntu-latest
     steps:

@@ -29,6 +29,11 @@ compatible with the pinned namespace is the user's responsibility; an
 invalid namespace raises `TypeError` (a usage error, not a
 `VectorizationError`).
 
+The pinned namespace must itself implement the Array API. NumPy's main
+namespace does from NumPy 2.0; on NumPy 1.x, pin
+`array_api_compat.numpy` instead (unpinned functions work on NumPy 1.x
+unchanged, because `array_namespace` already returns that wrapper).
+
 Pinned generated source has no `array_namespace` import — paste-ready
 code must pass the hidden keyword-only parameter (`fn(..., _namespace=xp)`)
 or rebind `xp` by hand. `vec.with_namespace(xp)` (below) creates variants

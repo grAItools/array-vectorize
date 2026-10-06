@@ -3,9 +3,16 @@
 # to be activated first.
 UV ?= uv
 RUN := $(UV) run
+
+# `make check PY=3.13` runs any target on another Python, in its own
+# environment (.venv-3.13), the way the CI matrix does
+ifdef PY
+export UV_PYTHON := $(PY)
+export UV_PROJECT_ENVIRONMENT := .venv-$(PY)
+endif
 PY_PATHS := src tests scripts examples .claude/hooks
 
-.PHONY: install fmt lint type test coverage check smoke fuzz bench backends docs docs-serve notebook
+.PHONY: install fmt lint type test coverage check lowest smoke fuzz bench backends docs docs-serve notebook
 
 install:
 	$(UV) sync
@@ -30,6 +37,14 @@ coverage:
 	$(RUN) coverage report
 
 check: lint type coverage
+
+# the test suite with every direct dependency at the minimum pyproject.toml
+# allows, on the minimum Python; proves the declared floors
+lowest:
+	rm -rf .venv-lowest
+	$(UV) venv -q --python 3.12 .venv-lowest
+	$(UV) pip install -q --python .venv-lowest --resolution lowest-direct -e . --group dev
+	.venv-lowest/bin/python -m pytest
 
 # the runnable examples are not part of the test suite; keep them working
 smoke:

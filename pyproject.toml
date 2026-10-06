@@ -29,7 +29,9 @@ classifiers = [
 Homepage = "https://grAItools.github.io/array-vectorize/"
 Source = "https://github.com/grAItools/array-vectorize"
 
-# development-only dependencies (PEP 735); `uv sync` installs `dev`
+# development-only dependencies (PEP 735); `uv sync` installs `dev`.
+# The floors are tested: `make lowest` (and the CI `lowest` job) runs the
+# suite with every direct dependency at its minimum.
 [dependency-groups]
 dev = [
     "pytest>=9.0",
@@ -37,10 +39,10 @@ dev = [
     "pytest-timeout>=2.3",
     "hypothesis>=6.100",
     "ruff>=0.15",
-    "mypy>=1.13",
+    "mypy>=1.20",
     "coverage[toml]>=7.6",
-    "numpy>=1.26",
-    "array-api-strict>=1.0",
+    "numpy>=2.0",
+    "array-api-strict>=2.3",
     "pre-commit>=3.5",
 ]
 backends = [
@@ -52,8 +54,8 @@ docs = [
 ]
 notebooks = [
     "marimo>=0.9",
-    "numpy>=1.26",
-    "array-api-strict>=1.0",
+    "numpy>=2.0",
+    "array-api-strict>=2.3",
 ]
 
 [tool.uv]
