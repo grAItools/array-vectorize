@@ -1,7 +1,11 @@
-name: Test and deploy docs
+name: Deploy docs
 
+# deploys only after CI (lint, types, tests, docs build) passed on main,
+# instead of re-running the same checks here
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -16,41 +20,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    # single representative version: ci.yml runs the full 3.12/3.13/3.14
-    # matrix on the same push event; this job gates the Pages deployment
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
         with:
-          python-version: "3.12"
+          # the commit CI tested, not whatever main points to now
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: astral-sh/setup-uv@v10
       - name: Install
-        run: python -m pip install -e ".[dev]"
-      - name: Test (lint + types + tests + coverage)
-        run: make check
-        env:
-          CI: "1"
-
-  docs:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install
-        run: python -m pip install -e ".[dev,docs]"
+        run: uv sync --locked --group docs
       - name: Build docs (strict)
-        run: python -m zensical build --strict
+        run: make docs
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
   deploy:
-    needs: docs
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -58,4 +50,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

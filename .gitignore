@@ -13,3 +13,5 @@ htmlcov/
 .ruff_cache/
 .hypothesis/
 site/
+.benchmarks/
+.cache/

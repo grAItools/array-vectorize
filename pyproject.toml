@@ -26,24 +26,26 @@ classifiers = [
 ]
 
 [project.urls]
+Homepage = "https://grAItools.github.io/array-vectorize/"
 Source = "https://github.com/grAItools/array-vectorize"
 
-[project.optional-dependencies]
-backends = [
-    "jax>=0.4",
-    "torch>=2.2",
-]
+# development-only dependencies (PEP 735); `uv sync` installs `dev`
+[dependency-groups]
 dev = [
-    "pytest>=8.0",
+    "pytest>=9.0",
     "pytest-benchmark>=4.0",
     "pytest-timeout>=2.3",
     "hypothesis>=6.100",
-    "ruff>=0.8",
+    "ruff>=0.15",
     "mypy>=1.13",
     "coverage[toml]>=7.6",
     "numpy>=1.26",
     "array-api-strict>=1.0",
     "pre-commit>=3.5",
+]
+backends = [
+    "jax>=0.4",
+    "torch>=2.2",
 ]
 docs = [
     "zensical>=0.0.67",
@@ -53,6 +55,19 @@ notebooks = [
     "numpy>=1.26",
     "array-api-strict>=1.0",
 ]
+
+[tool.uv]
+default-groups = ["dev"]
+
+# CPU-only torch wheels: the CUDA builds are gigabytes and the backend
+# tests only need tracing/compilation on CPU
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/array_vectorize"]
@@ -90,7 +105,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["tests"]
 addopts = "-q --benchmark-disable"
-strict_markers = true
+strict = true
 filterwarnings = [
     "error",
     # numpy emits these from documented divergence paths (runtime pow

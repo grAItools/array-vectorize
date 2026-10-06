@@ -1,16 +1,37 @@
 # Development
 
+## Setup
+
+The project is managed with [uv](https://docs.astral.sh/uv/): dependencies
+are locked in `uv.lock`, the development Python version is pinned in
+`.python-version`, and every `make` target runs through `uv run`, so no
+virtualenv needs to be activated.
+
+```bash
+make install      # uv sync (dev group) + pre-commit hooks
+```
+
+Optional dependency groups: `backends` (jax, CPU torch), `docs`
+(zensical), `notebooks` (marimo). The `make` targets that need them
+(`backends`, `docs`, `notebook`, `smoke`) select them automatically.
+After editing dependencies in `pyproject.toml`, run `uv lock` and commit
+`uv.lock`.
+
 ## Commands
 
 ```bash
 make check        # ruff + mypy (strict) + pytest + coverage (gate: 95%)
+make lint type test   # the same gates without coverage
 make fmt          # format + autofix
+make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
 make fuzz         # grammar fuzzer on the CI seeds
 make bench        # pytest-benchmark suite (timings + dispatch gates)
+make backends     # jax.jit / torch.compile compatibility tests
 make docs         # build this site (zensical, --strict)
 make docs-serve   # live-reload preview
 make notebook     # open the marimo example notebooks
-pytest --update-golden    # regenerate golden source snapshots
+uv run pytest --update-golden    # regenerate golden source snapshots
+uv run python -m array_vectorize.fuzz --seconds 60 --seed 0    # fuzz longer
 ```
 
 The default `make check` also runs the slow-marked performance gate;
@@ -42,7 +63,7 @@ numeric warnings (`overflow encountered`, `invalid value`,
 ## CI
 
 - **check** — the full `make check` gate on Python 3.12–3.14
-  (Hypothesis derandomized).
+  (Hypothesis derandomized), then `make smoke`.
 - **fuzz** — the five fixed fuzzer seeds.
 - **compile** — proves the generated source traces correctly under
   `jax.jit` and `torch.compile` (jit/compile compatibility of the
@@ -51,9 +72,8 @@ numeric warnings (`overflow encountered`, `invalid value`,
   ("array_namespace can now be used under torch.compile"); pinned mode
   (`namespace=`) has no such requirement.
 - **docs** — builds this site with `--strict`.
-- **pages** — runs the test suite and deploys this site to
-  [GitHub Pages](https://grAItools.github.io/array-vectorize/) on every
-  push to `main`.
+- **pages** — after CI passes on a push to `main`, deploys this site to
+  [GitHub Pages](https://grAItools.github.io/array-vectorize/).
 
 ## History
 

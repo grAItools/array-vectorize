@@ -57,8 +57,8 @@ pip install "array-vectorize @ git+https://github.com/grAItools/array-vectorize.
 
 Requires Python >= 3.12. The only runtime dependency is `array-api-compat`.
 The package is not on PyPI yet; once published, plain
-`pip install array-vectorize` will work. From a checkout (development):
-`pip install -e ".[dev]"` then `make check` (lint + type + test + coverage).
+`pip install array-vectorize` will work. For development from a checkout,
+see [Development](development.md) (`make install`, then `make check`).
 
 ## Highlights
 

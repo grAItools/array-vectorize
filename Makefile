@@ -1,46 +1,61 @@
-.PHONY: install fmt lint type test coverage check fuzz bench backends docs docs-serve notebook
+# Every target runs through `uv run`, which uses the project's locked
+# environment (.venv, Python from .python-version), so no virtualenv needs
+# to be activated first.
+UV ?= uv
+RUN := $(UV) run
+
+.PHONY: install fmt lint type test coverage check smoke fuzz bench backends docs docs-serve notebook
 
 install:
-	python -m pip install -e ".[dev]"
+	$(UV) sync
+	$(RUN) pre-commit install
 
 fmt:
-	python -m ruff check --fix src tests
-	python -m ruff format src tests
+	$(RUN) ruff check --fix src tests
+	$(RUN) ruff format src tests
 
 lint:
-	python -m ruff check src tests
-	python -m ruff format --check src tests
+	$(RUN) ruff check src tests
+	$(RUN) ruff format --check src tests
 
 type:
-	python -m mypy
+	$(RUN) mypy
 
 test:
-	python -m pytest
+	$(RUN) pytest
 
 coverage:
-	python -m coverage run -m pytest
-	python -m coverage report
+	$(RUN) coverage run -m pytest
+	$(RUN) coverage report
 
 check: lint type coverage
 
+# the runnable examples are not part of the test suite; keep them working
+smoke:
+	$(RUN) python scripts/smoke.py
+	$(RUN) python examples/demo.py
+	for nb in examples/notebooks/*.py; do \
+		$(RUN) --group notebooks python $$nb > /dev/null || exit 1; \
+	done
+
 fuzz:
 	for seed in 42 7 123 999 2024; do \
-		python -m array_vectorize.fuzz --seed $$seed --cases 400 || exit 1; \
+		$(RUN) python -m array_vectorize.fuzz --seed $$seed --cases 400 || exit 1; \
 	done
 
 bench:
-	python -m pytest tests/test_bench.py -m slow --benchmark-enable \
+	$(RUN) pytest tests/test_bench.py -m slow --benchmark-enable \
 		--benchmark-only --benchmark-columns=min,median,ops \
 		--benchmark-group-by=func
 
 backends:
-	python -m pytest tests/backends/test_jax_torch_compilation.py -v -rs
+	$(RUN) --group backends pytest tests/backends/test_jax_torch_compilation.py -v -rs
 
 docs:
-	python -m zensical build --strict
+	$(RUN) --group docs zensical build --strict
 
 docs-serve:
-	python -m zensical serve
+	$(RUN) --group docs zensical serve
 
 notebook:
-	python -m marimo edit examples/notebooks
+	$(RUN) --group notebooks marimo edit examples/notebooks
