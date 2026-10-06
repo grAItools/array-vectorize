@@ -31,7 +31,7 @@ jobs:
         with:
           # the commit CI tested, not whatever main points to now
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Install
         run: uv sync --locked --group docs
       - name: Build docs (strict)
