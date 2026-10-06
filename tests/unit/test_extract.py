@@ -6,6 +6,7 @@ import math
 
 import numpy as np
 import pytest
+from support import make_module
 
 from array_vectorize.errors import VectorizationError
 from array_vectorize.frontend.extract import extract_function
@@ -307,3 +308,29 @@ def test_lambda_probe_fallback_rejects_unidentifiable() -> None:
     tree = ast.parse(inspect.getsource(mod.f1))
     with pytest.raises(VectorizationError, match="could not be identified"):
         _find_target(tree, "<lambda>", mod.f3, module_source=None)
+
+
+def test_async_function_rejected() -> None:
+    mod = make_module("async def subject(x):\n    return x\n")
+    with pytest.raises(VectorizationError, match="async"):
+        extract_function(mod.subject)
+
+
+def test_kwonly_without_default() -> None:
+    mod = make_module("def subject(x, *, scale):\n    return x * scale\n")
+    info = extract_function(mod.subject)
+    assert info.params[1].kind == "kwonly"
+    assert not info.params[1].has_default
+
+
+def test_expr_lambda_top_level() -> None:
+    make_module("(lambda x: x + 1)\n")
+    # nothing to grab; just ensure parse path works via direct lambda
+    info = extract_function(lambda x: x + 1.0)  # type: ignore[arg-type]
+    assert info.params[0].name == "x"
+
+
+def test_no_target_in_source_rejected() -> None:
+    mod = make_module("X = 1\n")
+    with pytest.raises(VectorizationError):
+        extract_function(mod.X)  # type: ignore[arg-type]

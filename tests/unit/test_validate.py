@@ -341,3 +341,21 @@ def test_unknown_expression_falls_through() -> None:
 def test_del_is_rejected_by_vectorize() -> None:
     with pytest.raises(VectorizationError, match="statements are not supported"):
         vectorize(make_fn("    del x\n    return 1.0", signature="x, y=2.0"))
+
+
+# --------------------------------------------------------- validator paths
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "    y = 1\n    return y",
+    ],
+)
+def test_validator_ok(body: str) -> None:
+    extract_function(make_fn(body))
+
+
+def test_statements_after_return_in_branch_rejected() -> None:
+    with pytest.raises(VectorizationError, match="after return"):
+        vectorize(make_fn("    if x > 0:\n        return x\n        y = 1\n    return 0.0"))

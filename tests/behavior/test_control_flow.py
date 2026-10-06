@@ -67,3 +67,16 @@ def test_branch_merged_maybe_bool_arithmetic() -> None:
         )
     )
     assert list(np.asarray(vec(np.asarray([True, False])))) == [2, 0]
+
+
+# --------------------------------------------------------------- boolop chains
+
+
+def test_deeply_nested_boolop_chain() -> None:
+    vec = vectorize(make_fn("    return x and y and x and y"))
+    import numpy as np
+
+    xs = np.asarray([0.0, 1.0, 2.0])
+    ys = np.asarray([3.0, 0.0, 5.0])
+    out = vec(xs, ys)
+    assert np.allclose(out, [0.0, 0.0, 5.0])

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from array_vectorize.ir import (
     Binding,
     BinOp,
@@ -17,6 +19,7 @@ from array_vectorize.ir import (
     Where,
 )
 from array_vectorize.optimize import const_fold, cse, dce, optimize
+from array_vectorize.optimize import dce as dce_pass
 
 
 def lit(v: float | int, kind: str = "auto") -> Literal:
@@ -216,3 +219,71 @@ def test_optimize_pipeline() -> None:
     assert out.bindings[0].expr == Call("abs", (folded_sub,))
     assert out.bindings[1] == Binding("a", Ref("t_1"))
     assert out.result == BinOp("add", Ref("t_1"), Ref("a"))
+
+
+# ------------------------------------------------------- const-fold branches
+
+
+@pytest.mark.parametrize(
+    ("op", "a", "b", "expected"),
+    [
+        ("floordiv", 7, 2, 3),
+        ("mod", 7, 3, 1),
+        ("and", 6, 3, 2),
+        ("or", 6, 3, 7),
+        ("xor", 6, 3, 5),
+        ("lshift", 1, 3, 8),
+        ("rshift", 8, 2, 2),
+        ("sub", 2, 5, -3),
+        ("mul", 2.5, 4, 10.0),
+    ],
+)
+def test_fold_binop_ops(op: str, a: float, b: float, expected: float) -> None:
+    out = const_fold(Program((), (), BinOp(op, lit(a), lit(b))))
+    assert out.result == lit(expected)
+
+
+def test_fold_unary_ops_all() -> None:
+    assert const_fold(Program((), (), UnaryOp("invert", lit(0)))).result == lit(-1)
+    assert const_fold(Program((), (), UnaryOp("pos", lit(-2)))).result == lit(-2)
+    assert const_fold(Program((), (), UnaryOp("neg", lit(2.5)))).result == lit(-2.5)
+    assert const_fold(Program((), (), UnaryOp("not", lit(True)))).result == lit(False)
+
+
+def test_fold_skips_bad_ops() -> None:
+    # float bitwise -> TypeError at runtime -> no fold
+    expr = BinOp("and", lit(1.5), lit(2.5))
+    assert const_fold(Program((), (), expr)).result == expr
+    # unary invert on float -> no fold
+    expr = UnaryOp("invert", lit(1.5))
+    assert const_fold(Program((), (), expr)).result == expr
+    # unknown unary op passes through
+    expr = UnaryOp("weird", lit(1))
+    assert const_fold(Program((), (), expr)).result == expr
+    # floordiv by zero
+    expr = BinOp("floordiv", lit(1), lit(0))
+    assert const_fold(Program((), (), expr)).result == expr
+
+
+def test_fold_zero_times_infinity() -> None:
+    # inf * 0 -> nan: exact IEEE fold
+    out = const_fold(Program((), (), BinOp("mul", lit(math.inf), lit(0.0))))
+    assert math.isnan(out.result.value)  # type: ignore[attr-defined]
+
+
+def test_dce_keeps_result_only_binding() -> None:
+    p = Program(("x",), (Binding("a", Call("abs", (Ref("x"),))),), Ref("a"))
+    assert dce_pass(p).bindings == p.bindings
+
+
+def test_cse_stops_at_fixpoint() -> None:
+    inner = Call("sqrt", (Ref("x"),))
+    p = Program(("x",), (), BinOp("add", inner, inner))
+    out = cse(p, SSAEnv(set()))
+    assert out.bindings == (Binding("t_1", inner),)
+    assert out.result == BinOp("add", Ref("t_1"), Ref("t_1"))
+
+
+def test_optimize_no_user_names() -> None:
+    p = Program(("x",), (Binding("a", Ref("x")),), Ref("a"))
+    assert optimize(p).result == Ref("a")

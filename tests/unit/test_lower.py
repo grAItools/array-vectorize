@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from support import make_module
 
+from array_vectorize import vectorize
 from array_vectorize.errors import VectorizationError
 from array_vectorize.frontend.extract import extract_function
 from array_vectorize.ir import (
@@ -515,3 +516,44 @@ def test_kinds_restore_preserves_present_none_kind() -> None:
     assert k.kind("i") is None
     k.setdefault_kind("i", "int")  # blocked: presence survived the restore
     assert k.kind("i") is None
+
+
+# ------------------------------------------------------------ lower errors
+
+
+def test_calling_math_module_rejected() -> None:
+    with pytest.raises(VectorizationError, match="math module"):
+        vectorize(make_fn("    return math(x)"))
+
+
+def test_math_const_called_rejected() -> None:
+    with pytest.raises(VectorizationError, match="cannot be called"):
+        vectorize(make_fn("    return math.pi(x)"))
+
+
+def test_calling_shadowed_builtin_rejected() -> None:
+    with pytest.raises(VectorizationError, match="calling variable"):
+        vectorize(make_fn("    abs = x\n    return abs(x)"))
+
+
+def test_not_all_paths_return_via_branch_fallthrough() -> None:
+    with pytest.raises(VectorizationError, match="paths return"):
+        vectorize(
+            make_fn("    if x > 0:\n        return 1.0\n    if x < -1:\n        return 2.0\n")
+        )
+
+
+def test_maybe_unbound_after_nested_branch() -> None:
+    with pytest.raises(VectorizationError, match="may be unbound"):
+        vectorize(
+            make_fn(
+                "    if x > 0:\n"
+                "        if x > 1:\n"
+                "            z = 1.0\n"
+                "        else:\n"
+                "            z = 2.0\n"
+                "    else:\n"
+                "        y = 3.0\n"
+                "    return z"
+            )
+        )
