@@ -1,4 +1,4 @@
-"""Optimizer passes: const-fold, CSE, DCE (plan §8) and the pass pipeline.
+"""Optimizer passes: const-fold, CSE, DCE and the pass pipeline.
 
 NOTE on imports: ``from array_vectorize.optimize import cse`` (from-import) is
 the supported form. The same-named package attributes hold the pass
@@ -19,7 +19,7 @@ __all__ = ["const_fold", "cse", "dce", "optimize", "protect_domains"]
 
 
 def optimize(program: Program, user_names: set[str] | None = None) -> Program:
-    """Run const-fold, CSE, DCE (plan §8)."""
+    """Run const-fold, CSE, DCE."""
     folded = const_fold(program)
     ssa = SSAEnv(user_names or set())
     deduped = cse(folded, ssa)

@@ -1,4 +1,4 @@
-"""protect_domains: clamp partial-function arguments on dead lanes (plan D1, M4)."""
+"""protect_domains: clamp partial-function arguments on dead lanes (design D1)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ __all__ = ["protect_domains"]
 #: Partial functions: (lo, lo_open, hi, hi_open, safe_lo, safe_hi).
 #: Protection clamps a partial call's argument ONLY on lanes that are dead
 #: (discarded by the enclosing where-select) AND out of domain; live lanes
-#: are never touched, so results never change (plan D1, M4). Open bounds
+#: are never touched, so results never change (design D1). Open bounds
 #: (poles such as log(0)) clamp dead lanes to an interior constant, so no
 #: warnings are produced and float32 is safe.
 _PARTIAL_DOMAINS: dict[str, tuple[float, bool, float | None, bool, float, float | None]] = {
@@ -85,7 +85,7 @@ def _clamp_dead(
 
 
 def protect_domains(program: Program) -> Program:
-    """Clamp partial-function arguments on dead lanes only (plan D1, M4).
+    """Clamp partial-function arguments on dead lanes only (design D1).
 
     A single reverse pass propagates liveness conditions: each binding's
     value is live under the disjunction of the conditions governing its uses

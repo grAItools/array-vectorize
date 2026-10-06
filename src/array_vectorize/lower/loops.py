@@ -30,7 +30,7 @@ class _LoopLowerer(_StatementLowerer):
             and -(2**63) <= folded.value < 2**63
         ):
             return folded
-        raise self.error(node, f"{what} must be constant ints known at generation time (plan D6)")
+        raise self.error(node, f"{what} must be constant ints known at generation time")
 
     def _loop_bounds(self, call: ast.Call) -> tuple[Node, Node, Node]:
         args = list(call.args)
@@ -79,7 +79,7 @@ class _LoopLowerer(_StatementLowerer):
         return bound
 
     def lower_for(self, stmt: ast.For) -> None:
-        """Lower a constant-trip ``for i in range(...)`` (plan D6).
+        """Lower a constant-trip ``for i in range(...)`` (design D6).
 
         Loop-carried variables (bound before the loop and reassigned in the
         body) get a fresh loop name with an explicit phi binding

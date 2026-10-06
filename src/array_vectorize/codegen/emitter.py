@@ -1,4 +1,4 @@
-"""IR -> readable Python source (plan §9).
+"""IR -> readable Python source.
 
 Builds an ``ast.Module`` and uses ``ast.unparse``: correct docstring/literal
 escaping for free, normalized stable formatting. Generated code contains only
@@ -229,7 +229,7 @@ def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
 
 
 def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool = False) -> str:
-    """Generate the vectorized function source (plan §9).
+    """Generate the vectorized function source.
 
     With ``pinned=True`` (``vectorize(namespace=...)``) the namespace is
     never extracted from the arguments: ``xp`` binds directly to the hidden

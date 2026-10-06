@@ -1,4 +1,4 @@
-"""Source extraction and closure/constant capture (plan §4)."""
+"""Source extraction and closure/constant capture."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ def _classify_closures(target: types.FunctionType, info: FunctionInfo) -> None:
 
 
 def extract_function(func: Callable[..., Any]) -> FunctionInfo:
-    """Unwrap, read source, parse, and capture closures (plan §4)."""
+    """Unwrap, read source, parse, and capture closures."""
     target = inspect.unwrap(func)
     # follow our own marker: vectorize(vectorize(f)) re-extracts the original
     while True:

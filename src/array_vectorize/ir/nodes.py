@@ -1,6 +1,6 @@
 """IR node dataclasses and the is_bool lattice.
 
-IR (per plan §6): frozen, hashable dataclasses. Hashability enables structural
+IR: frozen, hashable dataclasses. Hashability enables structural
 CSE. ``DType`` is a small addition to the plan's node set, needed to represent
 ``xp.astype(x, xp.int64)`` targets.
 """
@@ -125,7 +125,7 @@ class DType:
 
 @dataclass(frozen=True, slots=True)
 class FuncCall:
-    """Call to a vectorized helper function by its emitted name (plan D7)."""
+    """Call to a vectorized helper function by its emitted name (design D7)."""
 
     fn: str
     args: tuple[Node, ...]
@@ -144,7 +144,7 @@ class Binding:
 
 @dataclass(frozen=True, slots=True)
 class Loop:
-    """Constant-trip ``for`` loop emitted as a real loop (plan D6).
+    """Constant-trip ``for`` loop emitted as a real loop (design D6).
 
     ``start``/``stop``/``step`` are const int nodes (step ``Literal(1)`` when
     absent). Loop-carried variables are handled with explicit phi bindings
@@ -169,7 +169,7 @@ class Program:
 
 
 def is_bool(node: Node) -> bool:
-    """Conservative boolean lattice (plan §6): True only for provably-boolean nodes."""
+    """Conservative boolean lattice: True only for provably-boolean nodes."""
     if isinstance(node, Compare):
         return True
     if isinstance(node, UnaryOp):

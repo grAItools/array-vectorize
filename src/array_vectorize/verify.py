@@ -1,4 +1,4 @@
-"""Differential-verification helper (plan §3, M4).
+"""Differential-verification helper.
 
 ``vectorize(f, verify=example_args)`` runs the generated function and the
 original scalar function on the example inputs at generation time and raises
@@ -40,7 +40,7 @@ def verify_match(
     arrays = [example_args[i] for i in positions]
     xp = namespace if namespace is not None else array_namespace(*arrays)
     with warnings.catch_warnings():
-        # out-of-domain lanes are expected (plan D3); their warnings are noise
+        # out-of-domain lanes are expected (design D3); their warnings are noise
         # (including inf-inf in the comparison below)
         warnings.simplefilter("ignore", RuntimeWarning)
         got = vec(*example_args)
@@ -73,7 +73,7 @@ def verify_match(
             try:
                 expected_values.append(original(*call_args))
             except (ValueError, ArithmeticError, OverflowError):
-                # plan D3: scalar exceptions become IEEE values (NaN/inf) when
+                # design D3: scalar exceptions become IEEE values (NaN/inf) when
                 # vectorized, so a raising lane expects NaN here
                 expected_values.append(nan)
         expected = xp.asarray(expected_values)

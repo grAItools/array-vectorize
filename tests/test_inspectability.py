@@ -1,4 +1,4 @@
-"""Inspectability tests (plan T9): getsource, linecache, tracebacks, attributes."""
+"""Inspectability tests: getsource, linecache, tracebacks, attributes."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Golden source snapshots (plan T2): ast.dump equality against tests/golden/cases."""
+"""Golden source snapshots: ast.dump equality against tests/golden/cases."""
 
 from __future__ import annotations
 

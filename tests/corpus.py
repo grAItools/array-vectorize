@@ -1,4 +1,4 @@
-"""Corpus of scalar functions for golden-source tests (plan T2).
+"""Corpus of scalar functions for golden-source tests.
 
 Every function here must be defined at module level in this real file so
 ``inspect.getsource`` works. Golden outputs live in ``tests/golden/cases``.

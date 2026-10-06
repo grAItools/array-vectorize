@@ -18,7 +18,7 @@ __all__ = ["_HelperLowerer"]
 
 class _HelperLowerer(_LoopLowerer):
     def _call_helper(self, node: ast.Call, name: str, args: list[Node]) -> Node:
-        """Vectorize and call another scalar function (plan D7)."""
+        """Vectorize and call another scalar function (design D7)."""
         if self.helper_vectorizer is None:
             raise self.error(
                 node,

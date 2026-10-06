@@ -1,4 +1,4 @@
-"""Dead-code elimination over the IR (plan §8)."""
+"""Dead-code elimination over the IR."""
 
 from __future__ import annotations
 

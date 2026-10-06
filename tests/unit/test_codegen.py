@@ -1,4 +1,4 @@
-"""Codegen tests: IR -> source text via ast.unparse (plan §9)."""
+"""Codegen tests: IR -> source text via ast.unparse."""
 
 from __future__ import annotations
 

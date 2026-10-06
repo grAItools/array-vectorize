@@ -26,7 +26,7 @@ RESERVED_NAMES = frozenset({"array_namespace", "hasattr"})
 class SSAEnv:
     """Allocates SSA names for parameters and bindings.
 
-    Rules (plan §6):
+    Rules:
     - first binding of a variable keeps its own name; rebinds pick ``x_N``
       with the smallest free N;
     - suffixes skip names used by the user (``x`` and ``x_1`` can both be

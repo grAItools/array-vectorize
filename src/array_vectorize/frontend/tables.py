@@ -1,4 +1,4 @@
-"""Scalar-name -> Array API mapping tables (plan §5).
+"""Scalar-name -> Array API mapping tables.
 
 All ``MATH_FUNCS`` targets must exist on every Array API backend; this is
 enforced by tests against ``array_api_strict`` (the conformance reference).

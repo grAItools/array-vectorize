@@ -113,7 +113,7 @@ class _LowererBase:
         return Literal(float(value), "float")
 
     def _coerce_bool(self, node: Node) -> Node:
-        """Coerce a possibly-numeric condition to bool via != 0 (plan D2/D4)."""
+        """Coerce a possibly-numeric condition to bool via != 0 (design D2/D4)."""
         if is_bool(node):
             return node
         return Compare("ne", node, Literal(0, "int"))

@@ -1,4 +1,4 @@
-"""Common-subexpression elimination over the IR (plan §8)."""
+"""Common-subexpression elimination over the IR."""
 
 from __future__ import annotations
 
@@ -44,8 +44,8 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
     if _has_loop(list(program.bindings)):
         # CSE hoists temps before their first use, which is unsafe across
         # loop boundaries (zero-trip loops would skip the temp). Loops are
-        # rare; skip CSE entirely for loop-containing programs (plan §8:
-        # CSE is not needed for correctness).
+        # rare; skip CSE entirely for loop-containing programs (CSE is not
+        # needed for correctness).
         return current
     for _ in range(8):
         counter: Counter[Node] = Counter()

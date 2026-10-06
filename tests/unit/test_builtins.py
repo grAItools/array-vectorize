@@ -41,7 +41,7 @@ def test_math_consts_match_math_module() -> None:
 
 
 def test_round_decimals_kwarg_is_not_standard() -> None:
-    # Plan §5: round(x, n) is only supported if the standard supports it.
+    # round(x, n) is only supported if the standard supports it.
     # array-api-strict is the conformance reference; it must reject it.
     x = xps.asarray([1.23456])
     try:

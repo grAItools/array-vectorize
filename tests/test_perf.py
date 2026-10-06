@@ -1,4 +1,4 @@
-"""Performance smoke test (plan T11, slow-marked).
+"""Performance smoke test (slow-marked).
 
 Two gates:
 

@@ -262,7 +262,7 @@ def test_nonlocal_rejected() -> None:
 # ------------------------------------------- Python 3.11-3.14 new syntax
 #
 # The floor bump widens the input language: the contract is rejection with a
-# precise diagnostic, never a silent miscompile (RESTRUCTURE.md §7.1). Each
+# precise diagnostic, never a silent miscompile. Each
 # test runs the real grammar on the interpreter that supports it; the CI
 # matrix (3.12/3.13/3.14) makes the skips meaningful.
 

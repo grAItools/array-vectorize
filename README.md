@@ -170,4 +170,3 @@ python -m array_vectorize.fuzz --seconds 60 --seed 0    # grammar fuzzer
 - The docs site is tested and deployed to
   <https://grAItools.github.io/array-vectorize/> automatically on every
   push to `main`.
-- See `PLAN.md` for the full design document and milestone history.

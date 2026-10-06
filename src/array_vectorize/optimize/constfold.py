@@ -1,4 +1,4 @@
-"""Constant folding over the IR (plan §8)."""
+"""Constant folding over the IR."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
 
 #: pow is never folded (backend pow semantics on edge values differ);
-#: div/mod/floordiv by literal zero are skipped (runtime inf/NaN, plan D3).
+#: div/mod/floordiv by literal zero are skipped (runtime inf/NaN, design D3).
 _NO_FOLD_OPS = frozenset({"pow"})
 _ZERO_RISK_OPS = frozenset({"div", "floordiv", "mod"})
 
@@ -223,7 +223,7 @@ def _const_fold_expr(node: Node) -> Node:
             pass
         # int(inf)/int(nan) cannot fold (scalar Python raises Overflow/
         # ValueError): keep the cast but wrap the literal so xp.astype gets
-        # an array, not a plain float (backend-defined result, plan D3)
+        # an array, not a plain float (backend-defined result, design D3)
         return Call("astype", (Call("asarray", (node.args[0],)), node.args[1]))
     return node
 

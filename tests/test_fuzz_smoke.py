@@ -1,4 +1,4 @@
-"""Fuzzer smoke test (plan T12): small, seeded, fast."""
+"""Fuzzer smoke test: small, seeded, fast."""
 
 from __future__ import annotations
 

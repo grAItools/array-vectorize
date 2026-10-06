@@ -1,4 +1,4 @@
-"""Differential tests vs the scalar original (plan T4) using Hypothesis."""
+"""Differential tests vs the scalar original using Hypothesis."""
 
 from __future__ import annotations
 

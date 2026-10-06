@@ -7,7 +7,7 @@ side: it compiles and execs the generated module source, registers it in
 This is deliberately separate from ``array_vectorize.runtime``, the CALL-TIME
 library (``_vec_arith``, ``_vec_minmax``, dtype analysis) injected into
 generated modules and executed on the user's backend: generation-time
-and call-time code never share a module (plan §5).
+and call-time code never share a module.
 """
 
 from __future__ import annotations

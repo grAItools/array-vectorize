@@ -1,4 +1,4 @@
-"""Grammar fuzzer CLI (plan T12, M4): ``python -m array_vectorize.fuzz``.
+"""Grammar fuzzer CLI: ``python -m array_vectorize.fuzz``.
 
 Generates random programs from the supported grammar, vectorizes them, and
 differentially checks the result against the scalar original on NumPy.
@@ -185,7 +185,7 @@ def _check_case(rng: random.Random, src: str, fn: Any) -> str:
         try:
             got = np.asarray(vec(*args))  # constant results come back as scalars
         except TypeError:
-            # dead-lane eager evaluation of dtype-invalid ops (plan D1)
+            # dead-lane eager evaluation of dtype-invalid ops (design D1)
             return "edge-skip"
         except Exception as exc:
             raise AssertionError(f"internal error running vectorized code:\n{src}\n{exc}") from exc

@@ -57,6 +57,7 @@ numeric warnings (`overflow encountered`, `invalid value`,
 
 ## History
 
-- `PLAN.md` — the original design document and milestone history.
-- `REVIEW_OPEN.md` — the log of the 26-round adversarial review loop
-  that drove the exactness work, with one section per round.
+The original design document, the restructuring plan, and the log of
+the 26-round adversarial review loop that drove the exactness work live
+in git history; the design decisions that still hold are summarized in
+[Architecture](architecture.md#design-decisions).

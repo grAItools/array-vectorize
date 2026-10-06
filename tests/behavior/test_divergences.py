@@ -56,7 +56,7 @@ def test_int_floordiv_zero_backend_defined() -> None:
     fn = make_fn("    return x // 0")
     with np.errstate(divide="ignore", invalid="ignore"):
         got = vectorize(fn)(np.asarray([3, -3], dtype=np.int64))
-    # NumPy: 0 with a warning; documented as backend-defined (plan D3)
+    # NumPy: 0 with a warning; documented as backend-defined (design D3)
     assert list(got) == [0, 0]
 
 
@@ -78,7 +78,7 @@ def test_and_or_eager_with_nan_lanes() -> None:
 
 def test_min_max_nan_divergence_documented() -> None:
     # Python: min(a, nan) returns a (nan < a is False); xp.minimum
-    # propagates NaN. The plan's §5 mapping (left-fold xp.minimum) makes
+    # propagates NaN. The documented mapping (left-fold xp.minimum) makes
     # vectorized min NaN-propagating - a documented divergence.
     fn = make_fn("    return min(x, y)")
     vec = vectorize(fn)
@@ -104,7 +104,7 @@ def test_where_branch_type_promotion_divergence() -> None:
 
 def test_round_negative_zero_divergence() -> None:
     # Python round(-0.0) returns int 0 (sign dropped); xp.round keeps -0.0,
-    # which atan2 can observe. Documented §5 mapping divergence.
+    # which atan2 can observe. Documented mapping divergence.
     fn = make_fn("    return math.atan2(round(x), x)")
     vec = vectorize(fn)
     xs = np.asarray([-0.0])

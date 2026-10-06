@@ -1,4 +1,4 @@
-"""Optimizer tests: const-fold, DCE, CSE (plan §8)."""
+"""Optimizer tests: const-fold, DCE, CSE."""
 
 from __future__ import annotations
 

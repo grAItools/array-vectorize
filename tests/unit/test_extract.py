@@ -1,4 +1,4 @@
-"""Tests for source extraction and closure capture (plan §4)."""
+"""Tests for source extraction and closure capture."""
 
 from __future__ import annotations
 

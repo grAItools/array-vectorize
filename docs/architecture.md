@@ -68,6 +68,47 @@ name and the injected callable.
 Helper names are allocated collision-free per generated function and
 memoized per (callee, protect) pair.
 
+## Design decisions
+
+Source comments cite these by number (`design D6`). The user-facing
+consequences are spelled out in [Semantics & divergences](semantics.md).
+
+- **D1 — Eager branches.** Both sides of a branch evaluate on every lane
+  and `xp.where` selects; `protect_domains` clamps partial-function
+  arguments on provably dead lanes only, never changing results.
+- **D2 — Exact `and`/`or`/`not`.** Numeric operands lower to
+  value-selects (`x and y` → `xp.where(x != 0, y, x)`); provably boolean
+  operands (the `is_bool` lattice in `ir/nodes.py`) use `xp.logical_*`.
+- **D3 — Numeric exceptions become IEEE values.** Division by zero,
+  domain errors, and complex-producing `pow` yield `inf`/`NaN` instead of
+  raising; each case is a documented divergence.
+- **D4 — No bare truthiness.** `if x:` is rejected as ambiguous per lane
+  (write `if x != 0:`); a ternary's numeric condition is coerced with
+  `!= 0`.
+- **D5 — Collected diagnostics.** The validator reports *all* unsupported
+  constructs at once, each with file/line/column and a caret excerpt.
+- **D6 — Constant-trip loops only.** `for i in range(...)` with bounds
+  known at generation time is emitted as a real loop over whole arrays;
+  loop-carried variables become explicit phis.
+- **D7 — Helper calls.** An inspectable pure callee is vectorized
+  recursively and memoized by function object; anything else is rejected
+  under `strict`, or wrapped in an element loop with `fallback=True`.
+- **D8 — Frozen environment.** Closure and global scalars are captured as
+  constants at generation time; arrays become hidden keyword parameters.
+- **D9 — Backend neutrality.** Generated code contains only `xp.*` calls
+  plus one `array_namespace` import (or the pinned `xp = _namespace`
+  binding); no `np.` ever leaks into generated source.
+- **D10 — Reject over miscompile.** Anything not provably translatable
+  raises `VectorizationError`; there are no best-effort guesses.
+
+Inspectability rests on two implementation choices: codegen builds an
+`ast.Module` and calls `ast.unparse` (never string templating), and
+`emit.py` registers the source in `linecache` with `mtime=None` so
+`inspect.getsource` and tracebacks show the generated lines. The wrapper
+deliberately does **not** set `__wrapped__` (CPython's `getsourcelines`
+would unwrap to the scalar original); it sets `__signature__` and a
+`_vectorized_original` marker instead.
+
 ## Testing strategy
 
 Tests are organized by level and behavior, never by discovery date:

@@ -55,7 +55,7 @@ def test_protect_domains_top_level_calls_not_clamped() -> None:
 
 
 def test_protect_domains_conditions_not_clamped() -> None:
-    # a partial call inside a condition must not be clamped (plan: results
+    # a partial call inside a condition must not be clamped (results
     # never change); isnan(sqrt(x)) is a condition here
     fn = make_fn("    return 1.0 if math.isnan(math.sqrt(x)) else 0.0")
     vec = vectorize(fn, protect_domains=True)

@@ -132,7 +132,7 @@ class _ExpressionLowerer(_Sanitizer):
         values = [self.lower_expr(v) for v in node.values]
         if all(is_bool(v) for v in values):
             return Logical(op, tuple(values))
-        # exact value-select lowering (plan D2)
+        # exact value-select lowering (design D2)
         partial = values[0]
         last = len(values) - 1
         for i, value in enumerate(values[1:], 1):

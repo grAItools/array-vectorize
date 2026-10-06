@@ -1,4 +1,4 @@
-"""Supported-subset checking with linter-style diagnostics (plan §5, D5).
+"""Supported-subset checking with linter-style diagnostics (design D5).
 
 Structural checks only (AST shape); semantic checks (name resolution, call
 arity, closure values) happen in extraction and lowering. All violations are

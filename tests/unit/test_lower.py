@@ -1,4 +1,4 @@
-"""Lowering tests: AST -> IR shapes (plan §5/§6), straight-line (M1) + control flow (M2)."""
+"""Lowering tests: AST -> IR shapes, straight-line + control flow."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def lower(body: str) -> Program:
     return lower_function(extract_function(make_fn(body))).program
 
 
-# ------------------------------------------------------------- M1: expressions
+# ----------------------------------------------------------------- expressions
 
 
 def test_const_and_binop() -> None:
@@ -217,7 +217,7 @@ def test_ternary_coerces_numeric_condition() -> None:
     )
 
 
-# ------------------------------------------------------------ M1: statements
+# ---------------------------------------------------------------- statements
 
 
 def test_assign_and_rebind() -> None:
@@ -274,7 +274,7 @@ def test_reserved_param_name_kept_namespace_renamed() -> None:
     assert lf.program.result == BinOp("add", Ref("xp"), Literal(1, "int"))
 
 
-# ------------------------------------------------------------- M1: rejections
+# ----------------------------------------------------------------- rejections
 
 
 @pytest.mark.parametrize(
@@ -308,7 +308,7 @@ def test_calling_variable_rejected() -> None:
         lower("    f = x\n    return f(x)")
 
 
-# -------------------------------------------------------------- M2: if/else
+# ------------------------------------------------------------------ if/else
 
 
 def test_if_else_merge() -> None:

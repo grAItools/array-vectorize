@@ -1,4 +1,4 @@
-"""Opt-in element-loop fallback (plan §3, D7, milestone M3).
+"""Opt-in element-loop fallback.
 
 When ``vectorize(f, fallback=True)`` (or ``strict=False``) cannot vectorize
 ``f``, the function is wrapped in an element-wise loop over its Array API

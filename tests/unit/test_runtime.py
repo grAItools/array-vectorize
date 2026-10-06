@@ -1,4 +1,4 @@
-"""Direct unit tests for the call-time runtime library (RESTRUCTURE.md §6).
+"""Direct unit tests for the call-time runtime library.
 
 runtime/arith, runtime/minmax and runtime/dtype are normally exercised
 only end-to-end through generated modules; these tests pin their

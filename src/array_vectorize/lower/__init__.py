@@ -1,4 +1,4 @@
-"""AST -> IR lowering (plan §5 translation rules, §6 IR, §7 semantics).
+"""AST -> IR lowering.
 
 The package assembles ``_Lowerer`` from one concern per layer — state
 and environment machinery (``env``), argument sanitization
@@ -7,9 +7,9 @@ and environment machinery (``env``), argument sanitization
 with each layer extending the previous one, so all state lives on the
 single base class. This module holds the final assembly (the statement
 dispatcher) and the ``lower_function`` entry point. Lowering handles
-straight-line code (M1), if/elif/else with early returns (M2),
-constant-trip loops with loop-carried phis (M3, D6) and calls to other
-vectorizable scalar functions (M3, D7).
+straight-line code, if/elif/else with early returns, constant-trip
+loops with loop-carried phis (design D6) and calls to other vectorizable
+scalar functions (design D7).
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def lower_function(
     info: FunctionInfo,
     helper_vectorizer: HelperVectorizer | None = None,
 ) -> LoweredFunction:
-    """Lower a validated FunctionInfo to IR (plan §5/§6/§7)."""
+    """Lower a validated FunctionInfo to IR."""
     lowerer = _Lowerer(info, helper_vectorizer=helper_vectorizer)
     # bind parameter names in order (first bind keeps the name, mangling reserved)
     # the namespace variable: `xp` unless the user uses that name; allocated
