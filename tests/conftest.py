@@ -10,9 +10,12 @@ import pytest
 from hypothesis import settings
 
 # The only place Hypothesis profiles are set: CI=1 runs 300 derandomized
-# examples per property; local runs use Hypothesis' default profile.
+# examples per property; local runs keep Hypothesis' defaults. Neither has a
+# deadline: properties check values, and the first example of a test pays
+# the one-time vectorize() compile, which can exceed the 200 ms default.
 settings.register_profile("ci", derandomize=True, max_examples=300, deadline=None)
-settings.load_profile("ci" if os.environ.get("CI") else "default")
+settings.register_profile("dev", deadline=None)
+settings.load_profile("ci" if os.environ.get("CI") else "dev")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

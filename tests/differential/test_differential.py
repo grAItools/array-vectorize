@@ -6,7 +6,7 @@ from typing import Any
 
 import corpus
 import numpy as np
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 
 from array_vectorize import vectorize
@@ -67,9 +67,19 @@ def test_ternary_diff(xs: np.ndarray) -> None:
     check(CORPUS.ternary, xs)
 
 
-@given(arrays(small), arrays(small))
-def test_arith_diff(xs: np.ndarray, ys: np.ndarray) -> None:
-    assume(np.all(np.abs(xs * xs + ys * ys) > 1e-6))
+#: lanes where arith_ops' denominator x*x + y*y is not ~0; filtering per
+#: lane (not assume() over all 12) keeps Hypothesis from discarding most
+#: examples, since it draws 0.0 often
+nonsingular_lanes = st.lists(
+    st.tuples(small, small).filter(lambda p: p[0] * p[0] + p[1] * p[1] > 1e-6),
+    min_size=12,
+    max_size=12,
+)
+
+
+@given(nonsingular_lanes)
+def test_arith_diff(lanes: list[tuple[float, float]]) -> None:
+    xs, ys = (np.asarray(col, dtype=np.float64) for col in zip(*lanes, strict=True))
     check(CORPUS.arith_ops, xs, ys)
 
 
