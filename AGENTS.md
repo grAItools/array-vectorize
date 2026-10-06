@@ -57,6 +57,7 @@ the behavior, not the bug that found it).
 | end-to-end semantics on NumPy | `tests/behavior/test_<topic>.py` |
 | a public option (`fallback`, `protect_domains`, `verify`, `namespace`) | `tests/features/` |
 | `array-api-strict`, jax, torch | `tests/backends/` |
+| benchmarks and the perf gate | `tests/perf/` |
 | a new corpus function: its generated source | `tests/corpus.py` + `GOLDEN_NAMES`, then `--update-golden` |
 | a new corpus function: values against scalar Python | `tests/differential/` (Hypothesis) |
 

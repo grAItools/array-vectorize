@@ -72,7 +72,7 @@ fuzz:
 	done
 
 bench:
-	$(RUN) pytest tests/test_bench.py -m slow --benchmark-enable \
+	$(RUN) pytest tests/perf/test_bench.py -m slow --benchmark-enable \
 		--benchmark-only --benchmark-columns=min,median,ops \
 		--benchmark-group-by=func
 

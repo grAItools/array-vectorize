@@ -55,8 +55,8 @@ plain `pytest` skips nothing but keeps benchmarks disabled
 | golden source snapshots | `tests/golden/` (`cases/`, ast.dump equality) |
 | inspectability (getsource, linecache, memoization, docstrings) | `tests/behavior/test_inspectability.py` etc. |
 | grammar fuzzer | `src/array_vectorize/fuzz.py` + CI seeds |
-| fuzz smoke | `tests/test_fuzz_smoke.py` |
-| performance gate + benchmarks | `tests/test_perf.py`, `tests/test_bench.py` |
+| fuzz smoke | `tests/unit/test_fuzz.py` |
+| performance gate + benchmarks | `tests/perf/` |
 
 The historical review-round regression tests are dissolved into
 `behavior/` and `features/` (provenance in git history).

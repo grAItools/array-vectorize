@@ -44,8 +44,9 @@ step before starting the next one.
    and its name to `GOLDEN_NAMES`. Run `uv run pytest --update-golden` and
    read the new file in `tests/golden/cases/`: it should look like Array
    API code a person would write. If values are numeric, add a Hypothesis
-   test in `tests/differential/test_differential.py`. Add unit tests for any
-   new lowering or optimizer branch so coverage stays at or above 95%.
+   test in `tests/differential/test_scalar_equivalence.py`. Add unit
+   tests for any new lowering or optimizer branch so coverage stays at
+   or above 95%.
 
 6. **Fuzz it.** If the construct is expression-level, add it to the grammar
    lists in `src/array_vectorize/fuzz.py` (`_UNARY_MATH`, `_BINOPS`, ...).
