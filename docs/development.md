@@ -53,7 +53,7 @@ plain `pytest` skips nothing but keeps benchmarks disabled
 | backends (array-api-strict) | `tests/backends/` |
 | differential (Hypothesis, edge values) | `tests/differential/` |
 | golden source snapshots | `tests/golden/` (`cases/`, ast.dump equality) |
-| inspectability (getsource, linecache) | `tests/test_inspectability.py` |
+| inspectability (getsource, linecache, memoization, docstrings) | `tests/behavior/test_inspectability.py` etc. |
 | grammar fuzzer | `src/array_vectorize/fuzz.py` + CI seeds |
 | fuzz smoke | `tests/test_fuzz_smoke.py` |
 | performance gate + benchmarks | `tests/test_perf.py`, `tests/test_bench.py` |
