@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import math
-import tempfile
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
+from support import make_module
 
 from array_vectorize import vectorize
 from array_vectorize.errors import VectorizationError
@@ -18,18 +16,9 @@ from array_vectorize.ir import Binding, BinOp, Call, Literal, Program, Ref, SSAE
 from array_vectorize.optimize import const_fold, cse, optimize
 from array_vectorize.optimize import dce as dce_pass
 
-_tmp = tempfile.TemporaryDirectory(prefix="vec_cov_")
-_TMPDIR = Path(_tmp.name)
-_seq = __import__("itertools").count()
-
 
 def make_fn(body: str) -> Callable[..., Any]:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text("import math\n\n\ndef subject(x, y=2.0):\n" + body + "\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = make_module("import math\n\n\ndef subject(x, y=2.0):\n" + body + "\n")
     return mod.subject
 
 
@@ -113,47 +102,27 @@ def test_optimize_no_user_names() -> None:
 
 
 def test_async_function_rejected() -> None:
-    path = _TMPDIR / "async_snippet.py"
-    path.write_text("async def subject(x):\n    return x\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = make_module("async def subject(x):\n    return x\n")
     with pytest.raises(VectorizationError, match="async"):
         extract_function(mod.subject)
 
 
 def test_kwonly_without_default() -> None:
-    path = _TMPDIR / "kwonly_snippet.py"
-    path.write_text("def subject(x, *, scale):\n    return x * scale\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = make_module("def subject(x, *, scale):\n    return x * scale\n")
     info = extract_function(mod.subject)
     assert info.params[1].kind == "kwonly"
     assert not info.params[1].has_default
 
 
 def test_expr_lambda_top_level() -> None:
-    path = _TMPDIR / "expr_lambda.py"
-    path.write_text("(lambda x: x + 1)\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    make_module("(lambda x: x + 1)\n")
     # nothing to grab; just ensure parse path works via direct lambda
     info = extract_function(lambda x: x + 1.0)  # type: ignore[arg-type]
     assert info.params[0].name == "x"
 
 
 def test_no_target_in_source_rejected() -> None:
-    path = _TMPDIR / "no_target.py"
-    path.write_text("X = 1\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = make_module("X = 1\n")
     with pytest.raises(VectorizationError):
         extract_function(mod.X)  # type: ignore[arg-type]
 

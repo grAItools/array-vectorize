@@ -8,8 +8,10 @@ import linecache
 import traceback
 
 import numpy as np
+import pytest
 
-from array_vectorize import get_source, vectorize
+import array_vectorize
+from array_vectorize import VectorizationError, get_source, vectorize
 
 
 def relu_fn(x: float) -> float:
@@ -109,12 +111,8 @@ def test_idempotent_revectorization() -> None:
 def test_get_source_helper() -> None:
     vec = vectorize(relu_fn)
     assert get_source(vec) == vec.source
-    try:
+    with pytest.raises(VectorizationError, match="not a vectorized function"):
         get_source(relu_fn)
-    except Exception as exc:
-        assert "not a vectorized function" in str(exc)
-    else:
-        raise AssertionError("expected error for non-vectorized input")
 
 
 def test_lambda_vectorize() -> None:
@@ -134,3 +132,7 @@ def test_help_renders() -> None:
     with redirect_stdout(buf):
         help(vec)
     assert "relu_fn" in buf.getvalue()
+
+
+def test_package_exposes_version() -> None:
+    assert array_vectorize.__version__

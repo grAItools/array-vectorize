@@ -1,33 +1,13 @@
-"""T8 documented divergences between scalar Python semantics and vectorized backends."""
+"""Documented divergences between scalar Python semantics and vectorized backends."""
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
-from typing import Any
-
 import numpy as np
-from support import make_fn
+from support import make_fn, vfn
 
 from array_vectorize import vectorize
 
-spec = importlib.util.spec_from_file_location(
-    "vec_corpus_b", Path(__file__).parent.parent / "corpus.py"
-)
-assert spec is not None and spec.loader is not None
-CORPUS = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(CORPUS)
-
-
-def vfn(name: str) -> Any:
-    return vectorize(getattr(CORPUS, name))
-
-
-X = np.asarray([-2.0, -0.5, 0.0, 0.5, 2.0, 10.0])
-Y = np.asarray([3.0, 1.5, 1.0, 0.5, -1.0, -3.0])
-
-
-# ---- from test_behavior (git history: tests/test_behavior.py)
+# --------------------------------------- numeric exceptions become IEEE values
 
 
 def test_divergence_div_by_zero_is_inf() -> None:
@@ -42,9 +22,6 @@ def test_divergence_neg_sqrt_is_nan() -> None:
     assert np.isnan(got[0])
 
 
-# ---- from test_m4 (git history: tests/test_m4.py)
-
-
 def test_remainder_zero_is_nan() -> None:
     fn = make_fn("    return x % 0.0")
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -56,7 +33,7 @@ def test_int_floordiv_zero_backend_defined() -> None:
     fn = make_fn("    return x // 0")
     with np.errstate(divide="ignore", invalid="ignore"):
         got = vectorize(fn)(np.asarray([3, -3], dtype=np.int64))
-    # NumPy: 0 with a warning; documented as backend-defined (design D3)
+    # NumPy: 0 with a warning; documented as backend-defined (docs/architecture.md, D3)
     assert list(got) == [0, 0]
 
 
@@ -64,7 +41,11 @@ def test_pow_negative_base_fractional_exponent_is_nan() -> None:
     fn = make_fn("    return x ** 0.5")
     with np.errstate(invalid="ignore"):
         got = vectorize(fn)(np.asarray([-4.0, 4.0]))
-    assert np.isnan(got[0]) and got[1] == 2.0
+    assert np.isnan(got[0])
+    assert got[1] == 2.0
+
+
+# ---------------------------------------------- eager evaluation and promotion
 
 
 def test_and_or_eager_with_nan_lanes() -> None:

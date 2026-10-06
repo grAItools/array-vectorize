@@ -153,6 +153,20 @@ def test_fits_dtype_edge_cases() -> None:
     assert not _fits_dtype(2, np.dtype("bool"))
 
 
+def test_fits_dtype_defensive_branches() -> None:
+    class _FakeDtype:
+        def __init__(self, name: str) -> None:
+            self._name = name
+
+        def __str__(self) -> str:
+            return self._name
+
+    assert not _fits_dtype(1.5, _FakeDtype("float24"))  # exotic width: promote
+    assert not _fits_dtype("not-a-number", np.dtype("int64"))
+    assert _fits_dtype(True, np.dtype("bool"))
+    assert not _fits_dtype(1, np.dtype("bool"))
+
+
 def test_describe_dtype_classifies_uint64_as_float64_class() -> None:
     # uint64 fits no signed int, so it promotes as float64: (True, 64)
     assert _describe_dtype(np.asarray([1], dtype=np.uint64)) == (True, 64)

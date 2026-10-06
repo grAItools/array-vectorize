@@ -91,6 +91,8 @@ select = [
     "B",   # flake8-bugbear
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
 ]
 
 [tool.ruff.lint.per-file-ignores]

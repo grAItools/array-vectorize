@@ -43,7 +43,7 @@ SIZES = [1_000, 100_000, 1_000_000]
 _add_id = _ARITH_OPS.index("add")
 
 
-@pytest.mark.parametrize("name,kernel,nargs", KERNELS, ids=[k[0] for k in KERNELS])
+@pytest.mark.parametrize(("name", "kernel", "nargs"), KERNELS, ids=[k[0] for k in KERNELS])
 @pytest.mark.parametrize("size", SIZES)
 def test_kernel_vs_oracle(benchmark, name, kernel, nargs, size) -> None:
     """Vectorized kernel vs np.vectorize scalar oracle (per-element time)."""

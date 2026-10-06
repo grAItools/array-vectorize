@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
-import itertools
 import math
-import tempfile
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from support import make_module
 
 from array_vectorize.errors import VectorizationError
 from array_vectorize.frontend.extract import extract_function
@@ -31,17 +28,12 @@ from array_vectorize.ir import (
 )
 from array_vectorize.lower import lower_function
 
-_tmp = tempfile.TemporaryDirectory(prefix="vec_lower_")
-_TMPDIR = Path(_tmp.name)
-_seq = itertools.count()
-
 GLOBAL_K = 3
 GLOBAL_ARR = np.asarray([10.0, 20.0])
 
 
 def make_fn(body: str, extra_globals: str = "") -> Callable[..., Any]:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text(
+    mod = make_module(
         "import math\n"
         "from math import exp\n"
         "GLOBAL_K = 3\n"
@@ -51,10 +43,6 @@ def make_fn(body: str, extra_globals: str = "") -> Callable[..., Any]:
         + body
         + "\n"
     )
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
     return mod.subject
 
 
@@ -262,12 +250,7 @@ def test_closure_array_hidden_param() -> None:
 def test_reserved_param_name_kept_namespace_renamed() -> None:
     # a parameter named 'xp' keeps its name (keyword calls work); the
     # generated namespace variable renames itself instead
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text("def subject(xp):\n    return xp + 1\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = make_module("def subject(xp):\n    return xp + 1\n")
     lf = lower_function(extract_function(mod.subject))
     assert lf.param_names == ["xp"]
     assert lf.namespace_var == "xp_1"
@@ -497,12 +480,7 @@ def test_not_all_paths_return_rejected() -> None:
 
 
 def test_lambda_lowering() -> None:
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text("subject = lambda x: x + 1.0\n")
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = make_module("subject = lambda x: x + 1.0\n")
     lf = lower_function(extract_function(mod.subject))
     assert lf.program.result == BinOp("add", Ref("x"), Literal(1.0, "float"))
 

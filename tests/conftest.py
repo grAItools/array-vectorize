@@ -9,6 +9,8 @@ from types import ModuleType
 import pytest
 from hypothesis import settings
 
+# The only place Hypothesis profiles are set: CI=1 runs 300 derandomized
+# examples per property; local runs use Hypothesis' default profile.
 settings.register_profile("ci", derandomize=True, max_examples=300, deadline=None)
 settings.load_profile("ci" if os.environ.get("CI") else "default")
 

@@ -1,38 +1,26 @@
-"""Validator tests: accept/reject per construct, linter-style diagnostics (T1, T7)."""
+"""Validator tests: accept/reject per construct, linter-style diagnostics."""
 
 from __future__ import annotations
 
 import ast
-import importlib.util
-import itertools
 import sys
-import tempfile
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
+from support import make_module
 
 from array_vectorize import vectorize
 from array_vectorize.errors import VectorizationError
 from array_vectorize.frontend.extract import extract_function
 from array_vectorize.frontend.validate import _EXPR_MESSAGES, validate
 
-_tmp = tempfile.TemporaryDirectory(prefix="vec_validate_")
-_TMPDIR = Path(_tmp.name)
-_seq = itertools.count()
-
 
 def make_fn(body: str, signature: str = "x", type_params: str = "") -> Callable[..., Any]:
     """Define a function with the given (indented) body in a real temp module."""
-    path = _TMPDIR / f"snippet_{next(_seq)}.py"
-    path.write_text(
+    mod = make_module(
         "import math\n\n\ndef subject" + type_params + "(" + signature + "):\n" + body + "\n"
     )
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
     return mod.subject
 
 
@@ -242,8 +230,7 @@ def test_for_target_must_be_name() -> None:
 
 
 def test_nonlocal_rejected() -> None:
-    path = _TMPDIR / "nonlocal_snippet.py"
-    path.write_text(
+    mod = make_module(
         "def outer():\n"
         "    g = 1.0\n"
         "    def subject(x):\n"
@@ -251,10 +238,6 @@ def test_nonlocal_rejected() -> None:
         "        return x\n"
         "    return subject\n"
     )
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
     with pytest.raises(VectorizationError, match="nonlocal"):
         validate(extract_function(mod.outer()))
 

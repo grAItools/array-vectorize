@@ -35,7 +35,8 @@ from array_vectorize import vectorize
 spec = importlib.util.spec_from_file_location(
     "vec_corpus_c", Path(__file__).parent.parent / "corpus.py"
 )
-assert spec is not None and spec.loader is not None
+assert spec is not None
+assert spec.loader is not None
 CORPUS = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(CORPUS)
 

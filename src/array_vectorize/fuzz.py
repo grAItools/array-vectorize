@@ -142,7 +142,8 @@ def _run_one(rng: random.Random) -> str:
     path = case_dir / "fuzz_case_mod.py"
     path.write_text("import math\n\n\n" + src)
     spec = importlib.util.spec_from_file_location("fuzz_case_mod", path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     fn = module.fuzz_case

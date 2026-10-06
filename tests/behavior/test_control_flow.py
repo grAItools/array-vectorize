@@ -2,33 +2,16 @@
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
-from typing import Any
-
 import numpy as np
 import pytest
-from support import make_fn
+from support import make_fn, vfn
 
 from array_vectorize import vectorize
 
-spec = importlib.util.spec_from_file_location(
-    "vec_corpus_b", Path(__file__).parent.parent / "corpus.py"
-)
-assert spec is not None and spec.loader is not None
-CORPUS = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(CORPUS)
-
-
-def vfn(name: str) -> Any:
-    return vectorize(getattr(CORPUS, name))
-
-
 X = np.asarray([-2.0, -0.5, 0.0, 0.5, 2.0, 10.0])
-Y = np.asarray([3.0, 1.5, 1.0, 0.5, -1.0, -3.0])
 
 
-# ---- from test_behavior (git history: tests/test_behavior.py)
+# -------------------------------------------------- branches and early returns
 
 
 def test_ternary() -> None:
@@ -70,7 +53,7 @@ def test_both_branches_assign() -> None:
     assert np.allclose(vfn("both_branches_assign")(X), expected)
 
 
-# ---- from test_review_round14 (git history: tests/test_review_round14.py)
+# ----------------------------------------------- branch merging of value kinds
 
 
 def test_branch_merged_maybe_bool_arithmetic() -> None:

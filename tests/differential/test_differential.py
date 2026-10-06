@@ -6,15 +6,12 @@ from typing import Any
 
 import corpus
 import numpy as np
-from hypothesis import assume, given, settings
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from array_vectorize import vectorize
 
 CORPUS = corpus
-
-settings.register_profile("ci", derandomize=True, max_examples=100, deadline=None)
-settings.load_profile("ci")
 
 # bounded floats keep scalar math from raising (exp overflow, log domain)
 finite = st.floats(min_value=-50, max_value=50, allow_nan=False, allow_infinity=False)
@@ -147,7 +144,7 @@ def test_loop_helper_caller_diff(xs: np.ndarray) -> None:
 
 @given(arrays(small), arrays(small))
 def test_second_oracle_np_vectorize(xs: np.ndarray, ys: np.ndarray) -> None:
-    """T5: differential vs np.vectorize of the original."""
+    """Differential vs np.vectorize of the original."""
     vec = vectorize(CORPUS.add)
     oracle = np.vectorize(CORPUS.add)
     assert np.allclose(vec(xs, ys), oracle(xs, ys))
