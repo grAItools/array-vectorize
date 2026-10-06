@@ -34,6 +34,7 @@ make backends     # jax.jit / torch.compile compatibility tests
 make docs         # build this site (zensical, --strict)
 make docs-serve   # live-reload preview
 make notebook     # open the marimo example notebooks
+make release VERSION=0.1.0    # verify + gate + build dist/ for a release
 uv run pytest --update-golden    # regenerate golden source snapshots
 uv run python -m array_vectorize.fuzz --seconds 60 --seed 0    # fuzz longer
 ```
@@ -79,6 +80,31 @@ numeric warnings (`overflow encountered`, `invalid value`,
 - **docs** — builds this site with `--strict`.
 - **pages** — after CI passes on a push to `main`, deploys this site to
   [GitHub Pages](https://grAItools.github.io/array-vectorize/).
+- **release** — on a pushed `v*` tag, re-runs the gate, builds the sdist
+  and wheel with `uv build`, and publishes them as a GitHub release
+  generated from the tag (`.github/workflows/release.yml`).
+
+## Releases
+
+Versioning follows [Semantic Versioning](https://semver.org/). The version
+lives in two places that must agree — `pyproject.toml` and
+`src/array_vectorize/__init__.py` (`__version__`) — and is recorded in
+`uv.lock`, so run `uv lock` after bumping. Every release gets an entry in
+`CHANGELOG.md` (Keep a Changelog format, linked from the README and
+`pyproject.toml`).
+
+```bash
+# 1. bump the version, update CHANGELOG.md, commit
+# 2. verify, run the full gate, build dist/
+make release VERSION=0.1.0
+# 3. tag and push (the tag triggers the release workflow)
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin main --tags
+```
+
+`make release` refuses to run when the two version declarations disagree
+or the lock is stale; tagging stays a manual step so a re-run of the
+target can never move a tag.
 
 ## Coding agents
 

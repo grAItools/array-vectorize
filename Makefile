@@ -12,7 +12,7 @@ export UV_PROJECT_ENVIRONMENT := .venv-$(PY)
 endif
 PY_PATHS := src tests scripts examples .claude/hooks
 
-.PHONY: install fmt lint type test coverage check lowest smoke fuzz bench backends docs docs-serve notebook
+.PHONY: install fmt lint type test coverage check lowest smoke fuzz bench backends docs docs-serve notebook release
 
 install:
 	$(UV) sync
@@ -37,6 +37,18 @@ coverage:
 	$(RUN) coverage report
 
 check: lint type coverage
+
+# cut a release: the version must already be bumped (pyproject.toml,
+# src/array_vectorize/__init__.py, uv.lock); runs the full gate and
+# builds sdist + wheel into dist/. Tagging stays a manual step:
+# git tag -a v$(VERSION) -m "v$(VERSION)"
+release:
+	@test "$(VERSION)" != "" || { echo "usage: make release VERSION=0.1.0" >&2; exit 1; }
+	@grep -qx 'version = "$(VERSION)"' pyproject.toml || { echo "pyproject.toml is not at version $(VERSION)" >&2; exit 1; }
+	@grep -qx '__version__ = "$(VERSION)"' src/array_vectorize/__init__.py || { echo "src/array_vectorize/__init__.py is not at version $(VERSION)" >&2; exit 1; }
+	$(RUN) uv lock --check
+	$(MAKE) check
+	$(RUN) uv build
 
 # the test suite with every direct dependency at the minimum pyproject.toml
 # allows, on the minimum Python; proves the declared floors

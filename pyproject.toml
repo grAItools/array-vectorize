@@ -28,6 +28,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://grAItools.github.io/array-vectorize/"
 Source = "https://github.com/grAItools/array-vectorize"
+Changelog = "https://github.com/grAItools/array-vectorize/blob/main/CHANGELOG.md"
 
 # development-only dependencies (PEP 735); `uv sync` installs `dev`.
 # The floors are tested: `make lowest` (and the CI `lowest` job) runs the

@@ -27,14 +27,19 @@ print(psi.source)
 #
 # def psi_vec(x):
 #     """
-#     @vectorize
-#     def psi(x):
-#         if x < 0:
-#             return 0.0
-#         return x * math.exp(-x)
+#     (array-vectorized) no docstring on the scalar original.
+#
+#     Notes:
+#         Vectorized by array-vectorize from this scalar original::
+#
+#             @vectorize
+#             def psi(x):
+#                 if x < 0:
+#                     return 0.0
+#                 return x * math.exp(-x)
 #     """
 #     xp = array_namespace(x)
-#     return xp.where(x < 0, 0.0, x * xp.exp(-x))
+#     return xp.where(x < 0, 0.0, x * xp.exp(xp.astype(xp.asarray(-x), xp.float64)))
 ```
 
 The same `psi` runs unchanged on torch tensors, JAX arrays, CuPy arrays, or
@@ -43,13 +48,16 @@ The same `psi` runs unchanged on torch tensors, JAX arrays, CuPy arrays, or
 ## Installation
 
 ```bash
-pip install "array-vectorize @ git+https://github.com/grAItools/array-vectorize.git"
+pip install "array-vectorize @ git+https://github.com/grAItools/array-vectorize.git@v0.1.0"
 ```
 
 Requires Python >= 3.12. The only runtime dependency is `array-api-compat`.
-The package is not on PyPI yet; once published, plain
-`pip install array-vectorize` will work. For development from a checkout,
-see [Development](https://grAItools.github.io/array-vectorize/development/)
+Releases are tagged `vX.Y.Z` (see the
+[changelog](https://github.com/grAItools/array-vectorize/blob/main/CHANGELOG.md));
+the latest state of `main` installs without the `@tag`. The package is not
+on PyPI yet; once published, plain `pip install array-vectorize` will work.
+For development from a checkout, see
+[Development](https://grAItools.github.io/array-vectorize/development/)
 (`make install`, then `make check`).
 
 ## What it does (and refuses to do)
@@ -63,7 +71,10 @@ see [Development](https://grAItools.github.io/array-vectorize/development/)
   instead of `ZeroDivisionError`, eagerly evaluated branches) are
   documented.
 - **Inspectable output** — `vec.source` and `inspect.getsource(vec)` show
-  the generated function; tracebacks point at its real lines.
+  the generated function; tracebacks point at its real lines; the docstring
+  keeps the original's documentation (summary prefixed
+  `(array-vectorized)`) with the scalar source in a `Notes:` section, and
+  the scalar original grows an `__array_vectorized__` back-reference.
 - **Options** — `strict=False`/`fallback=True` (element-loop fallback),
   `protect_domains=True`, `verify=example_args`, `namespace=xp` (pinned
   backend).
@@ -82,3 +93,4 @@ The full documentation is at <https://grAItools.github.io/array-vectorize/>
 - [Architecture](https://grAItools.github.io/array-vectorize/architecture/)
 - [Development](https://grAItools.github.io/array-vectorize/development/)
   — `make install`, then `make check`
+- [Changelog](https://github.com/grAItools/array-vectorize/blob/main/CHANGELOG.md)

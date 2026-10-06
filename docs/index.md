@@ -57,13 +57,16 @@ or `array_api_strict` arrays.
 ## Installation
 
 ```bash
-pip install "array-vectorize @ git+https://github.com/grAItools/array-vectorize.git"
+pip install "array-vectorize @ git+https://github.com/grAItools/array-vectorize.git@v0.1.0"
 ```
 
 Requires Python >= 3.12. The only runtime dependency is `array-api-compat`.
-The package is not on PyPI yet; once published, plain
-`pip install array-vectorize` will work. For development from a checkout,
-see [Development](development.md) (`make install`, then `make check`).
+Releases are tagged `vX.Y.Z` (see the
+[changelog](https://github.com/grAItools/array-vectorize/blob/main/CHANGELOG.md));
+the latest state of `main` installs without the `@tag`. The package is
+not on PyPI yet; once published, plain `pip install array-vectorize` will
+work. For development from a checkout, see
+[Development](development.md) (`make install`, then `make check`).
 
 ## Highlights
 
