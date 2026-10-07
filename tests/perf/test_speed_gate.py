@@ -21,7 +21,7 @@ from collections.abc import Callable
 import numpy as np
 import pytest
 
-from array_vectorize import vectorize
+import array_vectorize
 
 pytestmark = pytest.mark.slow
 
@@ -48,7 +48,7 @@ def test_faster_than_np_vectorize() -> None:
     # a single-pass function maximizes the ratio: the comparison measures
     # the Python-call overhead that vectorization eliminates (multi-op or
     # exp-heavy bodies are Amdahl-limited by the array work itself).
-    vec = vectorize(lambda v: v + 1.0)
+    vec = array_vectorize.vectorize(lambda v: v + 1.0)
     oracle = np.vectorize(lambda v: v + 1.0)
 
     expected = oracle(x[:1000])  # warm up + sanity

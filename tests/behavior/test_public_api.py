@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 import array_vectorize
-from array_vectorize import VectorizationError, vectorize
 
 
 def test_package_exposes_version() -> None:
@@ -20,5 +19,5 @@ def test_unhashable_input_rejected_with_vectorization_error(bad: object) -> None
     # the canonical cache lookup runs before extraction and must not
     # surface a TypeError for unhashable junk: the extractor's positioned
     # VectorizationError ("expected a plain Python function, got ...") wins
-    with pytest.raises(VectorizationError, match="plain Python function"):
-        vectorize(bad)  # type: ignore[arg-type]
+    with pytest.raises(array_vectorize.VectorizationError, match="plain Python function"):
+        array_vectorize.vectorize(bad)  # type: ignore[arg-type]

@@ -22,18 +22,18 @@ exposed ``__array_namespace__``.
 from __future__ import annotations
 
 import importlib.util
+import pathlib
 from collections.abc import Callable, Sequence
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
-from support import make_fn, make_module
+import support
 
-from array_vectorize import vectorize
+import array_vectorize
 
 spec = importlib.util.spec_from_file_location(
-    "vec_corpus_c", Path(__file__).parent.parent / "corpus.py"
+    "vec_corpus_c", pathlib.Path(__file__).parent.parent / "corpus.py"
 )
 assert spec is not None
 assert spec.loader is not None
@@ -107,8 +107,8 @@ def test_jax_jit_detected_matches_eager(name: str) -> None:
 
     fn = getattr(CORPUS, name)
     args, kwargs = _call_args(name, jnp.asarray)
-    eager = vectorize(fn)(*args, **kwargs)
-    got = jax.jit(vectorize(fn))(*args, **kwargs)
+    eager = array_vectorize.vectorize(fn)(*args, **kwargs)
+    got = jax.jit(array_vectorize.vectorize(fn))(*args, **kwargs)
     assert np.allclose(np.asarray(got), np.asarray(eager), equal_nan=True)
 
 
@@ -120,8 +120,8 @@ def test_jax_jit_pinned_matches_eager(name: str) -> None:
 
     fn = getattr(CORPUS, name)
     args, kwargs = _call_args(name, jnp.asarray)
-    eager = vectorize(fn)(*args, **kwargs)
-    got = jax.jit(vectorize(fn, namespace=jnp))(*args, **kwargs)
+    eager = array_vectorize.vectorize(fn)(*args, **kwargs)
+    got = jax.jit(array_vectorize.vectorize(fn, namespace=jnp))(*args, **kwargs)
     assert np.allclose(np.asarray(got), np.asarray(eager), equal_nan=True)
 
 
@@ -144,8 +144,8 @@ def test_torch_compile_detected_matches_eager(name: str) -> None:
 
     fn = getattr(CORPUS, name)
     args, kwargs = _call_args(name, _torch_conv)
-    eager = vectorize(fn)(*args, **kwargs)
-    got = torch.compile(vectorize(fn))(*args, **kwargs)
+    eager = array_vectorize.vectorize(fn)(*args, **kwargs)
+    got = torch.compile(array_vectorize.vectorize(fn))(*args, **kwargs)
     assert torch.allclose(got, eager, equal_nan=True)
 
 
@@ -158,8 +158,10 @@ def test_torch_compile_pinned_matches_eager(name: str) -> None:
 
     fn = getattr(CORPUS, name)
     args, kwargs = _call_args(name, _torch_conv)
-    eager = vectorize(fn, namespace=array_api_compat.torch)(*args, **kwargs)
-    got = torch.compile(vectorize(fn, namespace=array_api_compat.torch))(*args, **kwargs)
+    eager = array_vectorize.vectorize(fn, namespace=array_api_compat.torch)(*args, **kwargs)
+    got = torch.compile(array_vectorize.vectorize(fn, namespace=array_api_compat.torch))(
+        *args, **kwargs
+    )
     assert torch.allclose(got, eager, equal_nan=True)
 
 
@@ -178,7 +180,7 @@ def test_verify_with_torch_args() -> None:
     t = torch.tensor(X, dtype=torch.float64)
     # previously: VectorizationError("verify= needs at least one Array API
     # array in the example inputs")
-    vec = vectorize(CORPUS.psi, verify=(t,))
+    vec = array_vectorize.vectorize(CORPUS.psi, verify=(t,))
     got = vec(t)
     expected = torch.where(t < 0, torch.tensor(0.0), t * torch.exp(-t))
     assert torch.allclose(got, expected)
@@ -188,9 +190,9 @@ def test_fallback_with_torch_tensors() -> None:
     pytest.importorskip("torch")
     import torch
 
-    fn = make_fn("    while x > 0:\n        x = x - 1\n    return x", defaults="x")
+    fn = support.make_fn("    while x > 0:\n        x = x - 1\n    return x", defaults="x")
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(fn, fallback=True)
+        vec = array_vectorize.vectorize(fn, fallback=True)
     # previously: TypeError("vectorized fallback ... requires at least one
     # Array API array argument")
     t = torch.tensor([5.0, -2.0], dtype=torch.float64)
@@ -207,9 +209,9 @@ def test_fallback_pinned_with_torch_tensors() -> None:
     import array_api_compat.torch
     import torch
 
-    fn = make_fn("    while x > 0:\n        x = x - 1\n    return x", defaults="x")
+    fn = support.make_fn("    while x > 0:\n        x = x - 1\n    return x", defaults="x")
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(fn, fallback=True, namespace=array_api_compat.torch)
+        vec = array_vectorize.vectorize(fn, fallback=True, namespace=array_api_compat.torch)
     t = torch.tensor([5.0, -2.0], dtype=torch.float64)
     got = vec(t)
     assert isinstance(got, torch.Tensor)
@@ -220,7 +222,7 @@ def test_closure_captured_torch_tensor() -> None:
     pytest.importorskip("torch")
     import torch
 
-    mod = make_module(
+    mod = support.make_module(
         "import torch\n"
         "T = torch.asarray([1.0, 2.0, 3.0], dtype=torch.float64)\n"
         "\n"
@@ -230,7 +232,7 @@ def test_closure_captured_torch_tensor() -> None:
     )
     # previously: VectorizationError (closure/global 'T' has unsupported
     # type 'Tensor'); now a hidden kw-only closure param like numpy captures
-    vec = vectorize(mod.subject)
+    vec = array_vectorize.vectorize(mod.subject)
     assert "def subject_vec(x, *, T=None):" in vec.source
     assert vec.__kwdefaults__["T"] is mod.T
     t = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float64)
@@ -241,7 +243,7 @@ def test_closure_captured_torch_tensor() -> None:
 def test_closure_captured_jax_array() -> None:
     jax = pytest.importorskip("jax")
     jax.config.update("jax_enable_x64", True)
-    mod = make_module(
+    mod = support.make_module(
         "import jax.numpy as jnp\n"
         "T = jnp.asarray([1.0, 2.0, 3.0])\n"
         "\n"
@@ -249,7 +251,7 @@ def test_closure_captured_jax_array() -> None:
         "def subject(x):\n"
         "    return x + T\n"
     )
-    vec = vectorize(mod.subject)
+    vec = array_vectorize.vectorize(mod.subject)
     assert "def subject_vec(x, *, T=None):" in vec.source
     assert vec.__kwdefaults__["T"] is mod.T
     got = vec(mod.T * 10.0)

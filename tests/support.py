@@ -12,17 +12,17 @@ from __future__ import annotations
 
 import importlib.util
 import itertools
+import pathlib
 import tempfile
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import corpus
 
-from array_vectorize import vectorize
+import array_vectorize
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_support_")
-TMPDIR = Path(_tmp.name)
+TMPDIR = pathlib.Path(_tmp.name)
 _seq = itertools.count()
 
 
@@ -64,13 +64,13 @@ def make_module(source: str) -> Any:
 
 def vec_of(body: str, extra: str = "") -> tuple[Callable[..., Any], Callable[..., Any]]:
     fn = make_fn(body, extra)
-    return vectorize(fn), fn
+    return array_vectorize.vectorize(fn), fn
 
 
 def just_vec(body: str, extra: str = "") -> Callable[..., Any]:
-    return vectorize(make_fn(body, extra))
+    return array_vectorize.vectorize(make_fn(body, extra))
 
 
 def vfn(name: str) -> Callable[..., Any]:
     """Vectorize the corpus function ``name`` (tests/corpus.py)."""
-    return vectorize(getattr(corpus, name))
+    return array_vectorize.vectorize(getattr(corpus, name))

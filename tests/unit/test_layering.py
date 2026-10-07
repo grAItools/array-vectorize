@@ -9,13 +9,13 @@ AST-based, so it does not see dynamic imports (``importlib.import_module``,
 from __future__ import annotations
 
 import ast
+import pathlib
 import sys
-from pathlib import Path
 
 import pytest
 
 PACKAGE = "array_vectorize"
-ROOT = Path(__file__).parents[2] / "src" / PACKAGE
+ROOT = pathlib.Path(__file__).parents[2] / "src" / PACKAGE
 #: the unit of the package root ``__init__.py`` (its stem; a subpackage's
 #: ``__init__.py`` instead belongs to that subpackage's unit)
 ROOT_UNIT = "__init__"
@@ -26,7 +26,7 @@ RUNTIME_DEPS = {"array_api_compat"}
 DEV_ONLY_MODULES = {"fuzz"}
 
 
-def _unit(path: Path) -> str:
+def _unit(path: pathlib.Path) -> str:
     """Top-level unit of a source file: a subpackage or a top-level module."""
     parts = path.relative_to(ROOT).parts
     return parts[0] if len(parts) > 1 else path.stem
@@ -81,7 +81,7 @@ def _classify(tree: ast.Module, package_dir: list[str]) -> tuple[set[str], set[s
     return internal, external
 
 
-def _imports(path: Path) -> tuple[set[str], set[str]]:
+def _imports(path: pathlib.Path) -> tuple[set[str], set[str]]:
     """(package units, external top-level modules) imported by ``path``."""
     package_dir = list(path.relative_to(ROOT).parts[:-1])
     return _classify(ast.parse(path.read_text()), package_dir)
@@ -90,7 +90,7 @@ def _imports(path: Path) -> tuple[set[str], set[str]]:
 SOURCES = sorted(ROOT.rglob("*.py"))
 
 
-def _files_of(unit: str) -> list[Path]:
+def _files_of(unit: str) -> list[pathlib.Path]:
     return [path for path in SOURCES if _unit(path) == unit]
 
 
@@ -144,7 +144,7 @@ def test_known_real_imports() -> None:
 
 
 @pytest.mark.parametrize("path", _files_of("runtime"), ids=lambda p: p.name)
-def test_runtime_is_a_stdlib_only_leaf(path: Path) -> None:
+def test_runtime_is_a_stdlib_only_leaf(path: pathlib.Path) -> None:
     # runtime helpers are injected into generated code and run on the
     # user's backend at call time; they must not drag in the compiler
     internal, external = _imports(path)
@@ -153,13 +153,13 @@ def test_runtime_is_a_stdlib_only_leaf(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", _files_of("ir"), ids=lambda p: p.name)
-def test_ir_depends_on_nothing_in_the_package(path: Path) -> None:
+def test_ir_depends_on_nothing_in_the_package(path: pathlib.Path) -> None:
     internal, _ = _imports(path)
     assert internal <= {"ir"}, internal
 
 
 @pytest.mark.parametrize("path", SOURCES, ids=lambda p: str(p.relative_to(ROOT)))
-def test_only_the_package_root_imports_api(path: Path) -> None:
+def test_only_the_package_root_imports_api(path: pathlib.Path) -> None:
     # the pipeline reaches back into api only through the
     # helper_vectorizer callback, never by import; the root unit
     # re-exports api, so a dependency on it reaches api too
@@ -175,7 +175,7 @@ def test_only_the_package_root_imports_api(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", SOURCES, ids=lambda p: str(p.relative_to(ROOT)))
-def test_only_runtime_dependencies_are_imported(path: Path) -> None:
+def test_only_runtime_dependencies_are_imported(path: pathlib.Path) -> None:
     if _unit(path) in DEV_ONLY_MODULES:
         return
     _, external = _imports(path)

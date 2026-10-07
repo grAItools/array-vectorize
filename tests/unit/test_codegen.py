@@ -4,28 +4,15 @@ from __future__ import annotations
 
 import ast
 
-from array_vectorize.codegen import generate_source
-from array_vectorize.frontend.info import Param
-from array_vectorize.ir import (
-    Binding,
-    BinOp,
-    Call,
-    Compare,
-    DType,
-    Literal,
-    Logical,
-    Program,
-    Ref,
-    UnaryOp,
-    Where,
-)
-from array_vectorize.lower.types import LoweredFunction
+from array_vectorize import codegen, ir
+from array_vectorize.frontend import info
+from array_vectorize.lower import types
 
 
 def make_lowered(
-    params: list[Param], program: Program, name: str = "f", docstring: str | None = None
-) -> LoweredFunction:
-    return LoweredFunction(
+    params: list[info.Param], program: ir.Program, name: str = "f", docstring: str | None = None
+) -> types.LoweredFunction:
+    return types.LoweredFunction(
         program=program,
         name=name,
         params=params,
@@ -40,18 +27,18 @@ def make_lowered(
     )
 
 
-def gen(program: Program, params: list[Param] | None = None) -> str:
-    params = params if params is not None else [Param("x", "arg")]
-    return generate_source(make_lowered(params, program), program)
+def gen(program: ir.Program, params: list[info.Param] | None = None) -> str:
+    params = params if params is not None else [info.Param("x", "arg")]
+    return codegen.generate_source(make_lowered(params, program), program)
 
 
 def test_simple_return() -> None:
-    src = gen(Program(("x",), (), BinOp("add", Ref("x"), Literal(1, "int"))))
+    src = gen(ir.Program(("x",), (), ir.BinOp("add", ir.Ref("x"), ir.Literal(1, "int"))))
     assert "return x + 1" in src
 
 
 def test_module_shape() -> None:
-    src = gen(Program(("x",), (), Ref("x")))
+    src = gen(ir.Program(("x",), (), ir.Ref("x")))
     assert src.startswith("from array_api_compat import array_namespace")
     assert "def f_vec(x):" in src
     assert '"""\n    (array-vectorized) no docstring on the scalar original.' in src
@@ -62,47 +49,47 @@ def test_module_shape() -> None:
 
 
 def test_module_shape_with_docstring() -> None:
-    program = Program(("x",), (), Ref("x"))
-    lowered = make_lowered([Param("x", "arg")], program, docstring="Double x.")
-    src = generate_source(lowered, program)
+    program = ir.Program(("x",), (), ir.Ref("x"))
+    lowered = make_lowered([info.Param("x", "arg")], program, docstring="Double x.")
+    src = codegen.generate_source(lowered, program)
     assert "(array-vectorized) Double x." in src
     assert "no docstring on the scalar original" not in src
 
 
 def test_operators_stay_operators() -> None:
     src = gen(
-        Program(
+        ir.Program(
             ("x", "y"),
             (),
-            BinOp(
+            ir.BinOp(
                 "sub",
-                BinOp("mul", Ref("x"), Ref("y")),
-                BinOp("div", Ref("x"), Ref("y")),
+                ir.BinOp("mul", ir.Ref("x"), ir.Ref("y")),
+                ir.BinOp("div", ir.Ref("x"), ir.Ref("y")),
             ),
         ),
-        [Param("x", "arg"), Param("y", "arg")],
+        [info.Param("x", "arg"), info.Param("y", "arg")],
     )
     assert "return x * y - x / y" in src
 
 
 def test_div_pow_mod_floordiv_become_xp_calls() -> None:
-    src = gen(Program(("x",), (), BinOp("pow", Ref("x"), Literal(2, "int"))))
+    src = gen(ir.Program(("x",), (), ir.BinOp("pow", ir.Ref("x"), ir.Literal(2, "int"))))
     assert "xp.pow(x, 2)" in src
-    src = gen(Program(("x",), (), BinOp("floordiv", Ref("x"), Literal(2, "int"))))
+    src = gen(ir.Program(("x",), (), ir.BinOp("floordiv", ir.Ref("x"), ir.Literal(2, "int"))))
     assert "xp.floor_divide(x, 2)" in src
-    src = gen(Program(("x",), (), BinOp("mod", Ref("x"), Literal(2, "int"))))
+    src = gen(ir.Program(("x",), (), ir.BinOp("mod", ir.Ref("x"), ir.Literal(2, "int"))))
     assert "xp.remainder(x, 2)" in src
 
 
 def test_logical_not_where() -> None:
     src = gen(
-        Program(
+        ir.Program(
             ("x",),
             (),
-            Where(
-                UnaryOp("not", Compare("gt", Ref("x"), Literal(0, "int"))),
-                Literal(1.0, "float"),
-                Ref("x"),
+            ir.Where(
+                ir.UnaryOp("not", ir.Compare("gt", ir.Ref("x"), ir.Literal(0, "int"))),
+                ir.Literal(1.0, "float"),
+                ir.Ref("x"),
             ),
         )
     )
@@ -111,15 +98,15 @@ def test_logical_not_where() -> None:
 
 def test_logical_and_folded_pairwise() -> None:
     src = gen(
-        Program(
+        ir.Program(
             ("x",),
             (),
-            Logical(
+            ir.Logical(
                 "and",
                 (
-                    Compare("lt", Literal(0, "int"), Ref("x")),
-                    Compare("lt", Ref("x"), Literal(1, "int")),
-                    Compare("lt", Ref("x"), Literal(2, "int")),
+                    ir.Compare("lt", ir.Literal(0, "int"), ir.Ref("x")),
+                    ir.Compare("lt", ir.Ref("x"), ir.Literal(1, "int")),
+                    ir.Compare("lt", ir.Ref("x"), ir.Literal(2, "int")),
                 ),
             ),
         )
@@ -128,27 +115,33 @@ def test_logical_and_folded_pairwise() -> None:
 
 
 def test_inf_nan_literals() -> None:
-    src = gen(Program(("x",), (), BinOp("add", Ref("x"), Literal(float("inf"), "float"))))
+    src = gen(
+        ir.Program(("x",), (), ir.BinOp("add", ir.Ref("x"), ir.Literal(float("inf"), "float")))
+    )
     assert "x + xp.inf" in src
-    src = gen(Program(("x",), (), BinOp("add", Ref("x"), Literal(float("-inf"), "float"))))
+    src = gen(
+        ir.Program(("x",), (), ir.BinOp("add", ir.Ref("x"), ir.Literal(float("-inf"), "float")))
+    )
     assert "x + -xp.inf" in src
-    src = gen(Program(("x",), (), BinOp("add", Ref("x"), Literal(float("nan"), "float"))))
+    src = gen(
+        ir.Program(("x",), (), ir.BinOp("add", ir.Ref("x"), ir.Literal(float("nan"), "float")))
+    )
     assert "x + xp.nan" in src
 
 
 def test_casts() -> None:
-    src = gen(Program(("x",), (), Call("astype", (Ref("x"), DType("int64")))))
+    src = gen(ir.Program(("x",), (), ir.Call("astype", (ir.Ref("x"), ir.DType("int64")))))
     assert "xp.astype(x, xp.int64)" in src
 
 
 def test_bindings_and_temp() -> None:
-    program = Program(
+    program = ir.Program(
         ("x",),
         (
-            Binding("t_1", Call("sqrt", (Ref("x"),))),
-            Binding("a", BinOp("add", Ref("t_1"), Ref("t_1"))),
+            ir.Binding("t_1", ir.Call("sqrt", (ir.Ref("x"),))),
+            ir.Binding("a", ir.BinOp("add", ir.Ref("t_1"), ir.Ref("t_1"))),
         ),
-        Ref("a"),
+        ir.Ref("a"),
     )
     src = gen(program)
     assert "t_1 = xp.sqrt(x)" in src
@@ -160,20 +153,20 @@ def test_bindings_and_temp() -> None:
 
 def test_defaults_and_kwonly() -> None:
     params = [
-        Param("x", "arg"),
-        Param("scale", "arg", 2.0, True),
-        Param("flag", "kwonly", True, True),
+        info.Param("x", "arg"),
+        info.Param("scale", "arg", 2.0, True),
+        info.Param("flag", "kwonly", True, True),
     ]
-    program = Program(("x", "scale", "flag"), (), Ref("x"))
+    program = ir.Program(("x", "scale", "flag"), (), ir.Ref("x"))
     src = gen(program, params)
     assert "def f_vec(x, scale=2.0, *, flag=True):" in src
 
 
 def test_hidden_params_kwonly_none() -> None:
-    lowered = LoweredFunction(
-        program=Program(("x", "ARR"), (), Ref("ARR")),
+    lowered = types.LoweredFunction(
+        program=ir.Program(("x", "ARR"), (), ir.Ref("ARR")),
         name="f",
-        params=[Param("x", "arg")],
+        params=[info.Param("x", "arg")],
         param_names=["x"],
         hidden_params=[("ARR", "placeholder")],
         helpers=[],
@@ -183,22 +176,22 @@ def test_hidden_params_kwonly_none() -> None:
         source="def f(x):\n    return ARR",
         docstring=None,
     )
-    src = generate_source(lowered, lowered.program)
+    src = codegen.generate_source(lowered, lowered.program)
     assert "def f_vec(x, *, ARR=None):" in src
     assert "xp = array_namespace(x, ARR)" in src
 
 
 def test_posonly_marker() -> None:
-    params = [Param("x", "posonly"), Param("y", "arg")]
-    program = Program(("x", "y"), (), Ref("x"))
+    params = [info.Param("x", "posonly"), info.Param("y", "arg")]
+    program = ir.Program(("x", "y"), (), ir.Ref("x"))
     src = gen(program, params)
     assert "def f_vec(x, /, y):" in src
 
 
 def test_reserved_param_kept_namespace_renamed() -> None:
-    params = [Param("xp", "arg")]
-    lowered = LoweredFunction(
-        program=Program(("xp",), (), Ref("xp")),
+    params = [info.Param("xp", "arg")]
+    lowered = types.LoweredFunction(
+        program=ir.Program(("xp",), (), ir.Ref("xp")),
         name="f",
         params=params,
         param_names=["xp"],
@@ -210,28 +203,32 @@ def test_reserved_param_kept_namespace_renamed() -> None:
         source="def f(xp):\n    return xp",
         docstring=None,
     )
-    src = generate_source(lowered, lowered.program)
+    src = codegen.generate_source(lowered, lowered.program)
     assert "def f_vec(xp):" in src
     assert "xp_1 = array_namespace(" in src
 
 
 def test_generated_source_is_valid_python() -> None:
-    program = Program(
+    program = ir.Program(
         ("x", "y"),
         (
-            Binding("a", Call("sqrt", (BinOp("add", Ref("x"), Ref("y")),))),
-            Binding(
+            ir.Binding("a", ir.Call("sqrt", (ir.BinOp("add", ir.Ref("x"), ir.Ref("y")),))),
+            ir.Binding(
                 "b",
-                Where(Compare("gt", Ref("a"), Literal(0, "int")), Ref("a"), Literal(0.0, "float")),
+                ir.Where(
+                    ir.Compare("gt", ir.Ref("a"), ir.Literal(0, "int")),
+                    ir.Ref("a"),
+                    ir.Literal(0.0, "float"),
+                ),
             ),
         ),
-        BinOp("add", Ref("b"), Literal(1, "int")),
+        ir.BinOp("add", ir.Ref("b"), ir.Literal(1, "int")),
     )
-    src = gen(program, [Param("x", "arg"), Param("y", "arg")])
+    src = gen(program, [info.Param("x", "arg"), info.Param("y", "arg")])
     ast.parse(src)  # must not raise
 
 
 def test_no_numpy_leakage() -> None:
-    src = gen(Program(("x",), (), Call("sqrt", (Ref("x"),))))
+    src = gen(ir.Program(("x",), (), ir.Call("sqrt", (ir.Ref("x"),))))
     assert "np." not in src
     assert "numpy" not in src

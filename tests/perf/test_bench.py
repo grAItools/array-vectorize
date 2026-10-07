@@ -23,9 +23,8 @@ import corpus
 import numpy as np
 import pytest
 
-from array_vectorize import vectorize
-from array_vectorize.runtime.arith import _ARITH_OPS, _vec_arith
-from array_vectorize.runtime.minmax import _vec_minmax
+import array_vectorize
+from array_vectorize.runtime import arith, minmax
 
 pytestmark = pytest.mark.slow
 
@@ -40,7 +39,7 @@ KERNELS = [
 ]
 SIZES = [1_000, 100_000, 1_000_000]
 
-_add_id = _ARITH_OPS.index("add")
+_add_id = arith._ARITH_OPS.index("add")
 
 
 @pytest.mark.parametrize(("name", "kernel", "nargs"), KERNELS, ids=[k[0] for k in KERNELS])
@@ -52,7 +51,7 @@ def test_kernel_vs_oracle(benchmark, name, kernel, nargs, size) -> None:
     y = rng.standard_normal(size)
     args = (x, y) if nargs == 2 else (x,)
     small = tuple(a[:100] for a in args)
-    vec = vectorize(kernel)
+    vec = array_vectorize.vectorize(kernel)
     oracle = np.vectorize(kernel)
     assert np.allclose(vec(*small), oracle(*small), equal_nan=True)
 
@@ -91,7 +90,7 @@ def test_compile_time(benchmark) -> None:
                 acc = acc + math.sqrt(x)
         return acc
 
-    vec = benchmark(vectorize, subject)
+    vec = benchmark(array_vectorize.vectorize, subject)
     assert vec(np.asarray([4.0]))[0] == pytest.approx(6.0)
 
 
@@ -103,7 +102,7 @@ def test_helper_dispatch_overhead(benchmark) -> None:
 
     def run() -> None:
         for _ in range(10):
-            _vec_arith(xp, _add_id, a, b)
+            arith._vec_arith(xp, _add_id, a, b)
 
     benchmark(run)
     if not benchmark.disabled:
@@ -122,7 +121,7 @@ def test_minmax_dispatch_overhead(benchmark) -> None:
 
     def run() -> None:
         for _ in range(10):
-            _vec_minmax(xp, False, a, b)
+            minmax._vec_minmax(xp, False, a, b)
 
     benchmark(run)
     if not benchmark.disabled:

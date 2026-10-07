@@ -7,12 +7,12 @@ hook reports remaining lint instead.
 """
 
 import json
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
 
 path = json.load(sys.stdin).get("tool_input", {}).get("file_path", "")
-if path.endswith((".py", ".pyi")) and Path(path).is_file():
+if path.endswith((".py", ".pyi")) and pathlib.Path(path).is_file():
     ruff = ["uv", "run", "--frozen", "ruff"]
     subprocess.run([*ruff, "check", "--select", "I", "--fix", "--force-exclude", "-q", path])
     subprocess.run([*ruff, "format", "--force-exclude", "-q", path])

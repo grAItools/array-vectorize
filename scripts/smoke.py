@@ -4,10 +4,10 @@ import math
 
 import numpy as np
 
-from array_vectorize import vectorize
+import array_vectorize
 
 
-@vectorize
+@array_vectorize.vectorize
 def psi(x):
     """Exponential decay on the positive half, zero below it."""
     if x < 0:
@@ -15,7 +15,7 @@ def psi(x):
     return x * math.exp(-x)
 
 
-@vectorize
+@array_vectorize.vectorize
 def clamp(x, lo=0.0, hi=1.0):
     """Clamp x into [lo, hi]."""
     if x < lo:

@@ -6,9 +6,9 @@ import warnings
 
 import numpy as np
 import pytest
-from support import make_fn
+import support
 
-from array_vectorize import VectorizationError, vectorize
+import array_vectorize
 
 # --------------------------------------------------------------- fallback=True
 
@@ -20,7 +20,7 @@ def test_fallback_used_on_unsupported() -> None:
         return x
 
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(bad, fallback=True)
+        vec = array_vectorize.vectorize(bad, fallback=True)
     xs = np.asarray([5.0, -2.0])
     assert np.allclose(vec(xs), [0.0, -2.0])
 
@@ -32,17 +32,17 @@ def test_fallback_broadcasts_args() -> None:
         return x
 
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(bad, fallback=True)
+        vec = array_vectorize.vectorize(bad, fallback=True)
     xs = np.asarray([[3.0]])  # broadcasts against ys
     ys = np.asarray([[1.0, 2.0]])
     assert np.allclose(vec(xs, ys), [[0.0, -1.0]])
 
 
 def test_fallback_array_kwargs() -> None:
-    fn = make_fn("    while x < y:\n        x = x + 1\n    return x")
+    fn = support.make_fn("    while x < y:\n        x = x + 1\n    return x")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        v = vectorize(fn, fallback=True)
+        v = array_vectorize.vectorize(fn, fallback=True)
     assert np.allclose(v(x=np.asarray([1.0, 3.0])), [2.0, 3.0])
     assert np.allclose(v(np.asarray([1.0, 3.0]), y=np.asarray([2.0, 4.0])), [2.0, 4.0])
 
@@ -56,7 +56,7 @@ def test_fallback_signature_and_source() -> None:
     import inspect
 
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(bad, fallback=True)
+        vec = array_vectorize.vectorize(bad, fallback=True)
     assert list(inspect.signature(vec).parameters) == ["x", "scale"]
     assert "fallback" in vec.source
 
@@ -72,7 +72,7 @@ def test_fallback_non_str_docstring_left_verbatim() -> None:
 
     bad.__doc__ = 42  # type: ignore[assignment]
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(bad, fallback=True)
+        vec = array_vectorize.vectorize(bad, fallback=True)
     assert vec.__doc__ == 42
     assert np.allclose(vec(np.asarray([5.0, -2.0])), [0.0, -2.0])
 
@@ -87,7 +87,7 @@ def test_strict_false_implies_fallback() -> None:
         return x
 
     with pytest.warns(UserWarning, match="falling back"):
-        vec = vectorize(bad, strict=False)
+        vec = array_vectorize.vectorize(bad, strict=False)
     assert np.allclose(vec(np.asarray([5.0, -1.0])), [0.0, -1.0])
 
 
@@ -98,5 +98,5 @@ def test_without_fallback_unsupported_raises() -> None:
             x = x - 1
         return x
 
-    with pytest.raises(VectorizationError):
-        vectorize(also_bad)
+    with pytest.raises(array_vectorize.VectorizationError):
+        array_vectorize.vectorize(also_bad)

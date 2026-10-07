@@ -6,12 +6,12 @@ directories such as .claude/ only forward to them.
 
 from __future__ import annotations
 
+import pathlib
 import re
-from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).parents[1]
+ROOT = pathlib.Path(__file__).parents[1]
 SKILLS = ROOT / ".agents" / "skills"
 CLAUDE_SKILLS = ROOT / ".claude" / "skills"
 CLAUDE_AGENTS = ROOT / ".claude" / "agents"
@@ -22,7 +22,7 @@ STANDARD_FIELDS = {"name", "description", "license", "compatibility", "metadata"
 SKILL_NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
-def _frontmatter(path: Path) -> dict[str, str | list[str]]:
+def _frontmatter(path: pathlib.Path) -> dict[str, str | list[str]]:
     """Top-level keys of a markdown file's YAML frontmatter (scalars, lists)."""
     lines = path.read_text().splitlines()
     assert lines[0] == "---", f"{path} has no frontmatter"
@@ -47,7 +47,7 @@ def test_there_are_skills() -> None:
 
 
 @pytest.mark.parametrize("skill", SKILL_DIRS, ids=lambda p: p.name)
-def test_skill_uses_standard_frontmatter(skill: Path) -> None:
+def test_skill_uses_standard_frontmatter(skill: pathlib.Path) -> None:
     fields = _frontmatter(skill / "SKILL.md")
     assert set(fields) <= STANDARD_FIELDS, set(fields) - STANDARD_FIELDS
     assert fields["name"] == skill.name
@@ -66,7 +66,7 @@ def test_claude_skills_are_symlinks_to_agents_skills() -> None:
 
 
 @pytest.mark.parametrize("agent", sorted(CLAUDE_AGENTS.glob("*.md")), ids=lambda p: p.name)
-def test_claude_subagents_preload_shared_skills(agent: Path) -> None:
+def test_claude_subagents_preload_shared_skills(agent: pathlib.Path) -> None:
     skills = _frontmatter(agent).get("skills", [])
     assert skills, f"{agent} should wrap a skill from .agents/skills"
     assert isinstance(skills, list)

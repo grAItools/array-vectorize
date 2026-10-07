@@ -4,10 +4,10 @@ import math
 
 import numpy as np
 
-from array_vectorize import vectorize
+import array_vectorize
 
 
-@vectorize
+@array_vectorize.vectorize
 def sigmoid(x):
     """Numerically stable logistic sigmoid."""
     if x >= 0:
@@ -16,13 +16,13 @@ def sigmoid(x):
     return z / (1.0 + z)
 
 
-@vectorize
+@array_vectorize.vectorize
 def gelu(x):
     """GELU activation (tanh approximation)."""
     return 0.5 * x * (1.0 + math.tanh(0.7978845608028654 * (x + 0.044715 * x * x * x)))
 
 
-@vectorize
+@array_vectorize.vectorize
 def l2_dist(x, y):
     """Distance accumulated in a constant-trip loop, then sqrt."""
     d = 0.0
