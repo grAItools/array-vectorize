@@ -458,3 +458,40 @@ def test_assign_loop_var_rejected() -> None:
         array_vectorize.vectorize(
             support.make_fn("    for i in range(3):\n        i = i + 1\n    return x")
         )
+
+
+@pytest.mark.parametrize("assignment", ["y = y + 1", "y += 1", "y = y + y"])
+@pytest.mark.parametrize("trips", [0, 1, 3])
+def test_boolean_input_carried_through_loop(assignment: str, trips: int) -> None:
+    scalar = support.make_fn(
+        f"    y = x\n    for i in range({trips}):\n        {assignment}\n    return y"
+    )
+    got = array_vectorize.vectorize(scalar)(np.asarray([False, True]))
+    assert [int(v) for v in got] == [scalar(False), scalar(True)]
+    assert np.asarray(got).dtype.kind == ("b" if trips == 0 else "i")
+
+
+@pytest.mark.parametrize(
+    "condition", ["i == 0", "i == 0 and i < 2", "i == 0 or i < 0", "not (i != 0)", "i + 1 == 1"]
+)
+@pytest.mark.parametrize("statement", [False, True])
+@pytest.mark.parametrize("trips", [1, 3])
+def test_loop_index_selects_branch_without_dtype_promotion(
+    condition: str, statement: bool, trips: int
+) -> None:
+    body = f"        y = x if {condition} else y + 1"
+    if statement:
+        body = f"        if {condition}:\n            y = x\n        else:\n            y = y + 1"
+    scalar = support.make_fn(f"    y = True\n    for i in range({trips}):\n{body}\n    return y")
+    values = [-0.0, 0.0, -1.0, 1.0, np.nextafter(0.0, 1.0), -np.inf, np.inf, np.nan]
+    got = array_vectorize.vectorize(scalar)(np.asarray(values, dtype=np.float64))
+    np.testing.assert_equal(np.asarray(got), [scalar(v) for v in values])
+    assert np.asarray(got).dtype.kind == "f"
+    if trips == 1:
+        np.testing.assert_equal(np.signbit(np.asarray(got)), np.signbit(values))
+
+
+@pytest.mark.parametrize(("bounds", "trips"), [("-7 % 3", 2), ("7 // -3, 0", 3)])
+def test_negative_constant_arithmetic_in_loop_bounds(bounds: str, trips: int) -> None:
+    scalar = support.make_fn(f"    for i in range({bounds}):\n        x = x + 1\n    return x")
+    np.testing.assert_array_equal(array_vectorize.vectorize(scalar)(np.asarray([0])), [trips])

@@ -9,6 +9,7 @@ scalar semantics in the comments.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from array_vectorize.runtime import arith
 from array_vectorize.runtime import dtype
@@ -180,3 +181,21 @@ def test_describe_dtype_classifies_uint64_as_float64_class() -> None:
     # small int literals count as the minimal dtype that fits
     assert dtype._describe_dtype(5) == (False, 8)
     assert dtype._describe_dtype(np.asarray([True])) == (False, 8)
+
+
+@pytest.mark.parametrize("left_kind", ["int64", "uint64"])
+@pytest.mark.parametrize("right_kind", ["int64", "uint64"])
+def test_integer_division_matches_python_rounding(left_kind: str, right_kind: str) -> None:
+    rng = np.random.default_rng(287)
+
+    def operands(kind: str) -> np.ndarray:
+        info = np.iinfo(kind)
+        values = rng.integers(info.min, info.max, size=128, endpoint=True, dtype=kind)
+        return np.concatenate((values, np.asarray([1, 2**53 + 1, info.max], dtype=kind)))
+
+    left, right = operands(left_kind), operands(right_kind)
+    right[right == 0] = 1
+    got = arith._vec_arith(xp, int(arith.ArithOp.DIV), left, right)
+    expected = [int(a) / int(b) for a, b in zip(left, right, strict=True)]
+    np.testing.assert_array_equal(got, expected)
+    np.testing.assert_array_equal(np.signbit(got), np.signbit(expected))

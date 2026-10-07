@@ -11,4 +11,4 @@ def arith_ops_vec(x, y):
                 return (x + y - x * y) / (x * x + y * y)
     """
     xp = array_namespace(x, y)
-    return (x + y - x * y) / (x * x + y * y)
+    return _vec_arith(xp, 4, x + y - x * y, x * x + y * y)

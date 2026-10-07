@@ -913,3 +913,53 @@ def test_nonnegative_signed_left_mod_uint64_exact() -> None:
     )
     got = vec(np.asarray([2**63 + 1], dtype=np.uint64), np.asarray([7], dtype=np.int64))
     assert int(got[0]) == 7
+
+
+@pytest.mark.parametrize("op", ["%", "//"])
+@pytest.mark.parametrize("bound", [False, True])
+def test_negative_integer_with_unsigned_input(op: str, bound: bool) -> None:
+    body = f"    return -7 {op} x"
+    if bound:
+        body = f"    n = -7\n    return n {op} x"
+    scalar = support.make_fn(body)
+    values = [1, 2, 2**63, 2**64 - 1]
+    got = array_vectorize.vectorize(scalar)(np.asarray(values, dtype=np.uint64))
+    assert [int(v) for v in got] == [scalar(v) for v in values]
+    assert np.asarray(got).dtype.kind == ("u" if op == "%" else "i")
+
+
+@pytest.mark.parametrize("dtype", ["bool", "int64", "uint64"])
+def test_true_division_of_integer_inputs(dtype: str) -> None:
+    scalar = support.make_fn("    return x / y", defaults="x, y")
+    values = [True, False] if dtype == "bool" else [1, 2, 3]
+    if dtype == "uint64":
+        values += [2**63, 2**64 - 1]
+    denominator = True if dtype == "bool" else 3
+    got = array_vectorize.vectorize(scalar)(
+        np.asarray(values, dtype=getattr(np, dtype)),
+        np.asarray([denominator] * len(values), dtype=getattr(np, dtype)),
+    )
+    assert [float(v) for v in got] == [scalar(v, denominator) for v in values]
+
+
+def test_integer_division_does_not_round_the_denominator_first() -> None:
+    scalar = support.make_fn("    return x / y", defaults="x, y")
+    left = [1, -1, -(2**63), 2**63 - 1, 0]
+    right = [2**53 + 1, 2**53 + 1, -1, 3, -1]
+    got = array_vectorize.vectorize(scalar)(
+        np.asarray(left, dtype=np.int64),
+        np.asarray(right, dtype=np.int64),
+    )
+    expected = [a / b for a, b in zip(left, right, strict=True)]
+    np.testing.assert_array_equal(np.asarray(got), expected)
+    np.testing.assert_array_equal(np.signbit(np.asarray(got)), np.signbit(expected))
+
+
+def test_unsigned_floor_division_preserves_unrepresentable_negative_sign() -> None:
+    scalar = support.make_fn("    return x // -1")
+    values = [0, 1, 2**63, 2**63 + 1, 2**64 - 1]
+    got = array_vectorize.vectorize(scalar)(np.asarray(values, dtype=np.uint64))
+    # No integer array dtype holds these results; the lattice uses float64.
+    assert np.asarray(got).dtype.kind == "f"
+    np.testing.assert_array_equal(np.asarray(got), [float(-v) for v in values])
+    np.testing.assert_array_equal(np.signbit(np.asarray(got)), [v != 0 for v in values])

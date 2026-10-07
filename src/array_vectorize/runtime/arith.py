@@ -106,6 +106,62 @@ def _u64_sub_exact(xp: Any, left: Any, right: Any) -> Any | None:
     return None
 
 
+def _integer_true_divide(xp: Any, left: Any, right: Any) -> Any:
+    """Correctly round ratios of 64-bit integers without rounding inputs.
+
+    Binary long division collects 53 significand bits plus guard/sticky
+    bits. Signed int64 stores unsigned magnitudes modularly, allowing
+    backends without uint64 arithmetic to use the same path. Remainders
+    are doubled via subtraction so comparisons never depend on overflow.
+    The fixed trip count also permits tracing by JAX and PyTorch.
+    """
+    left_array = xp.asarray(left)
+    right_array = xp.asarray(right)
+    a = xp.astype(left_array, xp.int64)
+    b = xp.astype(right_array, xp.int64)
+    l_neg = a < 0 if "uint" not in str(left_array.dtype) else xp.asarray(False)
+    r_neg = b < 0 if "uint" not in str(right_array.dtype) else xp.asarray(False)
+    a = xp.where(l_neg, -a, a)
+    b = xp.where(r_neg, -b, b)
+    zero_divisor = b == 0
+    b = xp.where(zero_divisor, xp.asarray(1, dtype=xp.int64), b)
+    remainder = xp.zeros_like(a + b)
+    mantissa = xp.zeros_like(remainder)
+    count = xp.zeros_like(remainder)
+    exponent = xp.zeros_like(remainder)
+    guard = xp.zeros_like(remainder, dtype=xp.bool)
+    sticky = xp.zeros_like(guard)
+    for position in range(63, -119, -1):
+        incoming = (a >> position) & 1 if position >= 0 else xp.asarray(0, dtype=xp.int64)
+        threshold = b - remainder - incoming
+        # Unsigned comparison using signed storage: a set sign bit means
+        # the unsigned value is larger than every nonnegative int64.
+        bit = xp.where((remainder < 0) != (threshold < 0), remainder < 0, remainder >= threshold)
+        remainder = xp.where(
+            bit, remainder - (b - remainder) + incoming, remainder + remainder + incoming
+        )
+        started = (count != 0) | bit
+        exponent = xp.where((count == 0) & bit, xp.asarray(position), exponent)
+        collect = started & (count < 53)
+        mantissa = xp.where(collect, mantissa * 2 + xp.astype(bit, xp.int64), mantissa)
+        rounding_bit = count == 53
+        guard = xp.where(rounding_bit, bit, guard)
+        unconsumed = (a & ((1 << position) - 1)) != 0 if position > 0 else xp.asarray(False)
+        sticky = xp.where(rounding_bit, (remainder != 0) | unconsumed, sticky)
+        count = xp.where(started, count + 1, count)
+    round_up = guard & (sticky | ((mantissa & 1) != 0))
+    mantissa = mantissa + xp.astype(round_up, xp.int64)
+    result = xp.astype(mantissa, xp.float64) * xp.pow(
+        xp.asarray(2.0, dtype=xp.float64), xp.astype(exponent - 52, xp.float64)
+    )
+    result = xp.where(l_neg != r_neg, -result, result)
+    # Numeric exceptions deliberately become IEEE values (design D3).
+    denominator = xp.where(
+        zero_divisor, xp.asarray(0.0, dtype=xp.float64), xp.asarray(1.0, dtype=xp.float64)
+    )
+    return result / denominator
+
+
 def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
     """Exact-semantics arithmetic for bool-intified operations.
 
@@ -121,11 +177,9 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
     - add/sub/mul and floordiv/mod with non-negative divisors: modular
       uint64 (exact while the true result is in [0, 2**64) — all any
       dtype can hold);
-    - array % negative-literal and array // negative-literal: the results
-      ALWAYS fit int64 (remainder magnitude < |divisor| <= 2**63; floor
-      magnitude <= 2**63), so the magnitudes are computed exactly in
-      uint64 and negated into int64 — per lane, regardless of how large
-      the input values are;
+    - array % negative-literal and array // negative-literal: magnitudes
+      are computed exactly in uint64, then negated into int64 when they
+      fit. Quotients below int64-min use the float64 fallback;
     - negative-literal % array and negation: int64 whenever the values
       fit (checked at runtime); otherwise float64, because those results
       are genuinely unrepresentable in int64 on the offending lanes.
@@ -136,6 +190,8 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
     has_real_float = any(
         hasattr(a, "dtype") and ("float" in str(a.dtype) or "complex" in str(a.dtype)) for a in args
     ) or any(isinstance(a, float) for a in args)
+    if op == "div" and not has_real_float:
+        return _integer_true_divide(xp, left, right)
     if any(_is_u64(a) for a in args) and not has_real_float:
         others_intish = all(
             (hasattr(a, "dtype") and ("uint" in str(a.dtype) or "bool" in str(a.dtype)))
@@ -196,7 +252,13 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 q = left // d
                 r = left % d
                 mag = q + xp.astype(r > 0, left.dtype)  # ceil(a / |d|)
-                return -xp.astype(mag, xp.int64)
+                if bool(xp.all(mag <= 2**63)):
+                    return -xp.astype(mag, xp.int64)
+                # Larger negative quotients cannot fit int64. Preserve
+                # their sign with the lattice's float64 fallback.
+                return xp.where(
+                    mag == 0, xp.asarray(0.0, dtype=xp.float64), -xp.astype(mag, xp.float64)
+                )
             if op == "mod" and isinstance(left, int) and left < 0 and _is_u64(right):
                 # negative-literal % array: (v - |d| mod v) mod v — always
                 # in [0, v), exactly representable in uint64
@@ -221,10 +283,6 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 if bool(xp.all(left <= 2**63)):
                     return -xp.astype(left, xp.int64)
                 return -xp.astype(left, xp.float64)
-        if op == "div":
-            return operator.truediv(
-                xp.asarray(left, dtype=xp.float64), xp.asarray(right, dtype=xp.float64)
-            )
     # generic: cast to the common dtype and compute
     classes = [dtype._describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)

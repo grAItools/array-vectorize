@@ -79,7 +79,30 @@ def _gen_literal(lit: ir.Literal, ns: str) -> ast.expr:
     return ast.Constant(value=value)
 
 
-def _gen_expr(node: ir.Node, ns: str) -> ast.expr:
+def _is_python_scalar(node: ir.Node, names: frozenset[str]) -> bool:
+    """Prove raw scalar expressions built only from literals and loop indices."""
+    match node:
+        case ir.Literal():
+            return True
+        case ir.Ref():
+            return node.name in names
+        case ir.BinOp():
+            return (
+                node.op in _BINOP_AST
+                and _is_python_scalar(node.left, names)
+                and _is_python_scalar(node.right, names)
+            )
+        case ir.UnaryOp():
+            return _is_python_scalar(node.operand, names)
+        case ir.Compare():
+            return _is_python_scalar(node.left, names) and _is_python_scalar(node.right, names)
+        case ir.Logical():
+            return all(_is_python_scalar(part, names) for part in node.parts)
+        case _:
+            return False
+
+
+def _gen_expr(node: ir.Node, ns: str, scalar_names: frozenset[str] = frozenset()) -> ast.expr:
     match node:
         case ir.Literal():
             return _gen_literal(node, ns)
@@ -91,43 +114,69 @@ def _gen_expr(node: ir.Node, ns: str) -> ast.expr:
             if node.op in _BINOP_AST:
                 return ast.BinOp(
                     op=_BINOP_AST[node.op](),
-                    left=_gen_expr(node.left, ns),
-                    right=_gen_expr(node.right, ns),
+                    left=_gen_expr(node.left, ns, scalar_names),
+                    right=_gen_expr(node.right, ns, scalar_names),
                 )
             return _xp_call(
-                ns, _BINOP_XP[node.op], [_gen_expr(node.left, ns), _gen_expr(node.right, ns)]
+                ns,
+                _BINOP_XP[node.op],
+                [_gen_expr(node.left, ns, scalar_names), _gen_expr(node.right, ns, scalar_names)],
             )
         case ir.UnaryOp():
             if node.op == "neg":
-                return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand, ns))
+                return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand, ns, scalar_names))
             if node.op == "pos":
-                return ast.UnaryOp(op=ast.UAdd(), operand=_gen_expr(node.operand, ns))
+                return ast.UnaryOp(op=ast.UAdd(), operand=_gen_expr(node.operand, ns, scalar_names))
             if node.op == "invert":
-                return ast.UnaryOp(op=ast.Invert(), operand=_gen_expr(node.operand, ns))
-            return _xp_call(ns, "logical_not", [_gen_expr(node.operand, ns)])
+                return ast.UnaryOp(
+                    op=ast.Invert(), operand=_gen_expr(node.operand, ns, scalar_names)
+                )
+            if _is_python_scalar(node.operand, scalar_names):
+                return ast.UnaryOp(op=ast.Not(), operand=_gen_expr(node.operand, ns, scalar_names))
+            return _xp_call(ns, "logical_not", [_gen_expr(node.operand, ns, scalar_names)])
         case ir.Compare():
             return ast.Compare(
-                left=_gen_expr(node.left, ns),
+                left=_gen_expr(node.left, ns, scalar_names),
                 ops=[_CMPOP_AST[node.op]()],
-                comparators=[_gen_expr(node.right, ns)],
+                comparators=[_gen_expr(node.right, ns, scalar_names)],
             )
         case ir.Logical():
+            if _is_python_scalar(node, scalar_names):
+                return ast.BoolOp(
+                    op=ast.And() if node.op == "and" else ast.Or(),
+                    values=[_gen_expr(part, ns, scalar_names) for part in node.parts],
+                )
             fn = "logical_and" if node.op == "and" else "logical_or"
-            folded = _gen_expr(node.parts[0], ns)
+            folded = _gen_expr(node.parts[0], ns, scalar_names)
             for part in node.parts[1:]:
-                folded = _xp_call(ns, fn, [folded, _gen_expr(part, ns)])
+                folded = _xp_call(ns, fn, [folded, _gen_expr(part, ns, scalar_names)])
             return folded
         case ir.Where():
+            if _is_python_scalar(node.cond, scalar_names):
+                # A loop-index condition selects one whole-array branch.
+                # Python selection preserves its dtype without sending a
+                # raw bool or incompatible branch dtypes to xp.where (D6).
+                return ast.IfExp(
+                    test=_gen_expr(node.cond, ns, scalar_names),
+                    body=_gen_expr(node.then, ns, scalar_names),
+                    orelse=_gen_expr(node.other, ns, scalar_names),
+                )
             return _xp_call(
                 ns,
                 "where",
-                [_gen_expr(node.cond, ns), _gen_expr(node.then, ns), _gen_expr(node.other, ns)],
+                [
+                    _gen_expr(node.cond, ns, scalar_names),
+                    _gen_expr(node.then, ns, scalar_names),
+                    _gen_expr(node.other, ns, scalar_names),
+                ],
             )
         case ir.Call():
-            return _xp_call(ns, node.fn, [_gen_expr(a, ns) for a in node.args])
+            return _xp_call(ns, node.fn, [_gen_expr(a, ns, scalar_names) for a in node.args])
         case ir.FuncCall():
             return ast.Call(
-                func=_load(node.fn), args=[_gen_expr(a, ns) for a in node.args], keywords=[]
+                func=_load(node.fn),
+                args=[_gen_expr(a, ns, scalar_names) for a in node.args],
+                keywords=[],
             )
         case _:
             assert_never(node)
@@ -200,15 +249,17 @@ def _gen_range_call(loop: ir.Loop, ns: str) -> ast.Call:
     return ast.Call(func=_load("range"), args=args, keywords=[])
 
 
-def _gen_stmt(stmt: ir.Stmt, ns: str) -> ast.stmt:
+def _gen_stmt(stmt: ir.Stmt, ns: str, scalar_names: frozenset[str] = frozenset()) -> ast.stmt:
     match stmt:
         case ir.Binding():
             return ast.Assign(
                 targets=[ast.Name(id=stmt.name, ctx=ast.Store())],
-                value=_gen_expr(stmt.expr, ns),
+                value=_gen_expr(stmt.expr, ns, scalar_names),
             )
         case ir.Loop():
-            body = [_gen_stmt(inner, ns) for inner in stmt.body]
+            body: list[ast.stmt] = [
+                _gen_stmt(inner, ns, scalar_names | {stmt.var}) for inner in stmt.body
+            ]
             if not body:
                 # (15) a retained loop with a fully dead body still needs a statement
                 body = [ast.Pass()]

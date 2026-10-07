@@ -11,4 +11,4 @@ def ternary_vec(x):
                 return x * 2 if x > 0 else x / 2
     """
     xp = array_namespace(x)
-    return xp.where(x > 0, x * 2, x / 2)
+    return xp.where(x > 0, x * 2, _vec_arith(xp, 4, x, 2))
