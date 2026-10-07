@@ -12,11 +12,14 @@ export UV_PROJECT_ENVIRONMENT := .venv-$(PY)
 endif
 PY_PATHS := src tests scripts examples .claude/hooks
 
-.PHONY: install headers headers-fix fmt lint type type-mypy type-pyright type-zuban type-pyrefly test coverage check lowest smoke fuzz bench backends docs docs-serve notebook release
+.PHONY: install hooks headers headers-fix fmt lint type type-mypy type-pyright type-zuban type-pyrefly test coverage check lowest smoke fuzz bench backends docs docs-serve notebook release
 
 install:
 	$(UV) sync
-	$(RUN) pre-commit install
+	$(RUN) --frozen prek install --force
+
+hooks:
+	$(RUN) --frozen prek run --all-files --show-diff-on-failure
 
 headers:
 	$(RUN) --frozen python scripts/license_headers.py --check

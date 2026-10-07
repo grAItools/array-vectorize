@@ -56,7 +56,7 @@ Invariants:
 The code follows the Google Python Style Guide, single deviation:
 100-column lines. Imports follow Google §2.2 (import modules, not
 names), enforced by cleanporter in `make lint` and `make fmt`; ruff
-enforces the rest via `make lint` / pre-commit.
+enforces the rest via `make lint` / prek hooks.
 
 ## Tests
 

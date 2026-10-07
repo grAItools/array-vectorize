@@ -47,7 +47,7 @@ dev = [
     "coverage[toml]>=7.6",
     "numpy>=2.0",
     "array-api-strict>=2.3",
-    "pre-commit>=3.5",
+    "prek>=0.5",
     "pyyaml>=6.0",  # repository workflow and hook configuration tests
     "cleanporter>=0.6",
 ]

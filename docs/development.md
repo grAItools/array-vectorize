@@ -8,7 +8,7 @@ are locked in `uv.lock`, the development Python version is pinned in
 virtualenv needs to be activated.
 
 ```bash
-make install      # uv sync (dev group) + pre-commit hooks
+make install      # uv sync (dev group) + prek hooks
 ```
 
 Optional dependency groups: `backends` (jax, CPU torch), `docs`
@@ -22,6 +22,7 @@ dependency at its floor (`--resolution lowest-direct`) on Python 3.12.
 ## Commands
 
 ```bash
+make hooks        # all Git-tracked files through prek, with diffs on failure
 make check        # cleanporter + ruff + four type checkers + pytest + coverage (95%)
 make check PY=3.13    # any target on another Python (env: .venv-3.13)
 make lint type test   # the same gates without coverage
@@ -218,8 +219,13 @@ to the new format like this:
 | `ci: x` | `ci: x` (type, no scope) |
 | `build: x` | `build: x` (type, no scope) |
 
-Existing clones must re-run `make install` once to pick up the new
-commit-msg hook.
+The hook runner is `prek`; the configuration filename and Git's `pre-commit`
+and `commit-msg` stage names stay unchanged. Existing clones must rerun
+`make install` after switching runners to replace both installed hooks.
+`make hooks` checks all Git-tracked files; staged-only runs and untracked new
+files can be silently skipped by filename-filtered hooks. `make lint type`
+walks maintained code directly, and the header hook additionally discovers
+nonignored untracked Python files. CI uses the same Make checks without autofixing.
 
 ## Coding agents
 
