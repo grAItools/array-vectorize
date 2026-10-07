@@ -148,6 +148,8 @@ order-by-type = false
 scope = "all"
 # golden cases are pinned compiler output; marimo owns the notebook format
 exclude = ["tests/golden/cases/", "examples/notebooks/"]
+# unclassifiable imports (CP002) fail the gate, not only plain violations
+treat_unresolved_as_error = true
 
 [[tool.cleanporter.skip]]
 file = 'tests/corpus\.py'

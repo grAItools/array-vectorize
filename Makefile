@@ -33,6 +33,9 @@ fmt:
 lint:
 	$(RUN) ruff check $(PY_PATHS)
 	$(RUN) ruff format --check $(PY_PATHS)
+	# the import gate: exits 0 only when clean -- treat_unresolved_as_error
+	# makes unclassifiable imports fail too
+	$(RUN) cleanporter $(PY_PATHS)
 
 type:
 	$(RUN) mypy

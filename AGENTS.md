@@ -46,7 +46,9 @@ Invariants:
   change, then review `git diff tests/golden/cases` line by line.
 
 The code follows the Google Python Style Guide, single deviation:
-100-column lines. Ruff enforces it via `make lint` / pre-commit.
+100-column lines. Imports follow Google §2.2 (import modules, not
+names), enforced by cleanporter in `make lint` and `make fmt`; ruff
+enforces the rest via `make lint` / pre-commit.
 
 ## Tests
 

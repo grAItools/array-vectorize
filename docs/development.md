@@ -22,11 +22,11 @@ dependency at its floor (`--resolution lowest-direct`) on Python 3.12.
 ## Commands
 
 ```bash
-make check        # ruff + mypy (strict) + pytest + coverage (gate: 95%)
+make check        # cleanporter + ruff + mypy (strict) + pytest + coverage (gate: 95%)
 make check PY=3.13    # any target on another Python (env: .venv-3.13)
 make lint type test   # the same gates without coverage
 make lowest       # the test suite at the minimum dependency versions
-make fmt          # format + autofix
+make fmt          # cleanporter --fix, then ruff format / check --fix / format
 make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
 make fuzz         # grammar fuzzer on the CI seeds
 make bench        # pytest-benchmark suite (timings + dispatch gates)
@@ -42,6 +42,10 @@ uv run python -m array_vectorize.fuzz --seconds 60 --seed 0    # fuzz longer
 The default `make check` also runs the slow-marked performance gate;
 plain `pytest` skips nothing but keeps benchmarks disabled
 (`--benchmark-disable` is in `addopts`).
+
+`make lint` includes the cleanporter import gate, and `make fmt` runs the
+same check with `--fix`: cleanporter rewrites first, so ruff formats the
+already-wrapped lines (its module prefixes push lines past 100 columns).
 
 ## Testing layers
 
@@ -73,6 +77,16 @@ The code follows the [Google Python Style Guide]
 conventions (`numpy` as `np`), absolute imports only (TID252,
 `ban-relative-imports = "all"`), and additionally BLE001, PLW0603, G004,
 PGH003 and PGH004 (evaluated: zero violations).
+
+Imports follow Google §2.2 (import modules, not names), enforced by
+[cleanporter](https://pypi.org/project/cleanporter/) in `make lint` and
+`make fmt` (scope `all`; the golden cases and the notebooks are excluded
+as generated and marimo-owned, `tests/corpus.py` is skipped as golden
+test data, and `treat_unresolved_as_error` is on, so an import
+cleanporter cannot classify fails the gate). The deliberate exceptions
+are inline `# cleanporter: ignore[...]` suppressions, each naming its
+finding code and carrying its reason on the import's line. One import
+per line per §3.13 (ruff isort `force-single-line`).
 
 Evaluated and deliberately skipped: TD (conflicts with Google's current
 TODO format) and PLC0415 (import-inside-function is a deliberate pattern
