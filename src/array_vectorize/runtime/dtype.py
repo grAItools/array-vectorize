@@ -82,7 +82,7 @@ def _dtype_bits(dtype: Any) -> int:
 
 
 def _minmax_bound_kind(lit: Any, is_min: Any, dtype: Any) -> str:
-    """ "fit", "clamp", or "promote" for a literal min/max bound.
+    """``"fit"``, ``"clamp"``, or ``"promote"`` for a literal min/max bound.
 
     A bound that cannot win is CLAMPED into an unsigned array dtype
     instead of forcing promotion: max(unsigned, negative) never selects

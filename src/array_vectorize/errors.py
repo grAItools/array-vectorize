@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import dataclasses
 from typing import NoReturn
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Diagnostic:
     """One unsupported-construct finding with its source location."""
 
@@ -16,6 +16,7 @@ class Diagnostic:
     line: str
 
     def render(self) -> str:
+        """Render the finding as a located snippet with a carets pointer."""
         pointer = " " * self.col_offset + "^"
         return (
             f"  line {self.lineno}, col {self.col_offset}: {self.message}\n"
@@ -32,11 +33,13 @@ class VectorizationError(Exception):
     """
 
     def __init__(self, message: str, diagnostics: list[Diagnostic] | None = None) -> None:
+        """Keep the headline message and the collected diagnostics."""
         super().__init__(message)
         self.message = message
         self.diagnostics: list[Diagnostic] = list(diagnostics or [])
 
     def __str__(self) -> str:
+        """The message, plus every rendered diagnostic below it."""
         if not self.diagnostics:
             return self.message
         rendered = "\n".join(d.render() for d in self.diagnostics)

@@ -18,13 +18,25 @@ install:
 	$(UV) sync
 	$(RUN) pre-commit install
 
+# fixers run to completion whatever findings remain; `make lint` stays
+# the gate. cleanporter gets `test $$? -le 1`: it exits 1 whenever
+# anything remains it will not rewrite (no exit-zero flag), but exit 2
+# is an operational error and must fail the recipe. ruff check --fix
+# gets --exit-zero: ruff cannot fix E501 itself, and cleanporter's
+# module prefixes push lines past 100 columns; ruff format runs first
+# and last so the fixes land on wrapped code
 fmt:
-	$(RUN) ruff check --fix $(PY_PATHS)
+	$(RUN) cleanporter --fix $(PY_PATHS); test $$? -le 1
+	$(RUN) ruff format $(PY_PATHS)
+	$(RUN) ruff check --fix --exit-zero $(PY_PATHS)
 	$(RUN) ruff format $(PY_PATHS)
 
 lint:
 	$(RUN) ruff check $(PY_PATHS)
 	$(RUN) ruff format --check $(PY_PATHS)
+	# the import gate: exits 0 only when clean -- treat_unresolved_as_error
+	# makes unclassifiable imports fail too
+	$(RUN) cleanporter $(PY_PATHS)
 
 type:
 	$(RUN) mypy
@@ -72,7 +84,7 @@ fuzz:
 	done
 
 bench:
-	$(RUN) pytest tests/test_bench.py -m slow --benchmark-enable \
+	$(RUN) pytest tests/perf/test_bench.py -m slow --benchmark-enable \
 		--benchmark-only --benchmark-columns=min,median,ops \
 		--benchmark-group-by=func
 

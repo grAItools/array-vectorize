@@ -7,9 +7,9 @@ import warnings
 
 import numpy as np
 import pytest
-from support import make_fn, make_module, vfn
+import support
 
-from array_vectorize import vectorize
+import array_vectorize
 
 # ----------------------------------------------- corpus and parameter preamble
 
@@ -18,7 +18,7 @@ def test_backend_array_api_strict() -> None:
     import array_api_strict as xps
 
     a = xps.asarray([1.0, -2.0, 3.0])
-    got = vfn("relu")(a)
+    got = support.vfn("relu")(a)
     assert isinstance(got, xps.asarray([1.0]).__class__)
     assert list(map(float, got)) == [1.0, 0.0, 3.0]
 
@@ -28,7 +28,7 @@ def test_preamble_normalizes_scalar_params() -> None:
 
     # omitted defaults are raw Python scalars at runtime; the generated
     # preamble normalizes every parameter with xp.asarray
-    vec = vectorize(make_fn("    return x + y"))
+    vec = array_vectorize.vectorize(support.make_fn("    return x + y"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 3.0
 
@@ -36,7 +36,7 @@ def test_preamble_normalizes_scalar_params() -> None:
 def test_int_default_scalar_promotion_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return x + y", defaults="x, y=1"))
+    vec = array_vectorize.vectorize(support.make_fn("    return x + y", defaults="x, y=1"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 2.0
 
@@ -47,7 +47,7 @@ def test_int_default_scalar_promotion_strict() -> None:
 def test_constant_scalar_math_on_strict_backend() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return x + math.sqrt(4.0)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return x + math.sqrt(4.0)"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 3.0
 
@@ -55,7 +55,7 @@ def test_constant_scalar_math_on_strict_backend() -> None:
 def test_literal_binding_math_call() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    y = 4\n    return x + math.sqrt(y)"))
+    vec = array_vectorize.vectorize(support.make_fn("    y = 4\n    return x + math.sqrt(y)"))
     assert np.allclose(vec(np.asarray([1.0])), [3.0])
     assert float(vec(xps.asarray([1.0]))[0]) == 3.0
 
@@ -63,7 +63,7 @@ def test_literal_binding_math_call() -> None:
 def test_scalar_default_math_call_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return x + math.sqrt(y)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return x + math.sqrt(y)"))
     assert np.allclose(vec(np.asarray([1.0])), [1.0 + math.sqrt(2.0)])
     assert float(vec(xps.asarray([1.0]))[0]) == 1.0 + math.sqrt(2.0)
 
@@ -71,7 +71,7 @@ def test_scalar_default_math_call_strict() -> None:
 def test_computed_scalar_math_arg_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return x + math.sqrt(y + 0.0)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return x + math.sqrt(y + 0.0)"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 1.0 + math.sqrt(2.0)
 
@@ -79,7 +79,9 @@ def test_computed_scalar_math_arg_strict() -> None:
 def test_computed_local_scalar_math_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = 1.0 + 3.0\n    return x + math.sqrt(a)"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = 1.0 + 3.0\n    return x + math.sqrt(a)")
+    )
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 3.0
 
@@ -87,8 +89,8 @@ def test_computed_local_scalar_math_strict() -> None:
 def test_loop_var_math_call_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    s = 0.0\n    for i in range(3):\n        s = s + math.sin(i)\n    return s + x"
         )
     )
@@ -99,8 +101,8 @@ def test_loop_var_math_call_strict() -> None:
 def test_loop_index_math_expression_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    s = 0.0\n    for i in range(2):\n        s = s + math.sqrt(i + 1.0)\n    return s"
         )
     )
@@ -112,8 +114,8 @@ def test_loop_index_math_expression_strict() -> None:
 def test_scalar_phi_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    b = 4.0\n"
             "    for i in range(0):\n"
             "        if x > 0:\n"
@@ -132,18 +134,18 @@ def test_scalar_phi_strict() -> None:
 def test_verify_on_strict_backend() -> None:
     import array_api_strict as xps
 
-    mod = make_module("def subject(x):\n    return x\n")
-    vec = vectorize(mod.subject, verify=(xps.asarray([1.0, 2.0]),))
+    mod = support.make_module("def subject(x):\n    return x\n")
+    vec = array_vectorize.vectorize(mod.subject, verify=(xps.asarray([1.0, 2.0]),))
     assert list(map(float, vec(xps.asarray([1.0, 2.0])))) == [1.0, 2.0]
 
 
 def test_fallback_bool_arithmetic_on_strict_backend() -> None:
     import array_api_strict as xps
 
-    fn = make_fn("    while x > 0:\n        x = x - 1\n    b = x > 0\n    return b + b")
+    fn = support.make_fn("    while x > 0:\n        x = x - 1\n    b = x > 0\n    return b + b")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        vec = vectorize(fn, fallback=True)
+        vec = array_vectorize.vectorize(fn, fallback=True)
     got = vec(xps.asarray([3.0]))
     assert list(map(int, got)) == [0]
 
@@ -154,7 +156,7 @@ def test_fallback_bool_arithmetic_on_strict_backend() -> None:
 def test_bool_arithmetic_strict_backend() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return (x > 0) + (x > 0)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return (x > 0) + (x > 0)"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 2.0
 
@@ -162,7 +164,7 @@ def test_bool_arithmetic_strict_backend() -> None:
 def test_bool_mixed_arithmetic_strict_backend() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return (x > 0) + 1"))
+    vec = array_vectorize.vectorize(support.make_fn("    return (x > 0) + 1"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 2.0
 
@@ -170,7 +172,7 @@ def test_bool_mixed_arithmetic_strict_backend() -> None:
 def test_bool_plus_float_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return (x > 0) + x"))
+    vec = array_vectorize.vectorize(support.make_fn("    return (x > 0) + x"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 2.0
 
@@ -178,7 +180,7 @@ def test_bool_plus_float_strict() -> None:
 def test_bool_plus_float_literal_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return (x > 0) + 1.5"))
+    vec = array_vectorize.vectorize(support.make_fn("    return (x > 0) + 1.5"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 2.5
 
@@ -186,7 +188,7 @@ def test_bool_plus_float_literal_strict() -> None:
 def test_arith_result_negative_power_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = (x > 0) + 1\n    return a ** -1"))
+    vec = array_vectorize.vectorize(support.make_fn("    a = (x > 0) + 1\n    return a ** -1"))
     assert float(vec(xps.asarray([2]))[0]) == 0.5
 
 
@@ -196,7 +198,7 @@ def test_arith_result_negative_power_strict() -> None:
 def test_min_max_literal_args_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(x, 3) + max(y, 1)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x, 3) + max(y, 1)"))
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 3.0  # min(1, 3) + max(2, 1) == 1 + 2
 
@@ -204,7 +206,7 @@ def test_min_max_literal_args_strict() -> None:
 def test_min_literal_strict_int_input() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(x, 3)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x, 3)"))
     got = vec(xps.asarray([1], dtype=xps.int64))
     assert int(got[0]) == 1
 
@@ -212,7 +214,7 @@ def test_min_literal_strict_int_input() -> None:
 def test_min_literal_strict_float_default_param() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(y, 3)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(y, 3)"))
     got = vec(xps.asarray([1.0]))
     # constant w.r.t. x: 0-d result is broadcast for comparison
     assert np.allclose(np.broadcast_to(np.asarray(got, dtype=float), (1,)), [2.0])
@@ -221,7 +223,9 @@ def test_min_literal_strict_float_default_param() -> None:
 def test_all_literal_minmax_refs_fold() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = 1.0\n    b = 2.0\n    return x + min(a, b)"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = 1.0\n    b = 2.0\n    return x + min(a, b)")
+    )
     got = vec(xps.asarray([1.0]))
     assert float(got[0]) == 2.0
 
@@ -229,14 +233,14 @@ def test_all_literal_minmax_refs_fold() -> None:
 def test_minmax_promotion_matrix_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(x, 3)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x, 3)"))
     assert int(vec(xps.asarray([1], dtype=xps.int64))[0]) == 1
 
-    vec = vectorize(make_fn("    return min(x, 1.5) + max(y, 1)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x, 1.5) + max(y, 1)"))
     got = vec(xps.asarray([2.0]))
     assert float(got[0]) == 3.5  # min(2, 1.5) + max(2, 1)
 
-    vec = vectorize(make_fn("    return min(x, y)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x, y)"))
     got = vec(xps.asarray([1.0, 3.0]), xps.asarray([2.0, 2.0]))
     assert np.allclose(np.asarray(got, dtype=float), [1.0, 2.0])
 
@@ -246,7 +250,7 @@ def test_max_variadic_literals_strict() -> None:
 
     # 1 fits uint8 but 1.5 forces float64: BOTH literals must cast to
     # float64 (a uint8 literal would break strict same-dtype promotion)
-    vec = vectorize(make_fn("    return max(x, 1, 1.5)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return max(x, 1, 1.5)"))
     got = vec(xps.asarray([2], dtype=xps.uint8))
     assert int(got[0]) == 2
 
@@ -254,7 +258,7 @@ def test_max_variadic_literals_strict() -> None:
 def test_bool_minmax_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(x > 0, x > 1)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x > 0, x > 1)"))
     got = vec(xps.asarray([2, 0]))
     assert list(np.asarray(got, dtype=bool)) == [True, False]
 
@@ -262,7 +266,7 @@ def test_bool_minmax_strict() -> None:
 def test_bool_minmax_strict_max() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return max(x > 0, x > 1)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return max(x > 0, x > 1)"))
     got = vec(xps.asarray([2, 0]))
     assert list(np.asarray(got, dtype=bool)) == [True, False]
 
@@ -270,7 +274,7 @@ def test_bool_minmax_strict_max() -> None:
 def test_bool_only_minmax_bitwise_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(x > 0, x > 1) & (x > 0)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x > 0, x > 1) & (x > 0)"))
     got = vec(xps.asarray([2]))
     assert bool(np.asarray(got).reshape(-1)[0])
 
@@ -281,7 +285,7 @@ def test_bool_only_minmax_bitwise_strict() -> None:
 def test_minmax_runtime_bool_arithmetic_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = min(x, True)\n    return a + a"))
+    vec = array_vectorize.vectorize(support.make_fn("    a = min(x, True)\n    return a + a"))
     got = vec(xps.asarray([True, False]))
     assert list(map(int, np.asarray(got))) == [2, 0]
 
@@ -289,7 +293,7 @@ def test_minmax_runtime_bool_arithmetic_strict() -> None:
 def test_unary_negate_maybe_bool_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = min(x, True)\n    return -a"))
+    vec = array_vectorize.vectorize(support.make_fn("    a = min(x, True)\n    return -a"))
     got = vec(xps.asarray([True, False]))
     assert list(map(int, np.asarray(got))) == [-1, 0]
 
@@ -297,7 +301,9 @@ def test_unary_negate_maybe_bool_strict() -> None:
 def test_bitwise_maybe_bool_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = min(x, True)\n    b = a & True\n    return b + b"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = min(x, True)\n    b = a & True\n    return b + b")
+    )
     got = vec(xps.asarray([True, False]))
     assert list(map(int, np.asarray(got))) == [2, 0]
 
@@ -305,7 +311,7 @@ def test_bitwise_maybe_bool_strict() -> None:
 def test_truediv_bool_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return min(x, True) / 2"))
+    vec = array_vectorize.vectorize(support.make_fn("    return min(x, True) / 2"))
     got = vec(xps.asarray([True, False]))
     assert list(map(float, np.asarray(got))) == [0.5, 0.0]
 
@@ -316,7 +322,9 @@ def test_truediv_bool_strict() -> None:
 def test_uint64_plus_nonnegative_int64_array_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = max(x, True)\n    return a + y", defaults="x, y"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = max(x, True)\n    return a + y", defaults="x, y")
+    )
     got = vec(xps.asarray([2**63 + 1], dtype=xps.uint64), xps.asarray([0], dtype=xps.int64))
     assert int(got[0]) == 9223372036854775809
 
@@ -324,7 +332,9 @@ def test_uint64_plus_nonnegative_int64_array_strict() -> None:
 def test_uint64_minus_uint64_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = max(x, True)\n    return a - y", defaults="x, y"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = max(x, True)\n    return a - y", defaults="x, y")
+    )
     got = vec(xps.asarray([5], dtype=xps.uint64), xps.asarray([7], dtype=xps.uint64))
     assert int(got[0]) == -2
 
@@ -332,7 +342,9 @@ def test_uint64_minus_uint64_strict() -> None:
 def test_int64_minus_uint64_huge_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = max(x, True)\n    return y - a", defaults="x, y"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = max(x, True)\n    return y - a", defaults="x, y")
+    )
     got = vec(xps.asarray([2**63], dtype=xps.uint64), xps.asarray([2**63 - 1], dtype=xps.int64))
     assert int(got[0]) == -1
 
@@ -340,7 +352,7 @@ def test_int64_minus_uint64_huge_strict() -> None:
 def test_literal_minus_uint64_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return 0 - max(x, True)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return 0 - max(x, True)"))
     got = vec(xps.asarray([1], dtype=xps.uint64))
     assert int(got[0]) == -1
 
@@ -348,7 +360,7 @@ def test_literal_minus_uint64_strict() -> None:
 def test_uint64_minus_negative_literal_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return max(x, True) - -2"))
+    vec = array_vectorize.vectorize(support.make_fn("    return max(x, True) - -2"))
     got = vec(xps.asarray([2**63 + 3], dtype=xps.uint64))
     assert int(got[0]) == 2**63 + 5
 
@@ -356,7 +368,7 @@ def test_uint64_minus_negative_literal_strict() -> None:
 def test_negative_literal_minus_uint64_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return -2 - max(x, True)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return -2 - max(x, True)"))
     got = vec(xps.asarray([5], dtype=xps.uint64))
     assert int(got[0]) == -7
 
@@ -367,7 +379,7 @@ def test_negative_literal_minus_uint64_strict() -> None:
 def test_uint64_floordiv_negative_divisor_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return max(x, True) // -3"))
+    vec = array_vectorize.vectorize(support.make_fn("    return max(x, True) // -3"))
     got = vec(xps.asarray([5], dtype=xps.uint64))
     assert int(got[0]) == -2
 
@@ -375,7 +387,7 @@ def test_uint64_floordiv_negative_divisor_strict() -> None:
 def test_uint64_negative_literal_floordiv_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    return -3 // max(x, True)"))
+    vec = array_vectorize.vectorize(support.make_fn("    return -3 // max(x, True)"))
     got = vec(xps.asarray([5], dtype=xps.uint64))
     assert int(got[0]) == -1
 
@@ -383,7 +395,9 @@ def test_uint64_negative_literal_floordiv_strict() -> None:
 def test_uint64_floordiv_positive_int64_array_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = max(x, True)\n    return a // y", defaults="x, y"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = max(x, True)\n    return a // y", defaults="x, y")
+    )
     got = vec(xps.asarray([2**63 + 3], dtype=xps.uint64), xps.asarray([2], dtype=xps.int64))
     assert int(got[0]) == 4611686018427387905
 
@@ -391,7 +405,9 @@ def test_uint64_floordiv_positive_int64_array_strict() -> None:
 def test_uint64_mod_positive_int64_array_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = max(x, True)\n    return a % y", defaults="x, y"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    a = max(x, True)\n    return a % y", defaults="x, y")
+    )
     got = vec(xps.asarray([2**63 + 3], dtype=xps.uint64), xps.asarray([2], dtype=xps.int64))
     assert int(got[0]) == 1
 
@@ -399,13 +415,13 @@ def test_uint64_mod_positive_int64_array_strict() -> None:
 def test_uint64_mod_int64_min_divisor_strict() -> None:
     import array_api_strict as xps
 
-    mod = make_module(
+    mod = support.make_module(
         "import math\n\n"
         "BOUND = -(2**63)\n\n"
         "def subject(x, y=2.0):\n"
         "    return max(x, True) % BOUND\n"
     )
-    vec = vectorize(mod.subject)
+    vec = array_vectorize.vectorize(mod.subject)
     got = vec(xps.asarray([1], dtype=xps.uint64))
     assert int(got[0]) == -9223372036854775807
 
@@ -413,6 +429,6 @@ def test_uint64_mod_int64_min_divisor_strict() -> None:
 def test_uint64_truediv_negative_divisor_strict() -> None:
     import array_api_strict as xps
 
-    vec = vectorize(make_fn("    a = max(x, True)\n    return a / -2"))
+    vec = array_vectorize.vectorize(support.make_fn("    a = max(x, True)\n    return a / -2"))
     got = vec(xps.asarray([3], dtype=xps.uint64))
     assert float(got[0]) == -1.5

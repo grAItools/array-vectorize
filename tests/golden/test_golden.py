@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+import pathlib
 
 import corpus
 import numpy as np
 import pytest
-from corpus import GOLDEN_NAMES
 
-from array_vectorize import vectorize
+import array_vectorize
 
-GOLDEN_DIR = Path(__file__).parent / "cases"
+GOLDEN_DIR = pathlib.Path(__file__).parent / "cases"
 
 #: pinned-variant goldens (vectorize(namespace=np)): the namespace object
 #: never appears in the source text, only the ``xp = _namespace`` binding
@@ -21,19 +20,19 @@ PINNED_GOLDEN_NAMES = ["add"]
 
 def _generated_source(name: str) -> str:
     fn = getattr(corpus, name)
-    return vectorize(fn).source
+    return array_vectorize.vectorize(fn).source
 
 
 def _generated_pinned_source(name: str) -> str:
     fn = getattr(corpus, name)
-    return vectorize(fn, namespace=np).source
+    return array_vectorize.vectorize(fn, namespace=np).source
 
 
-def _golden_path(name: str) -> Path:
+def _golden_path(name: str) -> pathlib.Path:
     return GOLDEN_DIR / f"{name}.py"
 
 
-def _pinned_golden_path(name: str) -> Path:
+def _pinned_golden_path(name: str) -> pathlib.Path:
     return GOLDEN_DIR / f"{name}_pinned.py"
 
 
@@ -41,7 +40,7 @@ def _tree(source: str) -> str:
     return ast.dump(ast.parse(source))
 
 
-@pytest.mark.parametrize("name", GOLDEN_NAMES)
+@pytest.mark.parametrize("name", corpus.GOLDEN_NAMES)
 def test_golden_source(name: str, request: pytest.FixtureRequest) -> None:
     source = _generated_source(name)
     path = _golden_path(name)

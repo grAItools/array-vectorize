@@ -6,34 +6,27 @@ import math
 
 import array_api_strict as xps
 
-from array_vectorize.frontend.tables import (
-    BUILTIN_CASTS,
-    BUILTIN_FOLDS,
-    BUILTIN_UNARY,
-    MATH_CONSTS,
-    MATH_FUNCS,
-    MATH_SPECIAL,
-)
+from array_vectorize.frontend import tables
 
 
 def test_every_math_func_exists_on_strict() -> None:
-    for xp_name, _, _ in MATH_FUNCS.values():
+    for xp_name, _, _ in tables.MATH_FUNCS.values():
         assert hasattr(xps, xp_name), f"xp.{xp_name} missing on array-api-strict"
 
 
 def test_every_builtin_target_exists_on_strict() -> None:
-    for xp_name in BUILTIN_UNARY.values():
+    for xp_name in tables.BUILTIN_UNARY.values():
         assert hasattr(xps, xp_name)
-    for xp_name in BUILTIN_FOLDS.values():
+    for xp_name in tables.BUILTIN_FOLDS.values():
         assert hasattr(xps, xp_name)
-    for dtype in BUILTIN_CASTS.values():
+    for dtype in tables.BUILTIN_CASTS.values():
         assert hasattr(xps, dtype), f"xp.{dtype} missing on array-api-strict"
-    for dtype in MATH_SPECIAL.values():
+    for dtype in tables.MATH_SPECIAL.values():
         assert hasattr(xps, dtype)
 
 
 def test_math_consts_match_math_module() -> None:
-    for name, value in MATH_CONSTS.items():
+    for name, value in tables.MATH_CONSTS.items():
         if name == "nan":
             assert math.isnan(value)
         else:

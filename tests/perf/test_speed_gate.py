@@ -14,22 +14,24 @@ Two gates:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import math
 import time
-from collections.abc import Callable
 
 import numpy as np
 import pytest
 
-from array_vectorize import vectorize
+import array_vectorize
 
 pytestmark = pytest.mark.slow
 
 
 def _best_of(fn: Callable[[], object], repeats: int = 3) -> float:
-    """Best (minimum) wall time over repeats - the standard noise-robust
-    timing statistic: scheduler hiccups and cache pollution only ever make
-    a run slower."""
+    """Best (minimum) wall time over ``repeats`` runs.
+
+    The standard noise-robust timing statistic: scheduler hiccups and
+    cache pollution only ever make a run slower.
+    """
     best = math.inf
     for _ in range(repeats):
         t0 = time.perf_counter()
@@ -46,7 +48,7 @@ def test_faster_than_np_vectorize() -> None:
     # a single-pass function maximizes the ratio: the comparison measures
     # the Python-call overhead that vectorization eliminates (multi-op or
     # exp-heavy bodies are Amdahl-limited by the array work itself).
-    vec = vectorize(lambda v: v + 1.0)
+    vec = array_vectorize.vectorize(lambda v: v + 1.0)
     oracle = np.vectorize(lambda v: v + 1.0)
 
     expected = oracle(x[:1000])  # warm up + sanity

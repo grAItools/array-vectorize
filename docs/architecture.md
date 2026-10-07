@@ -126,10 +126,12 @@ identity-stable.
 Tests are organized by level and behavior, never by discovery date:
 
 - `tests/unit/` — white-box tests, one file per source module
-  (frontend, ir, lower, optimize, codegen, runtime).
+  (frontend, ir, lower, optimize, codegen, runtime), plus the fuzz
+  smoke test (`test_fuzz.py`).
 - `tests/behavior/` — black-box end-to-end semantics on NumPy:
   arithmetic dtype exactness, control flow, loops, calls/math/casts,
-  closures and helpers, documented divergences.
+  closures and helpers, inspectability (`test_inspectability.py`:
+  source/`getsource` attributes), documented divergences.
 - `tests/features/` — public-option behaviors: fallback, protected
   domains, differential verification.
 - `tests/backends/` — array-api-strict compatibility.
@@ -138,11 +140,10 @@ Tests are organized by level and behavior, never by discovery date:
   (`0, ±1, subnormals, ±inf, NaN`).
 - `tests/golden/` — generated-source snapshots (`cases/`) compared
   via `ast.dump` equality, immune to formatting drift.
-- Top level — `tests/test_inspectability.py` (source/`getsource`
-  attributes), `tests/test_perf.py` (performance gate: within 5x of
-  the hand-written array expression and >= 10x faster than
-  `np.vectorize`), `tests/test_bench.py` (detailed timings, run
-  `make bench`), and `tests/test_fuzz_smoke.py`.
+- `tests/perf/` — the performance gate (`test_speed_gate.py`: within
+  5x of the hand-written array expression and >= 10x faster than
+  `np.vectorize`) and detailed timings (`test_bench.py`, run
+  `make bench`).
 
 The regression corpus from the 26-round independent adversarial
 review is preserved inside `behavior/` and `features/` (provenance in

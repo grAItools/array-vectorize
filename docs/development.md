@@ -22,11 +22,11 @@ dependency at its floor (`--resolution lowest-direct`) on Python 3.12.
 ## Commands
 
 ```bash
-make check        # ruff + mypy (strict) + pytest + coverage (gate: 95%)
+make check        # cleanporter + ruff + mypy (strict) + pytest + coverage (gate: 95%)
 make check PY=3.13    # any target on another Python (env: .venv-3.13)
 make lint type test   # the same gates without coverage
 make lowest       # the test suite at the minimum dependency versions
-make fmt          # format + autofix
+make fmt          # cleanporter --fix, then ruff format / check --fix / format
 make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
 make fuzz         # grammar fuzzer on the CI seeds
 make bench        # pytest-benchmark suite (timings + dispatch gates)
@@ -43,6 +43,10 @@ The default `make check` also runs the slow-marked performance gate;
 plain `pytest` skips nothing but keeps benchmarks disabled
 (`--benchmark-disable` is in `addopts`).
 
+`make lint` includes the cleanporter import gate, and `make fmt` runs the
+same check with `--fix`: cleanporter rewrites first, so ruff formats the
+already-wrapped lines (its module prefixes push lines past 100 columns).
+
 ## Testing layers
 
 | Layer | Where |
@@ -53,10 +57,10 @@ plain `pytest` skips nothing but keeps benchmarks disabled
 | backends (array-api-strict) | `tests/backends/` |
 | differential (Hypothesis, edge values) | `tests/differential/` |
 | golden source snapshots | `tests/golden/` (`cases/`, ast.dump equality) |
-| inspectability (getsource, linecache) | `tests/test_inspectability.py` |
+| inspectability (getsource, linecache, memoization, docstrings) | `tests/behavior/test_inspectability.py` etc. |
 | grammar fuzzer | `src/array_vectorize/fuzz.py` + CI seeds |
-| fuzz smoke | `tests/test_fuzz_smoke.py` |
-| performance gate + benchmarks | `tests/test_perf.py`, `tests/test_bench.py` |
+| fuzz smoke | `tests/unit/test_fuzz.py` |
+| performance gate + benchmarks | `tests/perf/` |
 
 The historical review-round regression tests are dissolved into
 `behavior/` and `features/` (provenance in git history).
@@ -64,6 +68,36 @@ The historical review-round regression tests are dissolved into
 Warnings are errors in the test suite, except numpy's data-dependent
 numeric warnings (`overflow encountered`, `invalid value`,
 `divide by zero`) which are expected on documented divergence paths.
+
+## Style
+
+The code follows the [Google Python Style Guide]
+(https://google.github.io/styleguide/pyguide.html). Ruff enforces it in
+`make lint`: pydocstyle with the google convention, pep8-naming, import
+conventions (`numpy` as `np`), absolute imports only (TID252,
+`ban-relative-imports = "all"`), and additionally BLE001, PLW0603, G004,
+PGH003 and PGH004 (evaluated: zero violations).
+
+Imports follow Google §2.2 (import modules, not names), enforced by
+[cleanporter](https://github.com/grAItools/cleanporter) in `make lint` and
+`make fmt` (scope `all`; the golden cases and the notebooks are excluded
+as generated and marimo-owned, `tests/corpus.py` is skipped as golden
+test data, and `treat_unresolved_as_error` is on, so an import
+cleanporter cannot classify fails the gate). The deliberate exceptions
+are inline `# cleanporter: ignore[...]` suppressions, each naming its
+finding code and carrying its reason in the suppression comment or the
+comment block above it. One import
+per line per §3.13 (ruff isort `force-single-line`).
+
+Evaluated and deliberately skipped: TD (conflicts with Google's current
+TODO format) and PLC0415 (import-inside-function is a deliberate pattern
+in this compiler's test subjects).
+
+The only deviation from the guide is the line length: 100 columns (the
+guide says 80). Tests relax D1 (missing docstring) — test names are
+self-documenting; `tests/corpus.py` ignores all D rules (golden-pinned
+test data), and `tests/behavior/test_docstrings.py` ignores D4 (it holds
+the NumPy-style docstring subject).
 
 ## CI
 
@@ -105,6 +139,32 @@ git push origin main --tags
 `make release` refuses to run when the two version declarations disagree
 or the lock is stale; tagging stays a manual step so a re-run of the
 target can never move a tag.
+
+## Commit messages
+
+Commit subjects follow [Conventional Commits 1.0.0]
+(https://conventionalcommits.org): `type(scope): summary`, lowercase.
+Types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`,
+`revert`, `style`, `test`. The scope is optional but recommended, from
+the package areas: `codegen`, `lower`, `optimize`, `frontend`, `ir`,
+`runtime`, `api`, `pipeline`, `fuzz`, `agents`. Mark breaking changes
+with `!` after the type/scope, or with a `BREAKING CHANGE` footer. A
+`commit-msg` hook (`conventional-pre-commit`) enforces the format.
+
+The history before the switch used `area: summary` subjects; map them
+to the new format like this:
+
+| Old subject | Conventional equivalent |
+|---|---|
+| `codegen: x` | `feat(codegen): x` or `fix(codegen): x` |
+| `agents: x` | `chore(agents): x` |
+| `tests: x` | `test: x` (type, no scope) |
+| `docs: x` | `docs: x` (type, no scope) |
+| `ci: x` | `ci: x` (type, no scope) |
+| `build: x` | `build: x` (type, no scope) |
+
+Existing clones must re-run `make install` once to pick up the new
+commit-msg hook.
 
 ## Coding agents
 

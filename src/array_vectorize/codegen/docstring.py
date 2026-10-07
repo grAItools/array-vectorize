@@ -14,7 +14,7 @@ only — compiled semantics are untouched, so design D10
 
 from __future__ import annotations
 
-from inspect import cleandoc
+import inspect
 
 __all__ = [
     "DOCSTRING_PREFIX",
@@ -144,7 +144,7 @@ def prefixed_summary(docstring: str | None) -> str:
     on already-cleaned input). Used by the fallback wrapper, which has
     only the original's ``__doc__`` available.
     """
-    doc = cleandoc(docstring or "")
+    doc = inspect.cleandoc(docstring or "")
     if not doc:
         return DOCSTRING_PREFIX + NO_DOCSTRING_SUMMARY
     return _prefixed_head(doc)
@@ -226,7 +226,7 @@ def build_docstring(docstring: str | None, source: str) -> str:
     synthesized line), and :func:`extract_scalar_source` recovers
     ``source`` from it exactly.
     """
-    doc = cleandoc(docstring or "")
+    doc = inspect.cleandoc(docstring or "")
     head = _prefixed_head(doc) if doc else DOCSTRING_PREFIX + NO_DOCSTRING_SUMMARY
     if not doc:
         return head + "\n\n" + _new_google_notes(source)

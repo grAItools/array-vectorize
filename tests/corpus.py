@@ -9,8 +9,6 @@ from math import exp as fexp
 
 import numpy as np
 
-from array_vectorize import vectorize
-
 SCALE = 3.0
 ARR = np.asarray([1.0, 2.0, 3.0])
 
@@ -342,4 +340,4 @@ GOLDEN_NAMES = [
     "complex_expr",
 ]
 
-__all__ = ["GOLDEN_NAMES", "vectorize"]
+__all__ = ["GOLDEN_NAMES"]

@@ -10,7 +10,7 @@ import enum
 import operator
 from typing import Any
 
-from .dtype import _describe_dtype, _dtype_bits
+from array_vectorize.runtime import dtype
 
 __all__ = [
     "_ARITH_FNS",
@@ -57,12 +57,14 @@ _ARITH_FNS = {
 
 
 def _is_u64(a: Any) -> bool:
-    return hasattr(a, "dtype") and "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64
+    return hasattr(a, "dtype") and "uint" in str(a.dtype) and dtype._dtype_bits(a.dtype) >= 64
 
 
 def _to_u64(xp: Any, a: Any) -> Any:
-    """Cast to uint64, wrapping negative int literals modularly (NumPy
-    rejects out-of-bounds Python ints in asarray)."""
+    """Cast to uint64, wrapping negative int literals modularly.
+
+    NumPy rejects out-of-bounds Python ints in asarray.
+    """
     if isinstance(a, int) and not isinstance(a, bool) and a < 0:
         a = a % 2**64
     return xp.asarray(a, dtype=xp.uint64)
@@ -105,8 +107,9 @@ def _u64_sub_exact(xp: Any, left: Any, right: Any) -> Any | None:
 
 
 def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
-    """Exact-semantics arithmetic for bool-intified operations (injected
-    into generated modules). ``op_id`` indexes _ARITH_OPS.
+    """Exact-semantics arithmetic for bool-intified operations.
+
+    Injected into generated modules; ``op_id`` indexes _ARITH_OPS.
 
     Bools are cast to a numeric dtype (int64 headroom; Python integers
     are unbounded). Floats keep their dtype; mixed int/float promotes to
@@ -223,7 +226,7 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 xp.asarray(left, dtype=xp.float64), xp.asarray(right, dtype=xp.float64)
             )
     # generic: cast to the common dtype and compute
-    classes = [_describe_dtype(a) for a in args]
+    classes = [dtype._describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)
     has_int = any(not f for f, _ in classes)
     if op == "div" or (has_float and has_int):

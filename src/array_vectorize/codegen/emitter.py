@@ -18,30 +18,13 @@ expand), the legacy source-only docstring is emitted instead.
 from __future__ import annotations
 
 import ast
+import inspect
 import math
-from inspect import cleandoc
 from typing import assert_never
 
-from ..ir import (
-    Binding,
-    BinOp,
-    Call,
-    Compare,
-    DType,
-    FuncCall,
-    Literal,
-    Logical,
-    Loop,
-    Node,
-    Program,
-    Ref,
-    Stmt,
-    UnaryOp,
-    Where,
-    generated_name,  # re-export helper
-)
-from ..lower.types import LoweredFunction
-from .docstring import build_docstring, extract_scalar_source
+from array_vectorize import ir
+from array_vectorize.codegen import docstring as docstring_mod
+from array_vectorize.lower import types
 
 __all__ = ["generate_source"]
 
@@ -84,7 +67,7 @@ def _xp_call(ns: str, attr: str, args: list[ast.expr]) -> ast.Call:
     return ast.Call(func=_xp_attr(ns, attr), args=args, keywords=[])
 
 
-def _gen_literal(lit: Literal, ns: str) -> ast.expr:
+def _gen_literal(lit: ir.Literal, ns: str) -> ast.expr:
     value = lit.value
     if isinstance(value, float):
         if math.isnan(value):
@@ -96,15 +79,15 @@ def _gen_literal(lit: Literal, ns: str) -> ast.expr:
     return ast.Constant(value=value)
 
 
-def _gen_expr(node: Node, ns: str) -> ast.expr:
+def _gen_expr(node: ir.Node, ns: str) -> ast.expr:
     match node:
-        case Literal():
+        case ir.Literal():
             return _gen_literal(node, ns)
-        case Ref():
+        case ir.Ref():
             return _load(node.name)
-        case DType():
+        case ir.DType():
             return _xp_attr(ns, node.name)
-        case BinOp():
+        case ir.BinOp():
             if node.op in _BINOP_AST:
                 return ast.BinOp(
                     op=_BINOP_AST[node.op](),
@@ -114,7 +97,7 @@ def _gen_expr(node: Node, ns: str) -> ast.expr:
             return _xp_call(
                 ns, _BINOP_XP[node.op], [_gen_expr(node.left, ns), _gen_expr(node.right, ns)]
             )
-        case UnaryOp():
+        case ir.UnaryOp():
             if node.op == "neg":
                 return ast.UnaryOp(op=ast.USub(), operand=_gen_expr(node.operand, ns))
             if node.op == "pos":
@@ -122,27 +105,27 @@ def _gen_expr(node: Node, ns: str) -> ast.expr:
             if node.op == "invert":
                 return ast.UnaryOp(op=ast.Invert(), operand=_gen_expr(node.operand, ns))
             return _xp_call(ns, "logical_not", [_gen_expr(node.operand, ns)])
-        case Compare():
+        case ir.Compare():
             return ast.Compare(
                 left=_gen_expr(node.left, ns),
                 ops=[_CMPOP_AST[node.op]()],
                 comparators=[_gen_expr(node.right, ns)],
             )
-        case Logical():
+        case ir.Logical():
             fn = "logical_and" if node.op == "and" else "logical_or"
             folded = _gen_expr(node.parts[0], ns)
             for part in node.parts[1:]:
                 folded = _xp_call(ns, fn, [folded, _gen_expr(part, ns)])
             return folded
-        case Where():
+        case ir.Where():
             return _xp_call(
                 ns,
                 "where",
                 [_gen_expr(node.cond, ns), _gen_expr(node.then, ns), _gen_expr(node.other, ns)],
             )
-        case Call():
+        case ir.Call():
             return _xp_call(ns, node.fn, [_gen_expr(a, ns) for a in node.args])
-        case FuncCall():
+        case ir.FuncCall():
             return ast.Call(
                 func=_load(node.fn), args=[_gen_expr(a, ns) for a in node.args], keywords=[]
             )
@@ -164,7 +147,9 @@ def _namespace_line(ns: str, param_names: list[str]) -> ast.Assign:
     return ast.Assign(targets=[ast.Name(id=ns, ctx=ast.Store())], value=call)
 
 
-def _build_signature(lowered: LoweredFunction, namespace_param: str | None = None) -> ast.arguments:
+def _build_signature(
+    lowered: types.LoweredFunction, namespace_param: str | None = None
+) -> ast.arguments:
     posonly: list[ast.arg] = []
     positional: list[ast.arg] = []
     defaults: list[ast.expr] = []
@@ -207,22 +192,22 @@ def _build_signature(lowered: LoweredFunction, namespace_param: str | None = Non
     )
 
 
-def _gen_range_call(loop: Loop, ns: str) -> ast.Call:
-    step_one = isinstance(loop.step, Literal) and loop.step.value == 1
+def _gen_range_call(loop: ir.Loop, ns: str) -> ast.Call:
+    step_one = isinstance(loop.step, ir.Literal) and loop.step.value == 1
     args = [_gen_expr(loop.start, ns), _gen_expr(loop.stop, ns)]
     if not step_one:
         args.append(_gen_expr(loop.step, ns))
     return ast.Call(func=_load("range"), args=args, keywords=[])
 
 
-def _gen_stmt(stmt: Stmt, ns: str) -> ast.stmt:
+def _gen_stmt(stmt: ir.Stmt, ns: str) -> ast.stmt:
     match stmt:
-        case Binding():
+        case ir.Binding():
             return ast.Assign(
                 targets=[ast.Name(id=stmt.name, ctx=ast.Store())],
                 value=_gen_expr(stmt.expr, ns),
             )
-        case Loop():
+        case ir.Loop():
             body = [_gen_stmt(inner, ns) for inner in stmt.body]
             if not body:
                 # (15) a retained loop with a fully dead body still needs a statement
@@ -252,10 +237,10 @@ def _indent_to_body(text: str) -> str:
 
 def _docstring_value(docstring: str | None, source: str) -> str:
     """Body-level docstring constant: combined format, or legacy on mismatch."""
-    value = _indent_to_body(build_docstring(docstring, source))
+    value = _indent_to_body(docstring_mod.build_docstring(docstring, source))
     try:
         # simulate exactly what ast.get_docstring / inspect.getdoc return
-        if extract_scalar_source(cleandoc(value)) == source:
+        if docstring_mod.extract_scalar_source(inspect.cleandoc(value)) == source:
             return value
     except ValueError:
         pass
@@ -264,7 +249,9 @@ def _docstring_value(docstring: str | None, source: str) -> str:
     return _indent_to_body(source)
 
 
-def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool = False) -> str:
+def generate_source(
+    lowered: types.LoweredFunction, program: ir.Program, *, pinned: bool = False
+) -> str:
     """Generate the vectorized function source.
 
     With ``pinned=True`` (``vectorize(namespace=...)``) the namespace is
@@ -272,7 +259,7 @@ def generate_source(lowered: LoweredFunction, program: Program, *, pinned: bool 
     keyword-only ``namespace_param``, whose real default is injected at
     runtime, and the ``array_namespace`` import is omitted.
     """
-    func_name = generated_name(lowered.name)
+    func_name = ir.generated_name(lowered.name)
     ns = lowered.namespace_var
     all_params = lowered.param_names + [name for name, _ in lowered.hidden_params]
 

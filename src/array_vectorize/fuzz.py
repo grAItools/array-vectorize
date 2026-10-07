@@ -11,18 +11,20 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import pathlib
 import random
 import shutil
 import sys
 import tempfile
 import time
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from array_vectorize import vectorize
-from array_vectorize.errors import VectorizationError
+# load-bearing re-export: tests/unit/test_fuzz.py monkeypatches
+# array_vectorize.fuzz.vectorize, so the name must stay bound here
+from array_vectorize import errors
+from array_vectorize import vectorize  # cleanporter: ignore[CP003] load-bearing
 
 _UNARY_MATH = [
     f"math.{name}"
@@ -121,6 +123,7 @@ def _statement(rng: random.Random, vars_: list[str], depth: int) -> list[str]:
 
 
 def make_program(rng: random.Random) -> str:
+    """Build the source of one random scalar function."""
     n_vars = rng.randint(1, 2)
     params = [f"x{i}" for i in range(n_vars)]
     vars_ = [*params]
@@ -138,7 +141,7 @@ def make_program(rng: random.Random) -> str:
 def _run_one(rng: random.Random) -> str:
     src = make_program(rng)
     # vectorize() requires inspectable source: define the case in a real file
-    case_dir = Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
+    case_dir = pathlib.Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
     path = case_dir / "fuzz_case_mod.py"
     path.write_text("import math\n\n\n" + src)
     spec = importlib.util.spec_from_file_location("fuzz_case_mod", path)
@@ -157,7 +160,7 @@ def _run_one(rng: random.Random) -> str:
 def _check_case(rng: random.Random, src: str, fn: Any) -> str:
     try:
         vec = vectorize(fn)
-    except VectorizationError:
+    except errors.VectorizationError:
         return "rejected"
     except Exception as exc:
         raise AssertionError(f"internal error vectorizing:\n{src}\n{exc}") from exc
@@ -201,6 +204,7 @@ def _check_case(rng: random.Random, src: str, fn: Any) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: parse arguments and run the fuzz loop."""
     parser = argparse.ArgumentParser(prog="array_vectorize.fuzz", description=__doc__)
     parser.add_argument("--seconds", type=float, default=60.0, help="time budget")
     parser.add_argument("--seed", type=int, default=None, help="random seed (reproducible)")

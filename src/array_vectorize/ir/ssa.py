@@ -36,11 +36,13 @@ class SSAEnv:
     """
 
     def __init__(self, user_names: Iterable[str]) -> None:
+        """Record the user names the allocator must avoid."""
         self._user = frozenset(user_names)
         self.emitted: set[str] = set()
 
     @property
     def user_names(self) -> frozenset[str]:
+        """The user names this environment allocates around."""
         return self._user
 
     def bind(self, var: str, *, force_suffix: bool = False) -> str:

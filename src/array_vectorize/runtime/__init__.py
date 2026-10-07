@@ -7,9 +7,10 @@ only the stdlib. Generation-time loading lives in array_vectorize.emit.
 
 from __future__ import annotations
 
-from .arith import ArithOp, _vec_arith
-from .dtype import _fits_dtype
-from .minmax import _vec_minmax
-from .registry import RUNTIME_HELPERS
+from array_vectorize.runtime.arith import _vec_arith
+from array_vectorize.runtime.arith import ArithOp
+from array_vectorize.runtime.dtype import _fits_dtype
+from array_vectorize.runtime.minmax import _vec_minmax
+from array_vectorize.runtime.registry import RUNTIME_HELPERS
 
 __all__ = ["RUNTIME_HELPERS", "ArithOp", "_fits_dtype", "_vec_arith", "_vec_minmax"]

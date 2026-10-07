@@ -45,6 +45,11 @@ Invariants:
   `uv run pytest --update-golden` only when the generated code is meant to
   change, then review `git diff tests/golden/cases` line by line.
 
+The code follows the Google Python Style Guide, single deviation:
+100-column lines. Imports follow Google §2.2 (import modules, not
+names), enforced by cleanporter in `make lint` and `make fmt`; ruff
+enforces the rest via `make lint` / pre-commit.
+
 ## Tests
 
 The suite is organized by level and topic. Put each test in the file for
@@ -57,6 +62,7 @@ the behavior, not the bug that found it).
 | end-to-end semantics on NumPy | `tests/behavior/test_<topic>.py` |
 | a public option (`fallback`, `protect_domains`, `verify`, `namespace`) | `tests/features/` |
 | `array-api-strict`, jax, torch | `tests/backends/` |
+| benchmarks and the perf gate | `tests/perf/` |
 | a new corpus function: its generated source | `tests/corpus.py` + `GOLDEN_NAMES`, then `--update-golden` |
 | a new corpus function: values against scalar Python | `tests/differential/` (Hypothesis) |
 
@@ -95,5 +101,11 @@ then link it for Claude:
   divergences, and API. `README.md` only links to it. A user-visible
   change updates the matching page in the same commit; moving modules
   updates `docs/architecture.md`.
-- Commit subjects are `area: summary` in lowercase, e.g. `codegen: ...`,
-  `lower: ...`, `tests: ...`, `docs: ...`, `ci: ...`, `build: ...`.
+- Commit subjects follow [Conventional Commits 1.0.0]
+  (https://conventionalcommits.org): `type(scope): summary`, lowercase.
+  Types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
+  `refactor`, `revert`, `style`, `test`. The scope is optional but
+  recommended, from the package areas: `codegen`, `lower`, `optimize`,
+  `frontend`, `ir`, `runtime`, `api`, `pipeline`, `fuzz`, `agents`.
+  Mark breaking changes with `!` after the type/scope, or with a
+  `BREAKING CHANGE` footer.

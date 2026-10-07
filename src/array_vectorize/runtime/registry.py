@@ -11,8 +11,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .arith import ArithOp, _vec_arith
-from .minmax import _vec_minmax
+from array_vectorize.runtime import arith
+from array_vectorize.runtime import minmax
+
+# lowering goes through the registry seam (docs/architecture.md):
+# lower/expressions.py imports ArithOp from here, not from runtime.arith
+from array_vectorize.runtime.arith import ArithOp  # cleanporter: ignore[CP003] re-export
 
 __all__ = ["RUNTIME_HELPERS", "ArithOp"]
 
@@ -20,6 +24,6 @@ __all__ = ["RUNTIME_HELPERS", "ArithOp"]
 #: The base names are load-bearing: generated source (and the golden
 #: snapshots) reference them verbatim.
 RUNTIME_HELPERS: dict[str, tuple[str, Callable[..., Any]]] = {
-    "vec_arith": ("_vec_arith", _vec_arith),
-    "vec_minmax": ("_vec_minmax", _vec_minmax),
+    "vec_arith": ("_vec_arith", arith._vec_arith),
+    "vec_minmax": ("_vec_minmax", minmax._vec_minmax),
 }

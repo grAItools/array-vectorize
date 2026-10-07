@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from support import just_vec, make_fn, vec_of
+import support
 
-from array_vectorize import VectorizationError, vectorize
+import array_vectorize
 
 # ------------------------------------------------------ range forms and bounds
 
 
 def test_loop_with_start_stop_step() -> None:
-    vec = vectorize(
-        make_fn("    s = 0.0\n    for i in range(1, 5, 2):\n        s = s + i * x\n    return s")
+    vec = array_vectorize.vectorize(
+        support.make_fn(
+            "    s = 0.0\n    for i in range(1, 5, 2):\n        s = s + i * x\n    return s"
+        )
     )
     got = vec(np.asarray([1.0]))
     assert np.allclose(got, [(1 + 3) * 1.0])
@@ -21,23 +23,25 @@ def test_loop_with_start_stop_step() -> None:
 
 
 def test_loop_negative_step() -> None:
-    vec = vectorize(
-        make_fn("    s = 0.0\n    for i in range(3, 0, -1):\n        s = s + i * x\n    return s")
+    vec = array_vectorize.vectorize(
+        support.make_fn(
+            "    s = 0.0\n    for i in range(3, 0, -1):\n        s = s + i * x\n    return s"
+        )
     )
     assert np.allclose(vec(np.asarray([1.0])), [6.0])
     assert "for i in range(3, 0, -1):" in vec.source
 
 
 def test_range_two_args() -> None:
-    vec = vectorize(
-        make_fn("    s = x\n    for i in range(2, 5):\n        s = s + i\n    return s")
+    vec = array_vectorize.vectorize(
+        support.make_fn("    s = x\n    for i in range(2, 5):\n        s = s + i\n    return s")
     )
     assert vec(np.asarray([0.0]))[0] == 9.0
 
 
 def test_loop_bound_closure_scalar() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    s = 0.0\n    for i in range(N):\n        s = s + x\n    return s", extra="N = 4"
         )
     )
@@ -45,8 +49,8 @@ def test_loop_bound_closure_scalar() -> None:
 
 
 def test_loop_bound_expression_folds() -> None:
-    vec = vectorize(
-        make_fn("    s = 0.0\n    for i in range(1 + 2):\n        s = s + x\n    return s")
+    vec = array_vectorize.vectorize(
+        support.make_fn("    s = 0.0\n    for i in range(1 + 2):\n        s = s + x\n    return s")
     )
     assert "for i in range(0, 3):" in vec.source
 
@@ -55,7 +59,9 @@ def test_loop_bound_expression_folds() -> None:
 
 
 def test_simple_accumulation() -> None:
-    vec = vectorize(make_fn("    s = 0.0\n    for i in range(3):\n        s = s + x\n    return s"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    s = 0.0\n    for i in range(3):\n        s = s + x\n    return s")
+    )
     got = vec(np.asarray([1.0, 2.0]))
     assert np.allclose(got, [3.0, 6.0])
     assert "for i in range(0, 3):" in vec.source
@@ -63,15 +69,15 @@ def test_simple_accumulation() -> None:
 
 
 def test_loop_index_used() -> None:
-    vec = vectorize(
-        make_fn("    s = 0.0\n    for i in range(4):\n        s = s + i\n    return s + x")
+    vec = array_vectorize.vectorize(
+        support.make_fn("    s = 0.0\n    for i in range(4):\n        s = s + i\n    return s + x")
     )
     assert np.allclose(vec(np.asarray([0.0, 1.0])), [6.0, 7.0])
 
 
 def test_loop_carried_two_vars() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    a = 1.0\n"
             "    b = 0.0\n"
             "    for i in range(3):\n"
@@ -85,8 +91,8 @@ def test_loop_carried_two_vars() -> None:
 
 
 def test_loop_var_shadow_param() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    n = 0.0\n    for n in range(3):\n        n2 = n\n    return n2 + x",
             defaults="x, n=3",
         )
@@ -95,8 +101,8 @@ def test_loop_var_shadow_param() -> None:
 
 
 def test_loop_over_closure_array() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    s = 0.0\n    for i in range(2):\n        s = s + x\n    return s + GLOBAL_ARR",
             extra="GLOBAL_ARR = np.asarray([2.0, 4.0])",
         )
@@ -106,8 +112,8 @@ def test_loop_over_closure_array() -> None:
 
 
 def test_branch_inside_loop() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    s = 0.0\n"
             "    for i in range(4):\n"
             "        if x > 0:\n"
@@ -123,8 +129,10 @@ def test_branch_inside_loop() -> None:
 
 
 def test_loop_differential() -> None:
-    fn = make_fn("    s = 1.0\n    for i in range(5):\n        s = s * (1.0 + x)\n    return s")
-    vec = vectorize(fn)
+    fn = support.make_fn(
+        "    s = 1.0\n    for i in range(5):\n        s = s * (1.0 + x)\n    return s"
+    )
+    vec = array_vectorize.vectorize(fn)
     for x in (-0.2, 0.0, 0.3, 1.0):
         expected = 1.0
         for _ in range(5):
@@ -133,8 +141,8 @@ def test_loop_differential() -> None:
 
 
 def test_loop_with_protect_domains_matches_numpy() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    a = x\n    for i in range(2):\n        a = a + math.sqrt(abs(x) + 1)\n    return a"
         ),
         protect_domains=True,
@@ -150,12 +158,14 @@ def test_loop_with_protect_domains_matches_numpy() -> None:
 
 
 def test_loop_local_var() -> None:
-    vec = vectorize(make_fn("    for i in range(3):\n        t = i * x\n    return t + x"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    for i in range(3):\n        t = i * x\n    return t + x")
+    )
     assert np.allclose(vec(np.asarray([2.0])), [4.0 + 2.0])
 
 
 def test_empty_loop_body_emits_pass() -> None:
-    vec = just_vec("    for i in range(3):\n        pass\n    return x + i")
+    vec = support.just_vec("    for i in range(3):\n        pass\n    return x + i")
     assert np.allclose(vec(np.asarray([1.0])), [3.0])
 
 
@@ -167,7 +177,7 @@ def test_loop_dce_drops_dead_body_bindings() -> None:
         "        s = s + x\n"
         "    return s"
     )
-    vec = vectorize(make_fn(body))
+    vec = array_vectorize.vectorize(support.make_fn(body))
     # the original source in the docstring mentions 'dead' once; the code must not
     assert vec.source.count("dead") == 1
 
@@ -181,7 +191,7 @@ def test_loop_dce_keeps_cross_iteration_dependencies() -> None:
         "        b = b + 1\n"
         "    return a"
     )
-    vec, fn = vec_of(body)
+    vec, fn = support.vec_of(body)
     xs = np.asarray([1.0, 2.0])
     assert np.allclose(vec(xs), [fn(float(v)) for v in xs])
 
@@ -190,20 +200,24 @@ def test_loop_dce_keeps_cross_iteration_dependencies() -> None:
 
 
 def test_zero_trip_loop_matches_python() -> None:
-    vec = vectorize(make_fn("    s = 5.0\n    for i in range(0):\n        s = s + x\n    return s"))
+    vec = array_vectorize.vectorize(
+        support.make_fn("    s = 5.0\n    for i in range(0):\n        s = s + x\n    return s")
+    )
     assert np.allclose(vec(np.asarray([1.0])), [5.0])
 
 
 def test_zero_trip_loop_keeps_loop_var() -> None:
-    vec = just_vec(
+    vec = support.just_vec(
         "    i = x\n    a = x\n    for i in range(0):\n        a = a + 1\n    return i + a"
     )
     assert vec(np.asarray([1.0]))[0] == 2.0
 
 
 def test_zero_trip_loop_literal_not_substituted() -> None:
-    vec = vectorize(
-        make_fn("    a = x\n    for i in range(0):\n        a = 4.0\n    return math.sqrt(a)")
+    vec = array_vectorize.vectorize(
+        support.make_fn(
+            "    a = x\n    for i in range(0):\n        a = 4.0\n    return math.sqrt(a)"
+        )
     )
     assert np.allclose(vec(np.asarray([9.0, 16.0])), [3.0, 4.0])
 
@@ -212,15 +226,17 @@ def test_zero_trip_loop_literal_not_substituted() -> None:
 
 
 def test_executed_loop_literal_not_substituted() -> None:
-    vec = vectorize(
-        make_fn("    a = 4.0\n    for i in range(1):\n        a = 9.0\n    return math.sqrt(a)")
+    vec = array_vectorize.vectorize(
+        support.make_fn(
+            "    a = 4.0\n    for i in range(1):\n        a = 9.0\n    return math.sqrt(a)"
+        )
     )
     assert np.allclose(vec(np.asarray([9.0])), [3.0])
 
 
 def test_conditional_loop_literal_not_substituted() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    a = 4.0\n"
             "    for i in range(1):\n"
             "        if x > 0:\n"
@@ -237,8 +253,8 @@ def test_conditional_loop_literal_not_substituted() -> None:
 
 
 def test_nested_loops() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    s = 0.0\n"
             "    for i in range(3):\n"
             "        for j in range(2):\n"
@@ -250,8 +266,8 @@ def test_nested_loops() -> None:
 
 
 def test_nested_loop_target_carried() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    j = x\n"
             "    s = 0.0\n"
             "    for i in range(2):\n"
@@ -265,8 +281,8 @@ def test_nested_loop_target_carried() -> None:
 
 
 def test_nested_loop_same_var_name() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    for i in range(2):\n        for i in range(3):\n            pass\n    return x + i"
         )
     )
@@ -277,7 +293,7 @@ def test_nested_loop_same_var_name() -> None:
 
 
 def test_loop_carried_kind_mixing() -> None:
-    vec, fn = vec_of(
+    vec, fn = support.vec_of(
         "    b = x > 0\n"
         "    a = x\n"
         "    for i in range(2):\n"
@@ -290,15 +306,17 @@ def test_loop_carried_kind_mixing() -> None:
 
 
 def test_zero_trip_loop_kind_mixing() -> None:
-    vec = vectorize(
-        make_fn("    b = x > 0\n    for i in range(0):\n        b = x + 0.5\n    return b + b")
+    vec = array_vectorize.vectorize(
+        support.make_fn(
+            "    b = x > 0\n    for i in range(0):\n        b = x + 0.5\n    return b + b"
+        )
     )
     assert list(map(int, vec(np.asarray([1.0])))) == [2]
 
 
 def test_int_to_bool_loop_transition() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    b = 1\n"
             "    a = x\n"
             "    for i in range(2):\n"
@@ -307,13 +325,13 @@ def test_int_to_bool_loop_transition() -> None:
             "    return a"
         )
     )
-    assert vectorize(make_fn("    return 0")) is not None
+    assert array_vectorize.vectorize(support.make_fn("    return 0")) is not None
     assert vec(np.asarray([1.0]))[0] == 2
 
 
 def test_float_to_bool_loop_transition() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    b = 1.5\n"
             "    a = x\n"
             "    for i in range(2):\n"
@@ -327,8 +345,8 @@ def test_float_to_bool_loop_transition() -> None:
 
 
 def test_chained_loop_kind_mixing() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    a = 1\n"
             "    b = 1\n"
             "    c = 1\n"
@@ -347,8 +365,8 @@ def test_chained_loop_kind_mixing() -> None:
 def test_float_bool_loop_mix_keeps_float_values() -> None:
     # b is bool in iteration 1, float afterwards: the intify must not
     # truncate the float iterations (float64 for float-mixed names)
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    b = x > 0\n"
             "    a = x\n"
             "    for i in range(2):\n"
@@ -361,8 +379,8 @@ def test_float_bool_loop_mix_keeps_float_values() -> None:
 
 
 def test_float_mixed_propagates_through_assignment() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    b = x\n    for i in range(1):\n        b = x + 0.5\n    c = b\n    return c + c"
         )
     )
@@ -370,8 +388,8 @@ def test_float_mixed_propagates_through_assignment() -> None:
 
 
 def test_true_division_loop_mix_keeps_float() -> None:
-    vec = vectorize(
-        make_fn(
+    vec = array_vectorize.vectorize(
+        support.make_fn(
             "    b = x > 0\n"
             "    a = x\n"
             "    for i in range(2):\n"
@@ -384,22 +402,24 @@ def test_true_division_loop_mix_keeps_float() -> None:
 
 
 def test_mixed_loop_operand_not_truncated_by_literal() -> None:
-    vec = vectorize(
-        make_fn("    b = x\n    for i in range(1):\n        b = x + 0.5\n    return b + 1")
+    vec = array_vectorize.vectorize(
+        support.make_fn("    b = x\n    for i in range(1):\n        b = x + 0.5\n    return b + 1")
     )
     assert np.allclose(vec(np.asarray([1.0, 2.0])), [2.5, 3.5])
 
 
 def test_mixed_loop_operand_unary_negate() -> None:
-    vec = vectorize(
-        make_fn("    b = x\n    for i in range(1):\n        b = x + 0.5\n    return -b")
+    vec = array_vectorize.vectorize(
+        support.make_fn("    b = x\n    for i in range(1):\n        b = x + 0.5\n    return -b")
     )
     assert np.allclose(vec(np.asarray([1.0, 2.0])), [-1.5, -2.5])
 
 
 def test_bool_loop_count_128() -> None:
-    vec = vectorize(
-        make_fn("    s = 0\n    for i in range(128):\n        s = s + (x > 0)\n    return s")
+    vec = array_vectorize.vectorize(
+        support.make_fn(
+            "    s = 0\n    for i in range(128):\n        s = s + (x > 0)\n    return s"
+        )
     )
     assert vec(np.asarray([1.0]))[0] == 128
 
@@ -408,9 +428,9 @@ def test_bool_loop_count_128() -> None:
 
 
 def test_loop_bound_param_rejected() -> None:
-    with pytest.raises(VectorizationError, match="constant ints"):
-        vectorize(
-            make_fn(
+    with pytest.raises(array_vectorize.VectorizationError, match="constant ints"):
+        array_vectorize.vectorize(
+            support.make_fn(
                 "    s = 0.0\n    for i in range(n):\n        s = s + x\n    return s",
                 defaults="x, n=3",
             )
@@ -418,19 +438,23 @@ def test_loop_bound_param_rejected() -> None:
 
 
 def test_loop_step_zero_rejected() -> None:
-    with pytest.raises(VectorizationError, match="step cannot be zero"):
-        vectorize(make_fn("    for i in range(3, 0, 0):\n        pass\n    return x"))
+    with pytest.raises(array_vectorize.VectorizationError, match="step cannot be zero"):
+        array_vectorize.vectorize(
+            support.make_fn("    for i in range(3, 0, 0):\n        pass\n    return x")
+        )
 
 
 def test_return_inside_loop_rejected() -> None:
-    with pytest.raises(VectorizationError, match="returns inside loop"):
-        vectorize(
-            make_fn(
+    with pytest.raises(array_vectorize.VectorizationError, match="returns inside loop"):
+        array_vectorize.vectorize(
+            support.make_fn(
                 "    for i in range(3):\n        if x > 0:\n            return 1.0\n    return 0.0"
             )
         )
 
 
 def test_assign_loop_var_rejected() -> None:
-    with pytest.raises(VectorizationError, match="loop variable"):
-        vectorize(make_fn("    for i in range(3):\n        i = i + 1\n    return x"))
+    with pytest.raises(array_vectorize.VectorizationError, match="loop variable"):
+        array_vectorize.vectorize(
+            support.make_fn("    for i in range(3):\n        i = i + 1\n    return x")
+        )

@@ -3,33 +3,33 @@
 from __future__ import annotations
 
 import ast
-import sys
 from collections.abc import Callable
+import sys
 from typing import Any
 
 import pytest
-from support import make_module
+import support
 
-from array_vectorize import vectorize
-from array_vectorize.errors import VectorizationError
-from array_vectorize.frontend.extract import extract_function
-from array_vectorize.frontend.validate import _EXPR_MESSAGES, validate
+import array_vectorize
+from array_vectorize import errors
+from array_vectorize.frontend import extract
+from array_vectorize.frontend import validate as validate_mod
 
 
 def make_fn(body: str, signature: str = "x", type_params: str = "") -> Callable[..., Any]:
     """Define a function with the given (indented) body in a real temp module."""
-    mod = make_module(
+    mod = support.make_module(
         "import math\n\n\ndef subject" + type_params + "(" + signature + "):\n" + body + "\n"
     )
     return mod.subject
 
 
 def check(src: str) -> None:
-    validate(extract_function(make_fn(f"    return {src}")))
+    validate_mod.validate(extract.extract_function(make_fn(f"    return {src}")))
 
 
 def check_body(body: str) -> None:
-    validate(extract_function(make_fn(body)))
+    validate_mod.validate(extract.extract_function(make_fn(body)))
 
 
 # ------------------------------------------------------------------ accepted
@@ -128,7 +128,7 @@ def test_accepted_statements() -> None:
     ],
 )
 def test_rejected_expressions(src: str, msg: str) -> None:
-    with pytest.raises(VectorizationError, match=msg):
+    with pytest.raises(errors.VectorizationError, match=msg):
         check(src)
 
 
@@ -167,12 +167,12 @@ def test_rejected_statements(body: str, msg: str | None) -> None:
     if msg is None:
         check_body(body)
         return
-    with pytest.raises(VectorizationError, match=msg):
+    with pytest.raises(errors.VectorizationError, match=msg):
         check_body(body)
 
 
 def test_math_attribute_not_in_subset() -> None:
-    with pytest.raises(VectorizationError, match="supported math subset"):
+    with pytest.raises(errors.VectorizationError, match="supported math subset"):
         check("math.fsum([x])")
 
 
@@ -182,8 +182,8 @@ def test_diagnostics_have_positions_and_caret() -> None:
             x = x - 1
         return x
 
-    with pytest.raises(VectorizationError) as exc:
-        validate(extract_function(subject))
+    with pytest.raises(errors.VectorizationError) as exc:
+        validate_mod.validate(extract.extract_function(subject))
     err = exc.value
     assert err.diagnostics, "expected at least one diagnostic"
     d = err.diagnostics[0]
@@ -200,8 +200,8 @@ def test_all_violations_collected() -> None:
             x = x - 1
         return x, y
 
-    with pytest.raises(VectorizationError) as exc:
-        validate(extract_function(subject))
+    with pytest.raises(errors.VectorizationError) as exc:
+        validate_mod.validate(extract.extract_function(subject))
     messages = [d.message for d in exc.value.diagnostics]
     assert any("subscripts" in m for m in messages)
     assert any("while" in m for m in messages)
@@ -209,28 +209,28 @@ def test_all_violations_collected() -> None:
 
 
 def test_keyword_args_in_calls_rejected() -> None:
-    with pytest.raises(VectorizationError, match="keyword arguments in calls"):
+    with pytest.raises(errors.VectorizationError, match="keyword arguments in calls"):
         check("math.copysign(x, y=2.0)")
 
 
 def test_lambda_direct_is_accepted() -> None:
-    info = extract_function(lambda x: x + 1.0)  # type: ignore[arg-type]
-    validate(info)
+    info = extract.extract_function(lambda x: x + 1.0)  # type: ignore[arg-type]
+    validate_mod.validate(info)
 
 
 def test_docstring_only_first() -> None:
     check_body('    """doc"""\n    return x')
-    with pytest.raises(VectorizationError, match="docstring"):
+    with pytest.raises(errors.VectorizationError, match="docstring"):
         check_body('    y = x\n    """not first"""\n    return y')
 
 
 def test_for_target_must_be_name() -> None:
-    with pytest.raises(VectorizationError, match="single name"):
+    with pytest.raises(errors.VectorizationError, match="single name"):
         check_body("    for i, j in range(3):\n        pass\n    return x")
 
 
 def test_nonlocal_rejected() -> None:
-    mod = make_module(
+    mod = support.make_module(
         "def outer():\n"
         "    g = 1.0\n"
         "    def subject(x):\n"
@@ -238,8 +238,8 @@ def test_nonlocal_rejected() -> None:
         "        return x\n"
         "    return subject\n"
     )
-    with pytest.raises(VectorizationError, match="nonlocal"):
-        validate(extract_function(mod.outer()))
+    with pytest.raises(errors.VectorizationError, match="nonlocal"):
+        validate_mod.validate(extract.extract_function(mod.outer()))
 
 
 # ------------------------------------------- Python 3.11-3.14 new syntax
@@ -252,20 +252,20 @@ def test_nonlocal_rejected() -> None:
 
 def test_try_star_rejected() -> None:
     # except* is valid syntax on every supported interpreter (3.11+)
-    with pytest.raises(VectorizationError, match=r"except\*"):
+    with pytest.raises(errors.VectorizationError, match=r"except\*"):
         check_body("    try:\n        y = x\n    except* ValueError:\n        y = 0\n    return y")
 
 
 def test_type_alias_statement_rejected() -> None:
     # `type X = ...` (PEP 695) is valid syntax on every supported interpreter
-    with pytest.raises(VectorizationError, match="type alias statements"):
+    with pytest.raises(errors.VectorizationError, match="type alias statements"):
         check_body("    type Alias = int\n    return x")
 
 
 def test_generic_function_rejected() -> None:
     # def subject[T](x) (PEP 695): type parameters on the extracted function
-    with pytest.raises(VectorizationError, match="type parameters"):
-        validate(extract_function(make_fn("    return x", type_params="[T]")))
+    with pytest.raises(errors.VectorizationError, match="type parameters"):
+        validate_mod.validate(extract.extract_function(make_fn("    return x", type_params="[T]")))
 
 
 def test_template_string_table_entry_is_version_gated() -> None:
@@ -274,10 +274,10 @@ def test_template_string_table_entry_is_version_gated() -> None:
     template_node = getattr(ast, "TemplateStr", None)
     if sys.version_info >= (3, 14):
         assert template_node is not None
-        assert template_node in _EXPR_MESSAGES
+        assert template_node in validate_mod._EXPR_MESSAGES
     else:
         assert template_node is None
-        assert template_node not in _EXPR_MESSAGES
+        assert template_node not in validate_mod._EXPR_MESSAGES
 
 
 @pytest.mark.skipif(sys.version_info < (3, 14), reason="t-string syntax requires 3.14")
@@ -285,7 +285,7 @@ def test_template_string_rejected() -> None:
     # t-strings (PEP 750) only exist in the 3.14 grammar; on 3.12/3.13 the
     # source itself would be a SyntaxError, so the rejection is only testable
     # here (the validator's guarded message-table entry covers both)
-    with pytest.raises(VectorizationError, match="t-strings"):
+    with pytest.raises(errors.VectorizationError, match="t-strings"):
         check('t"x"')
 
 
@@ -309,35 +309,65 @@ def test_template_string_rejected() -> None:
 )
 def test_validator_branches(body: str, msg: str | None) -> None:
     if msg is None:
-        validate(extract_function(make_fn(body, signature="x, y=2.0")))
+        validate_mod.validate(extract.extract_function(make_fn(body, signature="x, y=2.0")))
         return
-    with pytest.raises(VectorizationError, match=msg):
-        validate(extract_function(make_fn(body, signature="x, y=2.0")))
+    with pytest.raises(errors.VectorizationError, match=msg):
+        validate_mod.validate(extract.extract_function(make_fn(body, signature="x, y=2.0")))
 
 
 def test_attribute_assignment() -> None:
-    with pytest.raises(VectorizationError, match="attribute assignment"):
-        validate(
-            extract_function(make_fn("    a = x\n    a.f = 1\n    return a", signature="x, y=2.0"))
+    with pytest.raises(errors.VectorizationError, match="attribute assignment"):
+        validate_mod.validate(
+            extract.extract_function(
+                make_fn("    a = x\n    a.f = 1\n    return a", signature="x, y=2.0")
+            )
         )
 
 
 def test_generic_attribute_access_rejected() -> None:
-    with pytest.raises(VectorizationError, match="attribute access"):
-        validate(extract_function(make_fn("    return x.real", signature="x, y=2.0")))
+    with pytest.raises(errors.VectorizationError, match="attribute access"):
+        validate_mod.validate(
+            extract.extract_function(make_fn("    return x.real", signature="x, y=2.0"))
+        )
 
 
 def test_starred_call_argument_rejected() -> None:
-    with pytest.raises(VectorizationError, match="starred call arguments"):
-        validate(extract_function(make_fn("    return math.hypot(*[x, y])", signature="x, y=2.0")))
+    with pytest.raises(errors.VectorizationError, match="starred call arguments"):
+        validate_mod.validate(
+            extract.extract_function(
+                make_fn("    return math.hypot(*[x, y])", signature="x, y=2.0")
+            )
+        )
 
 
 def test_unknown_expression_falls_through() -> None:
     # Starred in a non-call context hits the generic expression message
-    with pytest.raises(VectorizationError, match="not supported"):
-        validate(extract_function(make_fn("    return x + (y := 1)", signature="x, y=2.0")))
+    with pytest.raises(errors.VectorizationError, match="not supported"):
+        validate_mod.validate(
+            extract.extract_function(make_fn("    return x + (y := 1)", signature="x, y=2.0"))
+        )
 
 
 def test_del_is_rejected_by_vectorize() -> None:
-    with pytest.raises(VectorizationError, match="statements are not supported"):
-        vectorize(make_fn("    del x\n    return 1.0", signature="x, y=2.0"))
+    with pytest.raises(errors.VectorizationError, match="statements are not supported"):
+        array_vectorize.vectorize(make_fn("    del x\n    return 1.0", signature="x, y=2.0"))
+
+
+# --------------------------------------------------------- validator paths
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "    y = 1\n    return y",
+    ],
+)
+def test_validator_ok(body: str) -> None:
+    extract.extract_function(make_fn(body))
+
+
+def test_statements_after_return_in_branch_rejected() -> None:
+    with pytest.raises(errors.VectorizationError, match="after return"):
+        array_vectorize.vectorize(
+            make_fn("    if x > 0:\n        return x\n        y = 1\n    return 0.0")
+        )

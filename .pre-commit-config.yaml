@@ -1,3 +1,9 @@
+# default_stages keeps the file-filtered hooks above from running at the
+# commit-msg stage, where pre-commit would otherwise feed them
+# .git/COMMIT_EDITMSG; default_install_hook_types makes
+# `pre-commit install` install both hook types.
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -12,6 +18,12 @@ repos:
   # never disagree on the ruff version
   - repo: local
     hooks:
+      - id: cleanporter-fix
+        name: cleanporter fix
+        entry: uv run --frozen cleanporter --fix --whole-project
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-check
         name: ruff check
         entry: uv run --frozen ruff check --fix --force-exclude
@@ -30,3 +42,9 @@ repos:
         language: system
         files: ^(pyproject\.toml|uv\.lock)$
         pass_filenames: false
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]

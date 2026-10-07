@@ -9,22 +9,22 @@ uses to vectorize user helper functions on demand.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+import dataclasses
 from typing import Any
 
-from ..frontend.info import Param
-from ..ir import Program
+from array_vectorize import ir
+from array_vectorize.frontend import info
 
 __all__ = ["HelperVectorizer", "LoweredFunction"]
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class LoweredFunction:
     """Lowering output: IR plus everything codegen/runtime need."""
 
-    program: Program
+    program: ir.Program
     name: str
-    params: list[Param]
+    params: list[info.Param]
     param_names: list[str]  # emitted names, aligned with params
     hidden_params: list[tuple[str, Any]]  # (emitted name, array default)
     source: str  # original scalar source (embedded verbatim in the docstring)

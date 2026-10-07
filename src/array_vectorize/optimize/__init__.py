@@ -8,12 +8,12 @@ functions after this package initializes, so attribute-style access like
 
 from __future__ import annotations
 
-from ..ir import Program
-from ..ir.ssa import SSAEnv
-from .constfold import const_fold
-from .cse import cse
-from .dce import dce
-from .protect_domains import protect_domains
+from array_vectorize.ir import Program
+from array_vectorize.ir.ssa import SSAEnv
+from array_vectorize.optimize.constfold import const_fold
+from array_vectorize.optimize.cse import cse
+from array_vectorize.optimize.dce import dce
+from array_vectorize.optimize.protect_domains import protect_domains
 
 __all__ = ["const_fold", "cse", "dce", "optimize", "protect_domains"]
 

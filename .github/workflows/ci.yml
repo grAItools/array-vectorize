@@ -83,3 +83,30 @@ jobs:
         run: uv sync --locked --group docs
       - name: Build docs
         run: make docs
+
+  # PR commit subjects follow Conventional Commits, the same rule the
+  # local commit-msg hook enforces (compilerla/conventional-pre-commit,
+  # pinned to the same tag); the full history is needed to walk the
+  # PR's commit range
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Check commit subjects
+        run: |
+          base="origin/${{ github.base_ref }}"
+          status=0
+          for sha in $(git rev-list --reverse --no-merges "$base"..HEAD); do
+            git log -1 --format=%s "$sha" > /tmp/commit-subject.txt
+            if ! uvx --from git+https://github.com/compilerla/conventional-pre-commit@v4.4.0 \
+              conventional-pre-commit feat fix docs style refactor perf test build ci chore revert \
+              /tmp/commit-subject.txt; then
+              echo "::error::$(git log -1 --oneline "$sha") is not a Conventional Commit"
+              status=1
+            fi
+          done
+          exit $status

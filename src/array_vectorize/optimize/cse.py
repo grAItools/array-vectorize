@@ -2,36 +2,36 @@
 
 from __future__ import annotations
 
-from collections import Counter
+import collections
 
-from ..ir import Binding, Call, Loop, Node, Program, Ref, Stmt, Where, walk
-from ..ir.ssa import SSAEnv
-from ..ir.walk import children
+from array_vectorize import ir
+from array_vectorize.ir import ssa
+from array_vectorize.ir import walk
 
 __all__ = ["cse"]
 
 # ----------------------------------------------------------------------- CSE
 
-_CSE_ELIGIBLE = (Call, Where)
+_CSE_ELIGIBLE = (ir.Call, ir.Where)
 
 
-def _count_eligible(node: Node, counter: Counter[Node]) -> None:
+def _count_eligible(node: ir.Node, counter: collections.Counter[ir.Node]) -> None:
     if isinstance(node, _CSE_ELIGIBLE):
         counter[node] += 1
-    for child in children(node):
+    for child in walk.children(node):
         _count_eligible(child, counter)
 
 
-def _has_loop(stmts: tuple[Stmt, ...] | list[Stmt]) -> bool:
+def _has_loop(stmts: tuple[ir.Stmt, ...] | list[ir.Stmt]) -> bool:
     for stmt in stmts:
-        if isinstance(stmt, Loop):
+        if isinstance(stmt, ir.Loop):
             if _has_loop(stmt.body):
                 return True
             return True
     return False
 
 
-def cse(program: Program, ssa: SSAEnv) -> Program:
+def cse(program: ir.Program, ssa: ssa.SSAEnv) -> ir.Program:
     """Hoist duplicated Call/Where subtrees into temps ``t_1, t_2, ...``.
 
     Each pass counts eligible nodes in the *current* program and hoists those
@@ -48,42 +48,42 @@ def cse(program: Program, ssa: SSAEnv) -> Program:
         # needed for correctness).
         return current
     for _ in range(8):
-        counter: Counter[Node] = Counter()
+        counter: collections.Counter[ir.Node] = collections.Counter()
         for stmt in current.bindings:
-            assert isinstance(stmt, Binding)  # CSE skips loop programs
+            assert isinstance(stmt, ir.Binding)  # CSE skips loop programs
             _count_eligible(stmt.expr, counter)
         _count_eligible(current.result, counter)
         if not any(count >= 2 for count in counter.values()):
             return current
 
-        memo: dict[Node, str] = {}
-        pending: list[Binding] = []
+        memo: dict[ir.Node, str] = {}
+        pending: list[ir.Binding] = []
 
         def rewrite(
-            node: Node,
+            node: ir.Node,
             *,
-            counter: Counter[Node] = counter,
-            memo: dict[Node, str] = memo,
-            pending: list[Binding] = pending,
-        ) -> Node:
+            counter: collections.Counter[ir.Node] = counter,
+            memo: dict[ir.Node, str] = memo,
+            pending: list[ir.Binding] = pending,
+        ) -> ir.Node:
             node = walk.rewrite(node, rewrite)
             if isinstance(node, _CSE_ELIGIBLE) and counter[node] >= 2:
                 if node not in memo:
                     temp = ssa.fresh_temp("t")
-                    pending.append(Binding(temp, node))
+                    pending.append(ir.Binding(temp, node))
                     memo[node] = temp
-                return Ref(memo[node])
+                return ir.Ref(memo[node])
             return node
 
-        rewritten: list[Stmt] = []
+        rewritten: list[ir.Stmt] = []
         for stmt in current.bindings:
-            assert isinstance(stmt, Binding)  # CSE skips loop programs
+            assert isinstance(stmt, ir.Binding)  # CSE skips loop programs
             start = len(pending)
             expr = rewrite(stmt.expr)
             rewritten.extend(pending[start:])
-            rewritten.append(Binding(stmt.name, expr))
+            rewritten.append(ir.Binding(stmt.name, expr))
         result_start = len(pending)
         result = rewrite(current.result)
         rewritten.extend(pending[result_start:])  # temps first used by the result go last
-        current = Program(current.params, tuple(rewritten), result)
+        current = ir.Program(current.params, tuple(rewritten), result)
     return current

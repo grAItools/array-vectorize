@@ -10,49 +10,54 @@ argument — directly, negated, or via a literal binding.
 
 from __future__ import annotations
 
-from ..ir import Call, DType, Literal, Node, Ref, UnaryOp
-from ..ir.walk import children
-from .env import _LowererBase
+from array_vectorize import ir
+from array_vectorize.ir import walk as walk_mod
+from array_vectorize.lower import env
 
 __all__ = ["_Sanitizer"]
 
 
-class _Sanitizer(_LowererBase):
-    def _literal_value(self, arg: Node) -> Literal | None:
-        """The literal behind an arg: directly, as a negated literal
-        (``-1`` lowers to UnaryOp(neg, 1)), or via a literal binding."""
-        if isinstance(arg, Literal):
+class _Sanitizer(env._LowererBase):
+    def _literal_value(self, arg: ir.Node) -> ir.Literal | None:
+        """The literal behind an arg, or ``None``.
+
+        Found directly, as a negated literal (``-1`` lowers to
+        UnaryOp(neg, 1)), or via a literal binding.
+        """
+        if isinstance(arg, ir.Literal):
             return arg
         if (
-            isinstance(arg, UnaryOp)
+            isinstance(arg, ir.UnaryOp)
             and arg.op == "neg"
-            and isinstance(arg.operand, Literal)
+            and isinstance(arg.operand, ir.Literal)
             and arg.operand.kind in ("int", "float")
         ):
-            return Literal(-arg.operand.value, arg.operand.kind)
-        if isinstance(arg, Ref):
+            return ir.Literal(-arg.operand.value, arg.operand.kind)
+        if isinstance(arg, ir.Ref):
             return self.kinds.literal(arg.name)
         return None
 
-    def _possibly_scalar(self, node: Node) -> bool:
-        """True when the node's runtime value may be a raw Python scalar:
-        it is a literal, a possibly-scalar name (parameter default, loop
+    def _possibly_scalar(self, node: ir.Node) -> bool:
+        """True when the node's runtime value may be a raw Python scalar.
+
+        It is a literal, a possibly-scalar name (parameter default, loop
         variable, literal binding), or an expression computed from one.
         Operators promote such scalars fine; xp.* function arguments do
-        not (strict backends reject plain scalars)."""
+        not (strict backends reject plain scalars).
+        """
 
-        def walk(n: Node) -> bool:
-            if isinstance(n, Literal):
+        def walk(n: ir.Node) -> bool:
+            if isinstance(n, ir.Literal):
                 return True
-            if isinstance(n, Ref):
+            if isinstance(n, ir.Ref):
                 return self.kinds.is_scalar(n.name)
-            if isinstance(n, DType):
+            if isinstance(n, ir.DType):
                 return False
-            return any(walk(c) for c in children(n))
+            return any(walk(c) for c in walk_mod.children(n))
 
         return walk(node)
 
-    def _sanitize_xp_arg(self, arg: Node, *, force_float: bool) -> Node:
+    def _sanitize_xp_arg(self, arg: ir.Node, *, force_float: bool) -> ir.Node:
         """Make an argument safe for xp.* calls.
 
         Operators promote raw Python scalars fine, but xp.* function
@@ -71,19 +76,19 @@ class _Sanitizer(_LowererBase):
         lit = self._literal_value(arg)
         if lit is not None:
             if force_float:
-                return Literal(float(lit.value), "float")
-            return Call("asarray", (lit,))
+                return ir.Literal(float(lit.value), "float")
+            return ir.Call("asarray", (lit,))
         kind = self._numeric_kind(arg)
         if kind in ("int", "bool") or self._possibly_scalar(arg):
             if force_float:
-                return Call("astype", (Call("asarray", (arg,)), DType("float64")))
-            return Call("asarray", (arg,))
+                return ir.Call("astype", (ir.Call("asarray", (arg,)), ir.DType("float64")))
+            return ir.Call("asarray", (arg,))
         return arg
 
-    def _as_float_arg(self, arg: Node) -> Node:
+    def _as_float_arg(self, arg: ir.Node) -> ir.Node:
         kind = self._numeric_kind(arg)
         if kind in ("int", "bool"):
-            if isinstance(arg, Literal):
-                return Literal(float(arg.value), "float")
-            return Call("astype", (Call("asarray", (arg,)), DType("float64")))
+            if isinstance(arg, ir.Literal):
+                return ir.Literal(float(arg.value), "float")
+            return ir.Call("astype", (ir.Call("asarray", (arg,)), ir.DType("float64")))
         return arg

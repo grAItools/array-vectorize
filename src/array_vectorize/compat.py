@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from array_api_compat import array_namespace
+import array_api_compat
 
 __all__ = ["_check_namespace", "_is_array", "_py_scalar"]
 
@@ -50,7 +50,7 @@ def _is_array(value: Any) -> bool:
     checks that miss backends.
     """
     try:
-        array_namespace(value)
+        array_api_compat.array_namespace(value)
     except TypeError:
         return False
     return True

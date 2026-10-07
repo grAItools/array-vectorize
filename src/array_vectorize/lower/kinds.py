@@ -43,24 +43,24 @@ by :meth:`Kinds.restore_facts` un-blocks it again.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+import dataclasses
 
-from ..ir import Kind, Literal
+from array_vectorize import ir
 
 __all__ = ["FactsSnapshot", "Kinds", "VarInfo"]
 
 
-@dataclass
+@dataclasses.dataclass
 class VarInfo:
     """Per-name kind-inference facts (replaces the five parallel dicts)."""
 
-    kind: Kind | None = None
-    literal: Literal | None = None
+    kind: ir.Kind | None = None
+    literal: ir.Literal | None = None
     maybe_scalar: bool = False
     maybe_bool: bool = False
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class FactsSnapshot:
     """Presence-faithful copy of the kind + literal facts.
 
@@ -70,21 +70,24 @@ class FactsSnapshot:
     so values are always real literals).
     """
 
-    kinds: dict[str, Kind | None]
-    literals: dict[str, Literal]
+    kinds: dict[str, ir.Kind | None]
+    literals: dict[str, ir.Literal]
 
 
 class Kinds:
-    """Kind/literal/flag facts for every emitted name, plus the stack of
-    per-loop carried-assignment kind frames."""
+    """Kind/literal/flag facts for every emitted name.
+
+    Also holds the stack of per-loop carried-assignment kind frames.
+    """
 
     def __init__(self) -> None:
+        """Start with no facts and no active loop frames."""
         self._names: dict[str, VarInfo] = {}
         # names with an established kind fact (a None kind is a legitimate
         # "unknown" VALUE — presence is what setdefault consults)
         self._kind_established: set[str] = set()
         # per active loop: {carried name -> kinds assigned in the body}
-        self.carried_frames: list[dict[str, set[Kind | None]]] = []
+        self.carried_frames: list[dict[str, set[ir.Kind | None]]] = []
 
     def _entry(self, name: str) -> VarInfo:
         info = self._names.get(name)
@@ -94,35 +97,40 @@ class Kinds:
 
     # ------------------------------------------------------------ kind facts
 
-    def kind(self, name: str) -> Kind | None:
+    def kind(self, name: str) -> ir.Kind | None:
         """The name's recorded kind; absent names read as ``None``."""
         if name not in self._kind_established:
             return None
         return self._names[name].kind
 
-    def set_kind(self, name: str, kind: Kind | None) -> None:
+    def set_kind(self, name: str, kind: ir.Kind | None) -> None:
+        """Record ``name``'s kind, replacing any previous fact."""
         self._kind_established.add(name)
         self._entry(name).kind = kind
 
-    def setdefault_kind(self, name: str, kind: Kind | None) -> None:
+    def setdefault_kind(self, name: str, kind: ir.Kind | None) -> None:
         """Insert-only: an established fact (even ``kind=None``) wins."""
         if name not in self._kind_established:
             self.set_kind(name, kind)
 
-    def update_kinds(self, labels: Mapping[str, Kind | None]) -> None:
+    def update_kinds(self, labels: Mapping[str, ir.Kind | None]) -> None:
+        """``set_kind`` for every name/kind entry at once."""
         for name, kind in labels.items():
             self.set_kind(name, kind)
 
     # --------------------------------------------------------- literal facts
 
-    def literal(self, name: str) -> Literal | None:
+    def literal(self, name: str) -> ir.Literal | None:
+        """The name's recorded literal, or ``None``."""
         info = self._names.get(name)
         return info.literal if info is not None else None
 
-    def set_literal(self, name: str, lit: Literal) -> None:
+    def set_literal(self, name: str, lit: ir.Literal) -> None:
+        """Record ``name`` as holding the literal ``lit``."""
         self._entry(name).literal = lit
 
     def drop_literal(self, name: str) -> None:
+        """Forget ``name``'s literal fact, if any."""
         info = self._names.get(name)
         if info is not None:
             info.literal = None
@@ -130,25 +138,31 @@ class Kinds:
     # ----------------------------------------------------------------- flags
 
     def is_scalar(self, name: str) -> bool:
+        """True when the name may hold a raw Python scalar."""
         info = self._names.get(name)
         return info is not None and (info.maybe_scalar or info.literal is not None)
 
     def mark_scalar(self, name: str) -> None:
+        """Mark ``name`` as possibly holding a raw Python scalar."""
         self._entry(name).maybe_scalar = True
 
     def unmark_scalar(self, name: str) -> None:
+        """Clear the maybe-scalar mark on ``name``."""
         info = self._names.get(name)
         if info is not None:
             info.maybe_scalar = False
 
     def is_maybe_bool(self, name: str) -> bool:
+        """True when the name may hold a boolean."""
         info = self._names.get(name)
         return info is not None and info.maybe_bool
 
     def mark_maybe_bool(self, name: str) -> None:
+        """Mark ``name`` as possibly boolean."""
         self._entry(name).maybe_bool = True
 
     def unmark_maybe_bool(self, name: str) -> None:
+        """Clear the maybe-boolean mark on ``name``."""
         info = self._names.get(name)
         if info is not None:
             info.maybe_bool = False
@@ -156,12 +170,14 @@ class Kinds:
     # -------------------------------------------------------- carried frames
 
     def push_carried_frame(self) -> None:
+        """Enter a loop: body assignments record into a fresh frame."""
         self.carried_frames.append({})
 
-    def pop_carried_frame(self) -> dict[str, set[Kind | None]]:
+    def pop_carried_frame(self) -> dict[str, set[ir.Kind | None]]:
+        """Leave a loop, returning its carried-assignment frame."""
         return self.carried_frames.pop()
 
-    def record_carried_kind(self, name: str, kind: Kind | None) -> None:
+    def record_carried_kind(self, name: str, kind: ir.Kind | None) -> None:
         """Record a body-assignment kind for ``name`` in EVERY active frame."""
         for frame in self.carried_frames:
             frame.setdefault(name, set()).add(kind)

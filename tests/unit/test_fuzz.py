@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from array_vectorize.fuzz import main
+from array_vectorize import fuzz
 
 
 def test_fuzzer_smoke() -> None:
     # deterministic seed; any internal error or value mismatch fails nonzero
-    assert main(["--seed", "2024", "--cases", "40", "--seconds", "60"]) == 0
+    assert fuzz.main(["--seed", "2024", "--cases", "40", "--seconds", "60"]) == 0
 
 
 def test_fuzzer_detects_mismatch(monkeypatch) -> None:  # type: ignore[no-untyped-def]

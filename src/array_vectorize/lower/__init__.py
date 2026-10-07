@@ -17,12 +17,15 @@ from __future__ import annotations
 import ast
 from typing import Any
 
-from ..errors import VectorizationError
-from ..frontend.info import FunctionInfo
-from ..ir import Node, Program, generated_name
-from ..runtime.registry import RUNTIME_HELPERS
-from .helpers import _HelperLowerer
-from .types import HelperVectorizer, LoweredFunction
+from array_vectorize.errors import VectorizationError
+from array_vectorize.frontend.info import FunctionInfo
+from array_vectorize.ir import generated_name
+from array_vectorize.ir import Node
+from array_vectorize.ir import Program
+from array_vectorize.lower.helpers import _HelperLowerer
+from array_vectorize.lower.types import HelperVectorizer
+from array_vectorize.lower.types import LoweredFunction
+from array_vectorize.runtime.registry import RUNTIME_HELPERS
 
 __all__ = ["HelperVectorizer", "LoweredFunction", "lower_function"]
 

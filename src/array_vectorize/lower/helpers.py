@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import ast
 
-from ..ir import FuncCall, Node, generated_name
-from .loops import _LoopLowerer
+from array_vectorize import ir
+from array_vectorize.lower import loops
 
 __all__ = ["_HelperLowerer"]
 
 
-class _HelperLowerer(_LoopLowerer):
-    def _call_helper(self, node: ast.Call, name: str, args: list[Node]) -> Node:
+class _HelperLowerer(loops._LoopLowerer):
+    def _call_helper(self, node: ast.Call, name: str, args: list[ir.Node]) -> ir.Node:
         """Vectorize and call another scalar function (design D7)."""
         if self.helper_vectorizer is None:
             raise self.error(
@@ -27,12 +27,12 @@ class _HelperLowerer(_LoopLowerer):
             )
         callee = self.info.user_funcs[name]
         if callee in self._helper_names:
-            return FuncCall(self._helper_names[callee], tuple(args))
-        base = generated_name(callee.__name__)
+            return ir.FuncCall(self._helper_names[callee], tuple(args))
+        base = ir.generated_name(callee.__name__)
         while not self.ssa.is_free(base):
             base += "_"
         self.ssa.reserve(base)
         vec = self.helper_vectorizer(callee)
         self.helpers.append((base, vec))
         self._helper_names[callee] = base
-        return FuncCall(base, tuple(args))
+        return ir.FuncCall(base, tuple(args))
