@@ -91,3 +91,10 @@ python -m array_vectorize.fuzz --seconds 60 --seed 0
 
 Runs the grammar fuzzer (differential checks of random scalar programs).
 Reproducible with `--seed`.
+
+| Option | Meaning |
+|---|---|
+| `--seconds` | time budget in seconds (default: 60) |
+| `--seed` | random seed for a reproducible run |
+| `--cases` | maximum cases; overrides the time budget |
+| `--help` | show usage and exit |

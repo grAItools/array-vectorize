@@ -11,9 +11,9 @@ Anything outside this subset is **rejected with a precise diagnostic**
 | `& \| ^ << >> ~` | same operators (integer inputs) |
 | `abs`, `round`, `min`, `max` | `xp.abs`, `xp.round`, exact left-folded `xp.minimum`/`xp.maximum` |
 | `int(x)`, `float(x)`, `bool(x)` | `xp.astype(x, xp.int64/float64/bool)` (truncation toward zero) |
-| `math.sqrt exp expm1 log log1p log2 log10 sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh pow floor ceil hypot copysign isnan isinf isfinite` | corresponding `xp.*` |
+| `math.sqrt`, `math.exp`, `math.expm1`, `math.log`, `math.log1p`, `math.log2`, `math.log10`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.atan2`, `math.sinh`, `math.cosh`, `math.tanh`, `math.asinh`, `math.acosh`, `math.atanh`, `math.pow`, `math.floor`, `math.ceil`, `math.hypot`, `math.copysign`, `math.isnan`, `math.isinf`, `math.isfinite` | corresponding `xp.*` |
 | `math.trunc(x)` | `xp.astype(x, xp.int64)` |
-| `math.pi/e/tau/inf/nan` | literals (`xp.inf` / `xp.nan` for the last two) |
+| `math.pi`, `math.e`, `math.tau`, `math.inf`, `math.nan` | literals (`xp.inf` / `xp.nan` for the last two) |
 | comparisons, chains (`a < b < c`) | elementwise; chains fold with `xp.logical_and` |
 | `and` / `or` / `not` | exact value-select lowering (`xp.where(x != 0, y, x)`); `xp.logical_*` when both operands are boolean |
 | ternary `a if c else b` | `xp.where(coerce(c), a, b)` |
