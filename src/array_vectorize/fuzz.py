@@ -147,7 +147,7 @@ def _run_one(rng: random.Random) -> str:
     # vectorize() requires inspectable source: define the case in a real file
     case_dir = pathlib.Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
     path = case_dir / "fuzz_case_mod.py"
-    path.write_text("import math\n\n\n" + src)
+    path.write_text("import math\n\n\n" + src, encoding="utf-8", newline="\n")
     spec = importlib.util.spec_from_file_location("fuzz_case_mod", path)
     assert spec is not None
     assert spec.loader is not None

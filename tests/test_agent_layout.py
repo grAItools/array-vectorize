@@ -28,7 +28,7 @@ SKILL_NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 def _frontmatter(path: pathlib.Path) -> dict[str, str | list[str]]:
     """Top-level keys of a markdown file's YAML frontmatter (scalars, lists)."""
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "---", f"{path} has no frontmatter"
     fields: dict[str, str | list[str]] = {}
     key = ""
@@ -78,4 +78,4 @@ def test_claude_subagents_preload_shared_skills(agent: pathlib.Path) -> None:
 
 
 def test_claude_md_forwards_to_agents_md() -> None:
-    assert (ROOT / "CLAUDE.md").read_text().strip() == "@AGENTS.md"
+    assert (ROOT / "CLAUDE.md").read_text(encoding="utf-8").strip() == "@AGENTS.md"

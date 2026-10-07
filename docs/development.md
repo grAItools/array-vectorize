@@ -160,6 +160,10 @@ the NumPy-style docstring subject).
 - **static** — `make lint type` once on Python 3.12, including all four checkers.
 - **check** — `make coverage` on Python 3.12–3.14
   (Hypothesis derandomized), then `make smoke`.
+- **windows** — correctness tests on Python 3.12 and 3.14 with locked dependencies
+  and the deterministic Hypothesis profile. Git symlink support is configured before
+  checkout so agent-layout checks remain enabled. Timing-sensitive performance tests
+  stay on Linux; optional JAX/PyTorch compilation stays in its dedicated job.
 - **lowest** — `make lowest`: the suite at the declared dependency floors.
 - **fuzz** — the five fixed fuzzer seeds.
 - **compile** — proves the generated source traces correctly under
@@ -258,7 +262,7 @@ harness's own directory only forwards to them:
 Edit the shared files; the adapters pick up changes through the import
 and the symlinks. `tests/test_agent_layout.py` fails when a skill uses
 harness-specific frontmatter or lacks its `.claude/skills` link. On
-Windows, the symlinks need `git config core.symlinks true` (and Developer
+Windows, the symlinks need `git config core.symlinks true` before checkout (and Developer
 Mode or an elevated shell) to check out as links.
 
 ## History
@@ -267,3 +271,11 @@ The original design document, the restructuring plan, and the log of
 the 26-round adversarial review loop that drove the exactness work live
 in git history; the design decisions that still hold are summarized in
 [Architecture](architecture.md#design-decisions).
+
+## Portable source files
+
+Git checkouts use LF through `.gitattributes`. Repository text I/O names UTF-8
+explicitly; generated snippet and snapshot writers name LF explicitly. Tests also
+write CRLF and Unicode paths deliberately to verify source inspection on Windows.
+No Make installation is required for Windows correctness testing: use
+`uv run --frozen pytest -m "not slow" -ra` with `CI=1`.

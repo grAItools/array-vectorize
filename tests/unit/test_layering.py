@@ -88,7 +88,7 @@ def _classify(tree: ast.Module, package_dir: list[str]) -> tuple[set[str], set[s
 def _imports(path: pathlib.Path) -> tuple[set[str], set[str]]:
     """(package units, external top-level modules) imported by ``path``."""
     package_dir = list(path.relative_to(ROOT).parts[:-1])
-    return _classify(ast.parse(path.read_text()), package_dir)
+    return _classify(ast.parse(path.read_text(encoding="utf-8")), package_dir)
 
 
 SOURCES = sorted(ROOT.rglob("*.py"))

@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
 import subprocess
+import sys
 
 import yaml
 
@@ -21,7 +23,8 @@ def test_prek_installs_both_configured_hook_stages(tmp_path: pathlib.Path) -> No
     )
     old_hook = tmp_path / ".git" / "hooks" / "pre-commit"
     old_hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8", newline="\n")
-    subprocess.run(["prek", "install", "--force"], cwd=tmp_path, check=True, capture_output=True)
+    prek = pathlib.Path(sys.executable).with_name("prek.exe" if os.name == "nt" else "prek")
+    subprocess.run([str(prek), "install", "--force"], cwd=tmp_path, check=True, capture_output=True)
     for stage in ("pre-commit", "commit-msg"):
         hook = tmp_path / ".git" / "hooks" / stage
         text = hook.read_text(encoding="utf-8")

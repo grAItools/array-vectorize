@@ -50,6 +50,28 @@ jobs:
       - name: Examples and notebooks
         run: make smoke
 
+  windows:
+    name: Windows correctness (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    env:
+      CI: "1"
+    steps:
+      - name: Preserve repository symlinks
+        run: git config --global core.symlinks true
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Correctness tests
+        run: uv run --frozen pytest -m "not slow" -ra
+
   lowest:
     runs-on: ubuntu-latest
     steps:

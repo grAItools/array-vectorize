@@ -44,9 +44,13 @@ def test_pinned_source_shape() -> None:
 def test_unpinned_source_unchanged() -> None:
     unpinned = array_vectorize.vectorize(corpus.add)
     pinned = array_vectorize.vectorize(corpus.add, namespace=np)
-    # byte-identical to the pre-pin generated source (the golden snapshot)
-    golden = (pathlib.Path(__file__).parent.parent / "golden" / "cases" / "add.py").read_text()
-    assert support.with_metadata(unpinned).source == golden
+    # Byte-identical to the golden source, excluding its repository header.
+    golden = (pathlib.Path(__file__).parent.parent / "golden" / "cases" / "add.py").read_text(
+        encoding="utf-8"
+    )
+    header = (pathlib.Path(__file__).parents[2] / ".license-header.txt").read_text(encoding="utf-8")
+    assert golden.startswith(header + "\n")
+    assert support.with_metadata(unpinned).source == golden.removeprefix(header + "\n")
     assert support.with_metadata(pinned).source != support.with_metadata(unpinned).source
     assert "xp = _namespace" not in support.with_metadata(unpinned).source
     assert "_namespace=None" not in support.with_metadata(unpinned).source

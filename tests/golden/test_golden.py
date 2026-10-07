@@ -56,7 +56,7 @@ def test_golden_source(name: str, request: pytest.FixtureRequest) -> None:
         path.write_text(HEADER + "\n" + source, encoding="utf-8", newline="\n")
         return
     assert path.exists(), f"missing golden file {path}; run pytest --update-golden"
-    golden = path.read_text()
+    golden = path.read_text(encoding="utf-8")
     assert _tree(source) == _tree(golden), (
         f"generated source differs from golden for {name!r}; "
         "review the diff and regenerate with pytest --update-golden if intended\n"
@@ -73,7 +73,7 @@ def test_golden_pinned_source(name: str, request: pytest.FixtureRequest) -> None
         path.write_text(HEADER + "\n" + source, encoding="utf-8", newline="\n")
         return
     assert path.exists(), f"missing golden file {path}; run pytest --update-golden"
-    golden = path.read_text()
+    golden = path.read_text(encoding="utf-8")
     assert _tree(source) == _tree(golden), (
         f"generated pinned source differs from golden for {name!r}; "
         "review the diff and regenerate with pytest --update-golden if intended\n"
@@ -83,7 +83,7 @@ def test_golden_pinned_source(name: str, request: pytest.FixtureRequest) -> None
 
 def test_golden_files_are_valid_python() -> None:
     for path in GOLDEN_DIR.glob("*.py"):
-        ast.parse(path.read_text())
+        ast.parse(path.read_text(encoding="utf-8"))
 
 
 def test_regenerated_snapshots_keep_headers_without_changing_function_source(
