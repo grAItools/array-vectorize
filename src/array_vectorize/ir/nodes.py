@@ -7,9 +7,9 @@ CSE. ``DType`` is a small addition to the plan's node set, needed to represent
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import typing
-from dataclasses import dataclass
 from typing import Any
 
 __all__ = [
@@ -45,7 +45,7 @@ def _literal_key(value: int | float | bool) -> tuple[Any, ...]:
 type Kind = typing.Literal["int", "float", "bool"]
 
 
-@dataclass(frozen=True, eq=False, slots=True)
+@dataclasses.dataclass(frozen=True, eq=False, slots=True)
 class Literal:
     """A scalar constant. ``inf``/``nan`` allowed (codegen emits xp.inf / xp.nan).
 
@@ -68,14 +68,14 @@ class Literal:
         return hash((self.kind, self.value))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Ref:
     """Reference to a parameter or SSA binding by its emitted name."""
 
     name: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class BinOp:
     """Binary operation, e.g. ``BinOp('add', x, y)`` -> x + y."""
 
@@ -84,7 +84,7 @@ class BinOp:
     right: Node
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class UnaryOp:
     """Unary operation, e.g. ``UnaryOp('neg', x)`` -> -x."""
 
@@ -92,7 +92,7 @@ class UnaryOp:
     operand: Node
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Compare:
     """Comparison, e.g. ``Compare('lt', x, y)`` -> x < y."""
 
@@ -101,7 +101,7 @@ class Compare:
     right: Node
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Logical:
     """``and``/``or`` over bool-typed operands only (numeric and/or lowers to Where)."""
 
@@ -109,7 +109,7 @@ class Logical:
     parts: tuple[Node, ...]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Where:
     """Branch merge: ``then`` where ``cond`` holds, ``other`` elsewhere."""
 
@@ -118,7 +118,7 @@ class Where:
     other: Node
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Call:
     """Call to an Array API function, e.g. ``Call('sqrt', (x,))`` -> xp.sqrt(x)."""
 
@@ -126,14 +126,14 @@ class Call:
     args: tuple[Node, ...]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class DType:
     """An xp dtype reference; ``DType('int64')`` codegens to ``xp.int64``."""
 
     name: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class FuncCall:
     """Call to a vectorized helper function by its emitted name (design D7)."""
 
@@ -144,7 +144,7 @@ class FuncCall:
 type Node = Literal | Ref | BinOp | UnaryOp | Compare | Logical | Where | Call | DType | FuncCall
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Binding:
     """Let-statement: ``name = expr``."""
 
@@ -152,7 +152,7 @@ class Binding:
     expr: Node
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Loop:
     """Constant-trip ``for`` loop emitted as a real loop (design D6).
 
@@ -171,7 +171,7 @@ class Loop:
 type Stmt = Binding | Loop
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Program:
     """A lowered function: parameters, top-level bindings, result."""
 

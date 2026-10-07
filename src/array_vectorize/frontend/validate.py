@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import ast
 
-from array_vectorize.errors import Diagnostic, VectorizationError
-from array_vectorize.frontend.info import FunctionInfo
-from array_vectorize.frontend.tables import MATH_CONSTS, MATH_FUNCS, MATH_SPECIAL
+from array_vectorize import errors
+from array_vectorize.frontend import info, tables
 
 __all__ = ["validate"]
 
@@ -32,7 +31,7 @@ _ALLOWED_BINOPS = (
 _ALLOWED_UNARY = (ast.USub, ast.UAdd, ast.Invert, ast.Not)
 _ALLOWED_CMPOPS = (ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE)
 
-_MATH_ATTRS = set(MATH_FUNCS) | set(MATH_SPECIAL) | set(MATH_CONSTS)
+_MATH_ATTRS = set(tables.MATH_FUNCS) | set(tables.MATH_SPECIAL) | set(tables.MATH_CONSTS)
 
 _STMT_MESSAGES: dict[type[ast.stmt], str] = {
     ast.While: "while loops are not supported (data-dependent control flow)",
@@ -87,17 +86,17 @@ if _TEMPLATE_STR is not None:
 
 
 class _Validator:
-    def __init__(self, info: FunctionInfo) -> None:
+    def __init__(self, info: info.FunctionInfo) -> None:
         self.info = info
         self.lines = info.source.splitlines()
-        self.diags: list[Diagnostic] = []
+        self.diags: list[errors.Diagnostic] = []
         self.saw_return = False
 
     def error(self, node: ast.AST, message: str) -> None:
         lineno = getattr(node, "lineno", 1)
         col = getattr(node, "col_offset", 0)
         line = self.lines[lineno - 1] if 0 < lineno <= len(self.lines) else ""
-        self.diags.append(Diagnostic(message, lineno, col, line))
+        self.diags.append(errors.Diagnostic(message, lineno, col, line))
 
     # ------------------------------------------------------------- statements
 
@@ -277,7 +276,7 @@ class _Validator:
                 self.validate_expr(arg)
 
 
-def validate(info: FunctionInfo) -> None:
+def validate(info: info.FunctionInfo) -> None:
     """Validate the supported subset; raise with all violations if any."""
     v = _Validator(info)
     tree = info.tree
@@ -293,7 +292,7 @@ def validate(info: FunctionInfo) -> None:
         v.validate_expr(tree.body)
     if v.diags:
         n = len(v.diags)
-        raise VectorizationError(
+        raise errors.VectorizationError(
             f"cannot vectorize {info.name!r}: {n} unsupported construct"
             f"{'' if n == 1 else 's'} found",
             v.diags,

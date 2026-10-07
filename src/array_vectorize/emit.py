@@ -17,7 +17,7 @@ import linecache
 from collections.abc import Callable
 from typing import Any, cast
 
-from array_vectorize.ir.ssa import generated_name
+from array_vectorize.ir import ssa
 
 __all__ = ["compile_vectorized"]
 
@@ -44,7 +44,7 @@ def compile_vectorized(
     exec(code, namespace)
     # retrieve the entry point BEFORE injecting helpers, so a helper whose
     # generated name collides can never shadow the function itself
-    func: Any = namespace[generated_name(name)]
+    func: Any = namespace[ssa.generated_name(name)]
     # helper functions (vectorized user helpers AND the runtime dtype
     # promotion helpers) are injected here; bare-name calls resolve through
     # the function's globals at call time

@@ -12,10 +12,9 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
-from array_api_compat import array_namespace
+import array_api_compat
 
-from array_vectorize.compat import _is_array, _py_scalar
-from array_vectorize.errors import VectorizationError
+from array_vectorize import compat, errors
 
 __all__ = ["verify_match"]
 
@@ -34,11 +33,13 @@ def verify_match(
     With ``namespace`` set (a pinned vectorization), that namespace is used
     directly instead of extracting it from the example arrays.
     """
-    positions = [i for i, a in enumerate(example_args) if _is_array(a)]
+    positions = [i for i, a in enumerate(example_args) if compat._is_array(a)]
     if not positions:
-        raise VectorizationError("verify= needs at least one Array API array in the example inputs")
+        raise errors.VectorizationError(
+            "verify= needs at least one Array API array in the example inputs"
+        )
     arrays = [example_args[i] for i in positions]
-    xp = namespace if namespace is not None else array_namespace(*arrays)
+    xp = namespace if namespace is not None else array_api_compat.array_namespace(*arrays)
     with warnings.catch_warnings():
         # out-of-domain lanes are expected (design D3); their warnings are noise
         # (including inf-inf in the comparison below)
@@ -55,7 +56,7 @@ def verify_match(
         if got_arr.shape == ():
             got_arr = xp.broadcast_to(got_arr, shape)
         if tuple(got_arr.shape) != tuple(shape):
-            raise VectorizationError(
+            raise errors.VectorizationError(
                 f"verification failed: result shape {tuple(got_arr.shape)} "
                 f"!= input shape {tuple(shape)}"
             )
@@ -69,7 +70,7 @@ def verify_match(
             # int/bool arithmetic semantics)
             call_args = list(example_args)
             for pos, elem in zip(positions, elems, strict=True):
-                call_args[pos] = _py_scalar(elem)
+                call_args[pos] = compat._py_scalar(elem)
             try:
                 expected_values.append(original(*call_args))
             except (ValueError, ArithmeticError, OverflowError):
@@ -92,7 +93,7 @@ def verify_match(
         close = (got_f == exp_f) | (xp.isfinite(diff) & (diff <= _ATOL + _RTOL * xp.abs(exp_f)))
         both_nan = xp.isnan(got_f) & xp.isnan(exp_f)
         if not bool(xp.all(close | both_nan)):
-            raise VectorizationError(
+            raise errors.VectorizationError(
                 "verification failed: vectorized output differs from the scalar "
                 f"original on the provided example inputs (got {got}, expected {expected})"
             )

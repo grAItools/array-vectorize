@@ -12,32 +12,10 @@ from __future__ import annotations
 
 import ast
 
-from array_vectorize.frontend.tables import (
-    BUILTIN_CASTS,
-    BUILTIN_FOLDS,
-    BUILTIN_UNARY,
-    MATH_CONSTS,
-    MATH_FUNCS,
-    MATH_SPECIAL,
-)
-from array_vectorize.ir import (
-    Binding,
-    BinOp,
-    Call,
-    Compare,
-    DType,
-    FuncCall,
-    Kind,
-    Literal,
-    Logical,
-    Node,
-    Ref,
-    UnaryOp,
-    Where,
-    is_bool,
-)
-from array_vectorize.lower.sanitize import _Sanitizer
-from array_vectorize.runtime.registry import ArithOp
+from array_vectorize import ir
+from array_vectorize.frontend import tables
+from array_vectorize.lower import sanitize
+from array_vectorize.runtime import registry
 
 __all__ = ["_ExpressionLowerer"]
 
@@ -71,10 +49,10 @@ _UNARY: dict[type[ast.unaryop], str] = {
 }
 
 
-class _ExpressionLowerer(_Sanitizer):
+class _ExpressionLowerer(sanitize._Sanitizer):
     # --------------------------------------------------------- expressions
 
-    def lower_expr(self, node: ast.expr) -> Node:
+    def lower_expr(self, node: ast.expr) -> ir.Node:
         match node:
             case ast.Constant():
                 return self._literal(node.value)
@@ -92,19 +70,23 @@ class _ExpressionLowerer(_Sanitizer):
                     # -True is -1 in Python; numpy cannot negate bool arrays.
                     # The whole negation goes through the runtime helper (it
                     # computes the negation — no wrapping UnaryOp on top)
-                    if isinstance(operand, Literal):
-                        return Literal(-int(operand.value), "int")
-                    return FuncCall(
+                    if isinstance(operand, ir.Literal):
+                        return ir.Literal(-int(operand.value), "int")
+                    return ir.FuncCall(
                         self.arith_name,
-                        (Ref(self.ns_var), Literal(int(ArithOp.NEG), "int"), operand),
+                        (
+                            ir.Ref(self.ns_var),
+                            ir.Literal(int(registry.ArithOp.NEG), "int"),
+                            operand,
+                        ),
                     )
-                return UnaryOp(_UNARY[type(node.op)], operand)
+                return ir.UnaryOp(_UNARY[type(node.op)], operand)
             case ast.Compare():
                 return self._lower_compare(node)
             case ast.BoolOp():
                 return self._lower_boolop(node)
             case ast.IfExp():
-                return Where(
+                return ir.Where(
                     self._coerce_bool(self.lower_expr(node.test)),
                     self.lower_expr(node.body),
                     self.lower_expr(node.orelse),
@@ -118,41 +100,43 @@ class _ExpressionLowerer(_Sanitizer):
                 # the validator rejects these first, lowering never sees them
                 raise self.error(node, f"{type(node).__name__} expressions are not supported")
 
-    def _lower_compare(self, node: ast.Compare) -> Node:
-        parts: list[Node] = []
+    def _lower_compare(self, node: ast.Compare) -> ir.Node:
+        parts: list[ir.Node] = []
         operands = [node.left, *node.comparators]
         for left, op, right in zip(operands, node.ops, operands[1:], strict=False):
-            parts.append(Compare(_CMPOPS[type(op)], self.lower_expr(left), self.lower_expr(right)))
+            parts.append(
+                ir.Compare(_CMPOPS[type(op)], self.lower_expr(left), self.lower_expr(right))
+            )
         if len(parts) == 1:
             return parts[0]
-        return Logical("and", tuple(parts))
+        return ir.Logical("and", tuple(parts))
 
-    def _lower_boolop(self, node: ast.BoolOp) -> Node:
+    def _lower_boolop(self, node: ast.BoolOp) -> ir.Node:
         op = "and" if isinstance(node.op, ast.And) else "or"
         values = [self.lower_expr(v) for v in node.values]
-        if all(is_bool(v) for v in values):
-            return Logical(op, tuple(values))
+        if all(ir.is_bool(v) for v in values):
+            return ir.Logical(op, tuple(values))
         # exact value-select lowering (design D2)
         partial = values[0]
         last = len(values) - 1
         for i, value in enumerate(values[1:], 1):
             if op == "and":
-                merged: Node = Where(self._coerce_bool(partial), value, partial)
+                merged: ir.Node = ir.Where(self._coerce_bool(partial), value, partial)
             else:
-                merged = Where(self._coerce_bool(partial), partial, value)
+                merged = ir.Where(self._coerce_bool(partial), partial, value)
             if i < last:
                 # bind intermediates to temps; only the final value stays inline
                 temp = self.ssa.fresh_temp("v")
-                self.bindings.append(Binding(temp, merged))
-                partial = Ref(temp)
+                self.bindings.append(ir.Binding(temp, merged))
+                partial = ir.Ref(temp)
             else:
                 partial = merged
         return partial
 
-    def _lower_math_const(self, node: ast.Attribute) -> Node:
-        return self._literal(MATH_CONSTS[node.attr])
+    def _lower_math_const(self, node: ast.Attribute) -> ir.Node:
+        return self._literal(tables.MATH_CONSTS[node.attr])
 
-    def _lower_call(self, node: ast.Call) -> Node:
+    def _lower_call(self, node: ast.Call) -> ir.Node:
         args = [self.lower_expr(a) for a in node.args]
         func = node.func
         if isinstance(func, ast.Attribute):
@@ -173,18 +157,18 @@ class _ExpressionLowerer(_Sanitizer):
                 node,
                 "round(x, n) is not supported: the decimals kwarg is not in the Array API standard",
             )
-        if name in BUILTIN_UNARY:
+        if name in tables.BUILTIN_UNARY:
             self._check_arity(node, name, args, 1, 1)
             sanitized = tuple(self._sanitize_xp_arg(a, force_float=False) for a in args)
-            return Call(BUILTIN_UNARY[name], sanitized)
-        if name in BUILTIN_FOLDS:
+            return ir.Call(tables.BUILTIN_UNARY[name], sanitized)
+        if name in tables.BUILTIN_FOLDS:
             if len(args) < 2:
                 raise self.error(node, f"{name}() needs at least 2 arguments in vectorized code")
             if all(self._literal_value(a) is not None for a in args):
                 # all-literal call: substitute the actual literals so
                 # const-folding fires (Ref nodes would block it and reach
                 # codegen as raw Python scalars)
-                clean: list[Node] = [
+                clean: list[ir.Node] = [
                     lit for a in args if (lit := self._literal_value(a)) is not None
                 ]
             else:
@@ -194,25 +178,25 @@ class _ExpressionLowerer(_Sanitizer):
                 # uint64; min(uint64, signed) fits int64), Python float
                 # promotion. Literal args pass as raw values; array args
                 # pass through the soft sanitizer
-                is_min = BUILTIN_FOLDS[name] == "minimum"
-                helper_args: list[Node] = [Ref(self.ns_var), Literal(is_min, "bool")]
+                is_min = tables.BUILTIN_FOLDS[name] == "minimum"
+                helper_args: list[ir.Node] = [ir.Ref(self.ns_var), ir.Literal(is_min, "bool")]
                 for a in args:
                     lit = self._literal_value(a)
                     if lit is None:
                         helper_args.append(self._sanitize_xp_arg(a, force_float=False))
                     else:
                         helper_args.append(lit)
-                return FuncCall(self.minmax_name, tuple(helper_args))
-            folded: Node = Call(BUILTIN_FOLDS[name], (clean[0], clean[1]))
+                return ir.FuncCall(self.minmax_name, tuple(helper_args))
+            folded: ir.Node = ir.Call(tables.BUILTIN_FOLDS[name], (clean[0], clean[1]))
             for arg in clean[2:]:
-                folded = Call(BUILTIN_FOLDS[name], (folded, arg))
+                folded = ir.Call(tables.BUILTIN_FOLDS[name], (folded, arg))
             return folded
-        if name in BUILTIN_CASTS:
+        if name in tables.BUILTIN_CASTS:
             self._check_arity(node, name, args, 1, 1)
-            return self._cast_call(args[0], BUILTIN_CASTS[name])
+            return self._cast_call(args[0], tables.BUILTIN_CASTS[name])
         raise self.error(node, f"unsupported function {name!r}")
 
-    def _cast_call(self, arg: Node, dtype: str) -> Node:
+    def _cast_call(self, arg: ir.Node, dtype: str) -> ir.Node:
         """Lower an int()/float()/bool()/math.trunc-style cast.
 
         Literal args fold exactly, raw loop-variable ints wrap in asarray,
@@ -222,59 +206,59 @@ class _ExpressionLowerer(_Sanitizer):
         if lit is not None:
             try:
                 if dtype == "bool":
-                    return Literal(bool(lit.value), "bool")
+                    return ir.Literal(bool(lit.value), "bool")
                 if dtype == "int64":
-                    return Literal(int(lit.value), "int")
-                return Literal(float(lit.value), "float")
+                    return ir.Literal(int(lit.value), "int")
+                return ir.Literal(float(lit.value), "float")
             except (ValueError, OverflowError):
                 pass  # inf/nan literals: leave the cast to runtime astype
-        return Call("astype", (self._sanitize_xp_arg(arg, force_float=False), DType(dtype)))
+        return ir.Call("astype", (self._sanitize_xp_arg(arg, force_float=False), ir.DType(dtype)))
 
-    def _call_math(self, func: ast.AST, attr: str, args: list[Node], node: ast.AST) -> Node:
-        if attr in MATH_SPECIAL:
+    def _call_math(self, func: ast.AST, attr: str, args: list[ir.Node], node: ast.AST) -> ir.Node:
+        if attr in tables.MATH_SPECIAL:
             self._check_arity(node, attr, args, 1, 1)
-            return self._cast_call(args[0], MATH_SPECIAL[attr])
-        if attr in MATH_FUNCS:
-            xp_name, lo, hi = MATH_FUNCS[attr]
+            return self._cast_call(args[0], tables.MATH_SPECIAL[attr])
+        if attr in tables.MATH_FUNCS:
+            xp_name, lo, hi = tables.MATH_FUNCS[attr]
             self._check_arity(node, attr, args, lo, hi)
             # Array API elementwise math requires floating-point array
             # inputs; sanitize literal/int/bool/possibly-scalar args
             sanitized = tuple(self._sanitize_xp_arg(a, force_float=True) for a in args)
-            return Call(xp_name, sanitized)
+            return ir.Call(xp_name, sanitized)
         raise self.error(func, f"math.{attr} cannot be called")
 
     @staticmethod
-    def _is_negative_int(node: Node) -> bool:
+    def _is_negative_int(node: ir.Node) -> bool:
         """True for literal negative ints (including UnaryOp(neg, lit))."""
-        if isinstance(node, Literal) and node.kind == "int":
+        if isinstance(node, ir.Literal) and node.kind == "int":
             return node.value < 0
         return (
-            isinstance(node, UnaryOp)
+            isinstance(node, ir.UnaryOp)
             and node.op == "neg"
-            and isinstance(node.operand, Literal)
+            and isinstance(node.operand, ir.Literal)
             and node.operand.kind == "int"
         )
 
-    def _numeric_kind(self, node: Node) -> Kind | None:
+    def _numeric_kind(self, node: ir.Node) -> ir.Kind | None:
         """Best-effort numeric kind of ``node``.
 
         Literals, casts, bools, arithmetic, and Refs whose binding kind
         was recorded are provable; anything else reads as ``None``.
         """
         match node:
-            case Literal():
+            case ir.Literal():
                 return node.kind
-            case Ref():
+            case ir.Ref():
                 return self.kinds.kind(node.name)
-            case Logical():
+            case ir.Logical():
                 return "bool"
-            case Where():
+            case ir.Where():
                 kt, ke = self._numeric_kind(node.then), self._numeric_kind(node.other)
                 return kt if kt == ke else None
-            case _ if is_bool(node):
+            case _ if ir.is_bool(node):
                 # provably-boolean nodes (Compare, not, isnan/isinf/isfinite)
                 return "bool"
-            case BinOp():
+            case ir.BinOp():
                 # scalar promotion rules: int/bool + float -> float; arithmetic
                 # over ints/bools stays int; true division is ALWAYS float in
                 # Python (int / int -> float), whatever the operand kinds
@@ -294,12 +278,12 @@ class _ExpressionLowerer(_Sanitizer):
                 if lk in ("int", "bool") and rk in ("int", "bool"):
                     return "int"
                 return None
-            case UnaryOp() if node.op in ("neg", "pos"):
+            case ir.UnaryOp() if node.op in ("neg", "pos"):
                 return self._numeric_kind(node.operand)
-            case Call() if node.fn == "asarray" and len(node.args) == 1:
+            case ir.Call() if node.fn == "asarray" and len(node.args) == 1:
                 # asarray preserves the wrapped value's kind
                 return self._numeric_kind(node.args[0])
-            case FuncCall() if node.fn == self.minmax_name:
+            case ir.FuncCall() if node.fn == self.minmax_name:
                 # min/max result kind: bool when every argument is bool, float
                 # when any argument is float, int for int-ish mixes (the helper
                 # normalizes bool arrays to int8, so arithmetic downstream must
@@ -312,15 +296,15 @@ class _ExpressionLowerer(_Sanitizer):
                 if all(k == "bool" for k in kinds):
                     return "bool"
                 return "int"
-            case FuncCall() if node.fn == self.arith_name:
+            case ir.FuncCall() if node.fn == self.arith_name:
                 # arithmetic helper result kind: floats stay float, true
                 # division is float, known int/bool operands give int (bools
                 # are converted to a numeric dtype inside the helper) — so
                 # downstream mitigations (e.g. the negative-exponent float
                 # cast) keep firing for provably-integer results
                 op_lit = node.args[1] if len(node.args) > 1 else None
-                op_id = op_lit.value if isinstance(op_lit, Literal) else None
-                if op_id == int(ArithOp.DIV):
+                op_id = op_lit.value if isinstance(op_lit, ir.Literal) else None
+                if op_id == int(registry.ArithOp.DIV):
                     return "float"
                 kinds = [self._numeric_kind(a) for a in node.args[2:]]
                 if any(k is None for k in kinds):
@@ -328,8 +312,8 @@ class _ExpressionLowerer(_Sanitizer):
                 if "float" in kinds:
                     return "float"
                 return "int"
-            case Call() if (
-                node.fn == "astype" and len(node.args) == 2 and isinstance(node.args[1], DType)
+            case ir.Call() if (
+                node.fn == "astype" and len(node.args) == 2 and isinstance(node.args[1], ir.DType)
             ):
                 name = node.args[1].name
                 return "bool" if name == "bool" else "int" if name == "int64" else "float"
@@ -337,7 +321,7 @@ class _ExpressionLowerer(_Sanitizer):
                 # no provable kind (unknown ops, untracked casts, ...)
                 return None
 
-    def _maybe_bool_result(self, node: Node) -> bool:
+    def _maybe_bool_result(self, node: ir.Node) -> bool:
         """True for min/max results whose static kind is unknown.
 
         Their runtime dtype may be boolean (parameter operands), so
@@ -345,20 +329,20 @@ class _ExpressionLowerer(_Sanitizer):
         _vec_arith_dtype cast is a no-op for numeric dtypes and int64
         for booleans.
         """
-        if isinstance(node, FuncCall) and node.fn == self.minmax_name:
+        if isinstance(node, ir.FuncCall) and node.fn == self.minmax_name:
             return self._numeric_kind(node) is None
-        if isinstance(node, Ref):
+        if isinstance(node, ir.Ref):
             return self.kinds.is_maybe_bool(node.name)
-        if isinstance(node, Where):
+        if isinstance(node, ir.Where):
             # branch merge of maybe-bool values is maybe-bool
             return self._maybe_bool_result(node.then) or self._maybe_bool_result(node.other)
-        if isinstance(node, BinOp) and node.op in ("and", "or", "xor"):
+        if isinstance(node, ir.BinOp) and node.op in ("and", "or", "xor"):
             # bitwise expressions preserve boolean-ness (arithmetic
             # results are already intified and numeric)
             return self._maybe_bool_result(node.left) or self._maybe_bool_result(node.right)
         return False
 
-    def _lower_binop(self, op: ast.operator, left: Node, right: Node) -> Node:
+    def _lower_binop(self, op: ast.operator, left: ir.Node, right: ir.Node) -> ir.Node:
         """Build a BinOp with the exactness fixes shared by `a op b` and `a op= b`."""
         # Python bool arithmetic is integer (True + True == 2), but array
         # backends either saturate (bool + bool == True) or reject bools in
@@ -377,17 +361,22 @@ class _ExpressionLowerer(_Sanitizer):
             # uint64 integer paths are exact per lane (modular for
             # add/sub/mul; int64 magnitudes for negative divisors)
             ir_op = _BINOPS[type(op)]
-            return FuncCall(
+            return ir.FuncCall(
                 self.arith_name,
-                (Ref(self.ns_var), Literal(int(ArithOp[ir_op.upper()]), "int"), left, right),
+                (
+                    ir.Ref(self.ns_var),
+                    ir.Literal(int(registry.ArithOp[ir_op.upper()]), "int"),
+                    left,
+                    right,
+                ),
             )
         if isinstance(op, ast.Pow) and self._is_negative_int(right):
             # Python promotes int ** negative-int to float; NumPy raises.
             # Cast provably-int bases so the common literal case matches.
             left = self._as_float_arg(left)
-        return BinOp(_BINOPS[type(op)], left, right)
+        return ir.BinOp(_BINOPS[type(op)], left, right)
 
-    def _check_arity(self, node: ast.AST, name: str, args: list[Node], lo: int, hi: int) -> None:
+    def _check_arity(self, node: ast.AST, name: str, args: list[ir.Node], lo: int, hi: int) -> None:
         if not lo <= len(args) <= hi:
             expected = str(lo) if lo == hi else f"{lo}-{hi}"
             raise self.error(node, f"{name}() takes {expected} argument(s), got {len(args)}")

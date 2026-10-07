@@ -11,18 +11,22 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import pathlib
 import random
 import shutil
 import sys
 import tempfile
 import time
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from array_vectorize import vectorize
-from array_vectorize.errors import VectorizationError
+# load-bearing re-export: tests/unit/test_fuzz.py monkeypatches
+# array_vectorize.fuzz.vectorize, so the name must stay bound here
+from array_vectorize import (
+    errors,
+    vectorize,  # cleanporter: ignore[CP003] load-bearing
+)
 
 _UNARY_MATH = [
     f"math.{name}"
@@ -139,7 +143,7 @@ def make_program(rng: random.Random) -> str:
 def _run_one(rng: random.Random) -> str:
     src = make_program(rng)
     # vectorize() requires inspectable source: define the case in a real file
-    case_dir = Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
+    case_dir = pathlib.Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
     path = case_dir / "fuzz_case_mod.py"
     path.write_text("import math\n\n\n" + src)
     spec = importlib.util.spec_from_file_location("fuzz_case_mod", path)
@@ -158,7 +162,7 @@ def _run_one(rng: random.Random) -> str:
 def _check_case(rng: random.Random, src: str, fn: Any) -> str:
     try:
         vec = vectorize(fn)
-    except VectorizationError:
+    except errors.VectorizationError:
         return "rejected"
     except Exception as exc:
         raise AssertionError(f"internal error vectorizing:\n{src}\n{exc}") from exc

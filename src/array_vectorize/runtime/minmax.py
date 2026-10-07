@@ -8,12 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from array_vectorize.runtime.dtype import (
-    _describe_dtype,
-    _dtype_bits,
-    _fits_dtype,
-    _minmax_bound_kind,
-)
+from array_vectorize.runtime import dtype
 
 __all__ = ["_vec_minmax"]
 
@@ -82,18 +77,18 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
     if arrays:
         first_dt = arrays[0].dtype
         if all(a.dtype == first_dt for a in arrays):
-            if all(_fits_dtype(b, first_dt) for b in lits):
+            if all(dtype._fits_dtype(b, first_dt) for b in lits):
                 cast = [a if hasattr(a, "dtype") else xp.asarray(a, dtype=first_dt) for a in args]
                 return fold(cast)
-            if all(_minmax_bound_kind(b, is_min, first_dt) != "promote" for b in lits):
+            if all(dtype._minmax_bound_kind(b, is_min, first_dt) != "promote" for b in lits):
                 cast = []
                 for a in args:
                     if hasattr(a, "dtype"):
                         cast.append(a)
-                    elif _fits_dtype(a, first_dt):
+                    elif dtype._fits_dtype(a, first_dt):
                         cast.append(xp.asarray(a, dtype=first_dt))
                     else:  # clamp: the bound can never win
-                        bound = 2 ** _dtype_bits(first_dt) - 1 if is_min else 0
+                        bound = 2 ** dtype._dtype_bits(first_dt) - 1 if is_min else 0
                         cast.append(xp.asarray(bound, dtype=first_dt))
                 return fold(cast)
 
@@ -101,7 +96,7 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
         isinstance(b, float) for b in lits
     )
     if has_float:
-        classes = [_describe_dtype(a) for a in args]
+        classes = [dtype._describe_dtype(a) for a in args]
         if any(not f for f, _ in classes):
             dt = xp.float64
         else:
@@ -109,7 +104,7 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
         return fold([xp.asarray(a, dtype=dt) for a in args])
 
     # pure-integer domain
-    u64_present = any("uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64 for a in arrays)
+    u64_present = any("uint" in str(a.dtype) and dtype._dtype_bits(a.dtype) >= 64 for a in arrays)
     negative_capable = any(
         "int" in str(a.dtype) and "uint" not in str(a.dtype) for a in arrays
     ) or any(isinstance(b, int) and not isinstance(b, bool) and b < 0 for b in lits)
@@ -119,7 +114,7 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
             cast = []
             for a in args:
                 if hasattr(a, "dtype"):
-                    if "uint" in str(a.dtype) and _dtype_bits(a.dtype) >= 64:
+                    if "uint" in str(a.dtype) and dtype._dtype_bits(a.dtype) >= 64:
                         cast.append(
                             xp.astype(
                                 xp.where(a > imax, xp.asarray(imax, dtype=a.dtype), a),
@@ -145,6 +140,6 @@ def _vec_minmax(xp: Any, is_min: Any, *args: Any) -> Any:
             else:
                 cast.append(xp.asarray(a, dtype=xp.uint64))
         return fold(cast)
-    classes = [_describe_dtype(a) for a in args]
+    classes = [dtype._describe_dtype(a) for a in args]
     dt = getattr(xp, f"int{max(w for _, w in classes)}")
     return fold([xp.asarray(a, dtype=dt) for a in args])

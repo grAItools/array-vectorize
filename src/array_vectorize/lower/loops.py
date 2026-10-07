@@ -12,39 +12,39 @@ from __future__ import annotations
 
 import ast
 
-from array_vectorize.ir import Binding, Kind, Literal, Loop, Node, Ref
-from array_vectorize.lower.statements import _StatementLowerer
-from array_vectorize.optimize.constfold import _const_fold_expr
+from array_vectorize import ir
+from array_vectorize.lower import statements
+from array_vectorize.optimize import constfold
 
 __all__ = ["_LoopLowerer"]
 
 
-class _LoopLowerer(_StatementLowerer):
+class _LoopLowerer(statements._StatementLowerer):
     # ------------------------------------------------------------- loops
 
-    def _const_int(self, node: ast.expr, what: str) -> Node:
-        folded = _const_fold_expr(self.lower_expr(node))
+    def _const_int(self, node: ast.expr, what: str) -> ir.Node:
+        folded = constfold._const_fold_expr(self.lower_expr(node))
         if (
-            isinstance(folded, Literal)
+            isinstance(folded, ir.Literal)
             and folded.kind == "int"
             and -(2**63) <= folded.value < 2**63
         ):
             return folded
         raise self.error(node, f"{what} must be constant ints known at generation time")
 
-    def _loop_bounds(self, call: ast.Call) -> tuple[Node, Node, Node]:
+    def _loop_bounds(self, call: ast.Call) -> tuple[ir.Node, ir.Node, ir.Node]:
         args = list(call.args)
-        bounds: list[Node] = [self._const_int(a, "loop bound") for a in args]
+        bounds: list[ir.Node] = [self._const_int(a, "loop bound") for a in args]
         if len(bounds) == 1:
-            start_n: Node = Literal(0, "int")
-            stop_n: Node = bounds[0]
-            step_n: Node = Literal(1, "int")
+            start_n: ir.Node = ir.Literal(0, "int")
+            stop_n: ir.Node = bounds[0]
+            step_n: ir.Node = ir.Literal(1, "int")
         elif len(bounds) == 2:
             start_n, stop_n = bounds
-            step_n = Literal(1, "int")
+            step_n = ir.Literal(1, "int")
         else:
             start_n, stop_n, step_n = bounds
-        assert isinstance(step_n, Literal)
+        assert isinstance(step_n, ir.Literal)
         if step_n.value == 0:
             raise self.error(call, "range step cannot be zero")
         return start_n, stop_n, step_n
@@ -106,18 +106,18 @@ class _LoopLowerer(_StatementLowerer):
         if loop_var in body_assigned:
             raise self.error(stmt, f"cannot assign the loop variable {loop_var!r} inside its loop")
 
-        phi_kinds: dict[str, Kind | None] = {}
+        phi_kinds: dict[str, ir.Kind | None] = {}
         # a pre-bound loop variable keeps its value on zero-trip loops:
         # emit a phi (the for-statement overwrites it on real iterations)
         if loop_var in pre_definite:
-            self.bindings.append(Binding(loop_name, Ref(pre_definite[loop_var])))
+            self.bindings.append(ir.Binding(loop_name, ir.Ref(pre_definite[loop_var])))
             self.kinds.setdefault_kind(loop_name, self.kinds.kind(pre_definite[loop_var]))
 
         # phis for loop-carried variables, emitted just before the loop
         for var, pre_name in carried.items():
             loop_carried_name = self.ssa.bind(var)
             carried[var] = loop_carried_name
-            self.bindings.append(Binding(loop_carried_name, Ref(pre_name)))
+            self.bindings.append(ir.Binding(loop_carried_name, ir.Ref(pre_name)))
             self.definite[var] = loop_carried_name
             phi_kinds[loop_carried_name] = self.kinds.kind(pre_name)
             self.kinds.set_kind(loop_carried_name, self.kinds.kind(pre_name))
@@ -131,15 +131,15 @@ class _LoopLowerer(_StatementLowerer):
         phi_end = len(self.bindings)
 
         def union_labels(
-            frame: dict[str, set[Kind | None]],
-        ) -> tuple[dict[str, Kind | None], list[str]]:
+            frame: dict[str, set[ir.Kind | None]],
+        ) -> tuple[dict[str, ir.Kind | None], list[str]]:
             """Per carried name: the final kind and the mixed names.
 
             The final kind is the union of the phi kind and all
             body-assignment kinds; a name is mixed when its kinds MIX
             across iterations.
             """
-            labels: dict[str, Kind | None] = {}
+            labels: dict[str, ir.Kind | None] = {}
             mixed: list[str] = []
             for loop_carried_name in carried.values():
                 kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
@@ -162,8 +162,8 @@ class _LoopLowerer(_StatementLowerer):
         # cannot see every name that needs the intify conversion. Labels
         # only ever WIDEN (int/float -> bool), so at most len(carried)
         # widenings can happen; bound the passes at len(carried) + 2.
-        labels: dict[str, Kind | None] = {}
-        prev_labels: dict[str, Kind | None] | None = None
+        labels: dict[str, ir.Kind | None] = {}
+        prev_labels: dict[str, ir.Kind | None] | None = None
         max_passes = len(carried) + 2
         for attempt in range(max_passes):
             pre_body = (
@@ -210,7 +210,7 @@ class _LoopLowerer(_StatementLowerer):
             self.kinds.drop_literal(loop_carried_name)
         body_stmts = tuple(self.bindings[phi_end:])
         del self.bindings[phi_end:]
-        self.bindings.append(Loop(loop_name, start, stop, step, body_stmts))
+        self.bindings.append(ir.Loop(loop_name, start, stop, step, body_stmts))
 
         # loop-local variables (assigned in body, not bound before) keep their
         # body names: zero-trip loops raise NameError exactly like Python.
@@ -222,7 +222,7 @@ class _LoopLowerer(_StatementLowerer):
             for var, loop_name in carried.items():
                 current = self.definite.get(var)
                 if current is not None and current != loop_name:
-                    self.bindings.append(Binding(loop_name, Ref(current)))
+                    self.bindings.append(ir.Binding(loop_name, ir.Ref(current)))
                     self.definite[var] = loop_name
                     self.kinds.set_kind(loop_name, self.kinds.kind(current))
                     self.kinds.drop_literal(loop_name)

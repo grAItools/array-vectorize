@@ -12,13 +12,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from array_vectorize.codegen import generate_source
-from array_vectorize.emit import compile_vectorized
-from array_vectorize.frontend.extract import extract_function, resolve_original
-from array_vectorize.frontend.validate import validate
-from array_vectorize.lower import HelperVectorizer, lower_function
-from array_vectorize.optimize import optimize, protect_domains
-from array_vectorize.verify import verify_match
+from array_vectorize import codegen, emit, lower, verify
+from array_vectorize import optimize as optimize_mod
+from array_vectorize.frontend import extract
+from array_vectorize.frontend import validate as validate_mod
+
+# optimize's documented submodule/function name collision (the NOTE in
+# optimize/__init__.py): the from-import is the supported spelling
+from array_vectorize.optimize import protect_domains  # cleanporter: ignore[CP002] name collision
 
 __all__ = ["compile_function"]
 
@@ -28,7 +29,7 @@ def compile_function(
     *,
     protect: bool = False,
     verify_args: tuple[Any, ...] | None = None,
-    helper_vectorizer: HelperVectorizer | None = None,
+    helper_vectorizer: lower.HelperVectorizer | None = None,
     namespace: Any = None,
 ) -> Callable[..., Any]:
     """Run the strict pipeline over ``func``.
@@ -53,24 +54,26 @@ def compile_function(
     (so all-scalar calls become legal); the namespace is threaded to
     helper vectorization and verification.
     """
-    info = extract_function(func)
-    validate(info)
-    lowered = lower_function(info, helper_vectorizer=helper_vectorizer)
-    program = optimize(lowered.program, user_names=info.user_names | lowered.emitted_names)
+    info = extract.extract_function(func)
+    validate_mod.validate(info)
+    lowered = lower.lower_function(info, helper_vectorizer=helper_vectorizer)
+    program = optimize_mod.optimize(
+        lowered.program, user_names=info.user_names | lowered.emitted_names
+    )
     if protect:
         program = protect_domains(program)
-    source = generate_source(lowered, program, pinned=namespace is not None)
+    source = codegen.generate_source(lowered, program, pinned=namespace is not None)
     hidden_params = lowered.hidden_params
     if namespace is not None:
         # the pinned namespace rides as the hidden kw-only parameter's
         # runtime default (the existing __kwdefaults__ injection handles it)
         hidden_params = [*lowered.hidden_params, (lowered.namespace_param, namespace)]
-    vec = compile_vectorized(
+    vec = emit.compile_vectorized(
         source, lowered.name, hidden_params, original=func, helpers=lowered.helpers
     )
     if verify_args is not None:
         # compare against the resolved scalar original (what was actually
         # compiled), not the callable as passed — a prior vectorization
         # passed back in cannot serve as the element-wise oracle
-        verify_match(vec, resolve_original(func), verify_args, namespace=namespace)
+        verify.verify_match(vec, extract.resolve_original(func), verify_args, namespace=namespace)
     return vec

@@ -14,8 +14,8 @@ import types
 from collections.abc import Iterator
 from typing import Any
 
-from array_vectorize.errors import _reject
-from array_vectorize.frontend.info import _AstFunction
+from array_vectorize import errors
+from array_vectorize.frontend import info
 
 
 def _lambdas_in_source_order(tree: ast.AST) -> Iterator[ast.Lambda]:
@@ -87,10 +87,10 @@ def _find_target(
     module_source: str | None = None,
     first_lineno: int | None = None,
     filename: str | None = None,
-) -> _AstFunction:
+) -> info._AstFunction:
     for stmt in tree.body:
         if isinstance(stmt, ast.AsyncFunctionDef):
-            _reject(name, "async functions are not supported")
+            errors._reject(name, "async functions are not supported")
         if isinstance(stmt, ast.FunctionDef | ast.Lambda):
             return stmt
         if (
@@ -114,7 +114,7 @@ def _find_target(
     # compare bytecode, constants, referenced names, and default values.
     candidates = list(_lambdas_in_source_order(tree))
     if not candidates:
-        _reject(name, "could not locate the function definition in its source")
+        errors._reject(name, "could not locate the function definition in its source")
     if len(candidates) == 1:
         return candidates[0]
     code = getattr(target, "__code__", None)
@@ -168,7 +168,7 @@ def _find_target(
     if len(matches) == 1:
         return matches[0]
     if not matches:
-        _reject(
+        errors._reject(
             name,
             "multiple lambdas share this source line and the intended one "
             "could not be identified; assign the lambda to a variable on its "

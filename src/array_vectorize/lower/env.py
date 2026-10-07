@@ -14,23 +14,10 @@ import ast
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from array_vectorize.errors import VectorizationError
-from array_vectorize.frontend.info import FunctionInfo
-from array_vectorize.ir import (
-    Binding,
-    Compare,
-    Kind,
-    Literal,
-    Node,
-    Ref,
-    SSAEnv,
-    Stmt,
-    Where,
-    is_bool,
-)
-from array_vectorize.lower.kinds import Kinds
-from array_vectorize.lower.types import HelperVectorizer
-from array_vectorize.runtime.registry import RUNTIME_HELPERS
+from array_vectorize import errors, ir
+from array_vectorize.frontend import info
+from array_vectorize.lower import kinds, types
+from array_vectorize.runtime import registry
 
 __all__ = ["_LowererBase"]
 
@@ -44,29 +31,31 @@ class _LowererBase:
         # detection, and helper dispatch from above this base). Type-only
         # declarations — never executed; the real methods on the assembled
         # class are the ones that run.
-        def lower_stmts(self, stmts: list[ast.stmt], *, loop_body: bool = False) -> Node | None: ...
-        def _numeric_kind(self, node: Node) -> Kind | None: ...
-        def _maybe_bool_result(self, node: Node) -> bool: ...
-        def _call_helper(self, node: ast.Call, name: str, args: list[Node]) -> Node: ...
+        def lower_stmts(
+            self, stmts: list[ast.stmt], *, loop_body: bool = False
+        ) -> ir.Node | None: ...
+        def _numeric_kind(self, node: ir.Node) -> ir.Kind | None: ...
+        def _maybe_bool_result(self, node: ir.Node) -> bool: ...
+        def _call_helper(self, node: ast.Call, name: str, args: list[ir.Node]) -> ir.Node: ...
 
     def __init__(
         self,
-        info: FunctionInfo,
-        helper_vectorizer: HelperVectorizer | None = None,
+        info: info.FunctionInfo,
+        helper_vectorizer: types.HelperVectorizer | None = None,
     ) -> None:
         self.info = info
         self.helper_vectorizer = helper_vectorizer
         self.helpers: list[tuple[str, Any]] = []
         self._helper_names: dict[Callable[..., Any], str] = {}
-        self.ssa = SSAEnv(info.user_names)
-        self.bindings: list[Stmt] = []
+        self.ssa = ir.SSAEnv(info.user_names)
+        self.bindings: list[ir.Stmt] = []
         #: definite locals: var -> current emitted name
         self.definite: dict[str, str] = {}
         #: vars that may be unbound on the current path (assigned in one branch only)
         self.maybe: set[str] = set()
         #: pending early returns: (condition, value, push_depth) in divergence
         #: order; folds nest earlier entries outermost
-        self.deferred: list[tuple[Node, Node, int]] = []
+        self.deferred: list[tuple[ir.Node, ir.Node, int]] = []
         #: nesting depth inside branches (branch-local bindings always suffix)
         self.branch_depth = 0
         #: nesting depth inside loop bodies (returns are rejected there)
@@ -77,14 +66,14 @@ class _LowererBase:
         self.active_carried: list[tuple[dict[str, str], int]] = []
         #: kind/literal/scalar/bool bookkeeping for emitted names, plus the
         #: per-loop carried-assign kind frames (see kinds.Kinds)
-        self.kinds = Kinds()
+        self.kinds = kinds.Kinds()
         #: the generated namespace variable ('xp' unless taken); set by
         #: lower_function before lowering starts
         self.ns_var: str = "xp"
         #: allocated names of the runtime promotion/selection helpers (set
         #: by lower_function; collision-free against user names)
-        self.minmax_name = RUNTIME_HELPERS["vec_minmax"][0]
-        self.arith_name = RUNTIME_HELPERS["vec_arith"][0]
+        self.minmax_name = registry.RUNTIME_HELPERS["vec_minmax"][0]
+        self.arith_name = registry.RUNTIME_HELPERS["vec_arith"][0]
         self.assigned_names: set[str] = {
             t.id
             for stmt in ast.walk(info.tree)
@@ -101,29 +90,31 @@ class _LowererBase:
 
     # ------------------------------------------------------------- utilities
 
-    def error(self, node: ast.AST, message: str) -> VectorizationError:
+    def error(self, node: ast.AST, message: str) -> errors.VectorizationError:
         lineno = getattr(node, "lineno", 0)
-        return VectorizationError(f"cannot vectorize {self.info.name!r}: {message} (line {lineno})")
+        return errors.VectorizationError(
+            f"cannot vectorize {self.info.name!r}: {message} (line {lineno})"
+        )
 
-    def _literal(self, value: Any) -> Literal:
+    def _literal(self, value: Any) -> ir.Literal:
         if isinstance(value, bool):
-            return Literal(value, "bool")
+            return ir.Literal(value, "bool")
         if isinstance(value, int):
-            return Literal(int(value), "int")
-        return Literal(float(value), "float")
+            return ir.Literal(int(value), "int")
+        return ir.Literal(float(value), "float")
 
-    def _coerce_bool(self, node: Node) -> Node:
+    def _coerce_bool(self, node: ir.Node) -> ir.Node:
         """Coerce a possibly-numeric condition to bool via != 0 (design D2/D4)."""
-        if is_bool(node):
+        if ir.is_bool(node):
             return node
-        return Compare("ne", node, Literal(0, "int"))
+        return ir.Compare("ne", node, ir.Literal(0, "int"))
 
     # ---------------------------------------------------------- name access
 
-    def load_name(self, node: ast.Name) -> Node:
+    def load_name(self, node: ast.Name) -> ir.Node:
         var = node.id
         if var in self.definite:
-            return Ref(self.definite[var])
+            return ir.Ref(self.definite[var])
         if var in self.maybe:
             raise self.error(node, f"variable {var!r} may be unbound (assigned on some paths only)")
         if var in self.assigned_names:
@@ -132,7 +123,7 @@ class _LowererBase:
         if var in info.closure_scalars:
             return self._literal(info.closure_scalars[var])
         if var in info.closure_arrays:
-            return Ref(self.definite[var])  # hidden param, bound at intake
+            return ir.Ref(self.definite[var])  # hidden param, bound at intake
         if var in info.math_funcs or var in info.user_funcs or var in info.math_modules:
             raise self.error(node, f"cannot reference {var!r} without calling it")
         raise self.error(node, f"name {var!r} is not supported in vectorized code")
@@ -151,7 +142,7 @@ class _LowererBase:
 
     def _merge_envs(
         self,
-        cond: Node,
+        cond: ir.Node,
         pre: dict[str, str],
         then_def: dict[str, str],
         else_def: dict[str, str],
@@ -164,8 +155,8 @@ class _LowererBase:
                 continue
             if nt is not None and ne is not None:
                 name = self.ssa.bind(var)
-                merged_expr: Node = Where(cond, Ref(nt), Ref(ne))
-                self.bindings.append(Binding(name, merged_expr))
+                merged_expr: ir.Node = ir.Where(cond, ir.Ref(nt), ir.Ref(ne))
+                self.bindings.append(ir.Binding(name, merged_expr))
                 self.definite[var] = name
                 kt, ke = self.kinds.kind(nt), self.kinds.kind(ne)
                 self.kinds.set_kind(name, kt if kt == ke else None)
@@ -183,7 +174,7 @@ class _LowererBase:
                 self.maybe.discard(var)
                 self.definite[var] = then_def[var]
 
-    def fold_returns(self, value: Node) -> Node:
+    def fold_returns(self, value: ir.Node) -> ir.Node:
         """Fold pending early returns around ``value``.
 
         Entries pushed at the current branch depth or deeper belong to this
@@ -194,12 +185,12 @@ class _LowererBase:
         divergence before enclosed entries.
         """
         result = value
-        retained: list[tuple[Node, Node, int]] = []
+        retained: list[tuple[ir.Node, ir.Node, int]] = []
         for cond, early, depth in reversed(self.deferred):
             if depth < self.branch_depth:
                 retained.append((cond, early, depth))
             else:
-                result = Where(cond, early, result)
+                result = ir.Where(cond, early, result)
         retained.reverse()
         self.deferred = retained
         return result

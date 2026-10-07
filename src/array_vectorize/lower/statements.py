@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import ast
 
-from array_vectorize.ir import Binding, Literal, Logical, Node, UnaryOp, Where, is_bool
-from array_vectorize.lower.expressions import _ExpressionLowerer
+from array_vectorize import ir
+from array_vectorize.lower import expressions
 
 __all__ = ["_StatementLowerer"]
 
 
-class _StatementLowerer(_ExpressionLowerer):
+class _StatementLowerer(expressions._ExpressionLowerer):
     # --------------------------------------------------------- statements
 
     def lower_assign(self, stmt: ast.Assign | ast.AugAssign) -> None:
@@ -42,11 +42,11 @@ class _StatementLowerer(_ExpressionLowerer):
                 name = carried[var]
         if name is None:
             name = self.ssa.bind(var, force_suffix=self.branch_depth > 0)
-        self.bindings.append(Binding(name, value))
+        self.bindings.append(ir.Binding(name, value))
         self.definite[var] = name
         kind = self._numeric_kind(value)
         self.kinds.set_kind(name, kind)
-        if isinstance(value, Literal):
+        if isinstance(value, ir.Literal):
             self.kinds.set_literal(name, value)
         else:
             self.kinds.drop_literal(name)
@@ -67,9 +67,9 @@ class _StatementLowerer(_ExpressionLowerer):
                     self.kinds.record_carried_kind(carried[var], kind)
         self.maybe.discard(var)
 
-    def lower_if(self, stmt: ast.If) -> Node | None:
+    def lower_if(self, stmt: ast.If) -> ir.Node | None:
         cond = self.lower_expr(stmt.test)
-        if not is_bool(cond):
+        if not ir.is_bool(cond):
             raise self.error(
                 stmt,
                 "bare truthiness in an if condition is ambiguous per-lane; "
@@ -102,7 +102,7 @@ class _StatementLowerer(_ExpressionLowerer):
             # entries pending at this block's depth (they fire earlier in
             # program order, so they wrap the merged where from outside).
             self.deferred = list(pre_deferred)
-            merged: Node = Where(cond, then_result, else_result)
+            merged: ir.Node = ir.Where(cond, then_result, else_result)
             return self.fold_returns(merged)
 
         if then_result is not None:
@@ -121,7 +121,7 @@ class _StatementLowerer(_ExpressionLowerer):
         if else_result is not None:
             # else returns, then falls through: continue on the then path.
             self.definite, self.maybe = then_definite, then_maybe
-            not_cond = UnaryOp("not", cond)
+            not_cond = ir.UnaryOp("not", cond)
             self.deferred = [
                 *then_deferred[:pre_len],
                 (not_cond, else_result, self.branch_depth),
@@ -133,11 +133,11 @@ class _StatementLowerer(_ExpressionLowerer):
         # both fall through: merge environments with where-selects
         self._merge_envs(cond, pre_definite, then_definite, else_definite, then_maybe, else_maybe)
         # qualify branch-pending returns with their branch conditions
-        not_cond = UnaryOp("not", cond)
-        qualified: list[tuple[Node, Node, int]] = []
+        not_cond = ir.UnaryOp("not", cond)
+        qualified: list[tuple[ir.Node, ir.Node, int]] = []
         for c, v, p in then_deferred[pre_len:]:
-            qualified.append((Logical("and", (cond, c)), v, p))
+            qualified.append((ir.Logical("and", (cond, c)), v, p))
         for c, v, p in else_deferred[pre_len:]:
-            qualified.append((Logical("and", (not_cond, c)), v, p))
+            qualified.append((ir.Logical("and", (not_cond, c)), v, p))
         self.deferred = [*pre_deferred, *qualified]
         return None

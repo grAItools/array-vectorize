@@ -20,12 +20,10 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
-from array_vectorize.compat import _check_namespace
-from array_vectorize.errors import VectorizationError
-from array_vectorize.fallback import make_fallback
-from array_vectorize.frontend.extract import resolve_original
-from array_vectorize.pipeline import compile_function
-from array_vectorize.verify import verify_match
+from array_vectorize import compat, errors, pipeline
+from array_vectorize import fallback as fallback_mod
+from array_vectorize import verify as verify_mod
+from array_vectorize.frontend import extract
 
 __all__ = ["get_source", "vectorize"]
 
@@ -52,7 +50,7 @@ def _vectorize_strict(
     namespace: Any = None,
 ) -> Callable[..., Any]:
     """Run the pipeline with helper vectorization wired to the api cache."""
-    return compile_function(
+    return pipeline.compile_function(
         func,
         protect=protect,
         verify_args=verify_args,
@@ -73,7 +71,7 @@ def _vectorize_helper(
     if key in _HELPER_CACHE:
         return _HELPER_CACHE[key]
     if callee in _ACTIVE_HELPERS:
-        raise VectorizationError(
+        raise errors.VectorizationError(
             f"cannot vectorize {callee.__name__!r}: recursive helper calls are not supported"
         )
     _ACTIVE_HELPERS.add(callee)
@@ -96,7 +94,7 @@ def _attach_namespace_api(vec: Callable[..., Any], *, protect: bool) -> None:
     """
 
     def with_namespace(xp: Any) -> Callable[..., Any]:
-        _check_namespace(xp)
+        compat._check_namespace(xp)
         # chains to the true scalar original, so pins compose
         original: Callable[..., Any] = vec._vectorized_original  # type: ignore[attr-defined]
         key = (original, protect, xp)
@@ -166,8 +164,8 @@ def vectorize(
     but are rebuilt (and re-warn) on every call.
     """
     if namespace is not None:
-        _check_namespace(namespace)  # usage error: fail fast, before compiling
-    original = resolve_original(func)
+        compat._check_namespace(namespace)  # usage error: fail fast, before compiling
+    original = extract.resolve_original(func)
     canonical = not protect_domains and namespace is None
     cached: Callable[..., Any] | None = None
     if canonical:
@@ -184,14 +182,14 @@ def vectorize(
             # it (the user may pass different example args on each call).
             # The comparison target is the resolved scalar original — the
             # callable the cached function was compiled from.
-            verify_match(cached, original, verify)
+            verify_mod.verify_match(cached, original, verify)
         _attach_namespace_api(cached, protect=False)
         return cached
     try:
         vec = _vectorize_strict(
             func, protect=protect_domains, verify_args=verify, namespace=namespace
         )
-    except VectorizationError as exc:
+    except errors.VectorizationError as exc:
         if fallback or not strict:
             reason = str(exc).splitlines()[0]
             warnings.warn(
@@ -200,7 +198,7 @@ def vectorize(
                 UserWarning,
                 stacklevel=2,
             )
-            wrapper = make_fallback(func, reason, namespace=namespace)
+            wrapper = fallback_mod.make_fallback(func, reason, namespace=namespace)
             if canonical:
                 _set_backref(wrapper, original)
             return wrapper
@@ -217,5 +215,5 @@ def get_source(vectorized: Callable[..., Any]) -> str:
     """Return the generated source of a vectorized function."""
     source = getattr(vectorized, "source", None)
     if not isinstance(source, str):
-        raise VectorizationError(f"{vectorized!r} is not a vectorized function")
+        raise errors.VectorizationError(f"{vectorized!r} is not a vectorized function")
     return source
