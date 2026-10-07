@@ -6,8 +6,8 @@ from typing import Any
 
 import corpus
 import hypothesis
-import numpy as np
 from hypothesis import strategies as st
+import numpy as np
 
 import array_vectorize
 

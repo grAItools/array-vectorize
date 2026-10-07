@@ -12,8 +12,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from array_vectorize import codegen, emit, lower, verify
+from array_vectorize import codegen
+from array_vectorize import emit
+from array_vectorize import lower
 from array_vectorize import optimize as optimize_mod
+from array_vectorize import verify
 from array_vectorize.frontend import extract
 from array_vectorize.frontend import validate as validate_mod
 

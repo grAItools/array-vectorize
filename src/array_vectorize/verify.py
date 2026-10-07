@@ -8,13 +8,14 @@ tolerance). Uses only Array API functions, so it works on any backend.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from typing import Any
+import warnings
 
 import array_api_compat
 
-from array_vectorize import compat, errors
+from array_vectorize import compat
+from array_vectorize import errors
 
 __all__ = ["verify_match"]
 

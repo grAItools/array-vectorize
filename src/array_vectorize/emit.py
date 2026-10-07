@@ -12,9 +12,9 @@ and call-time code never share a module.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import inspect
 import linecache
-from collections.abc import Callable
 from typing import Any, cast
 
 from array_vectorize.ir import ssa

@@ -10,7 +10,8 @@ from __future__ import annotations
 import ast
 
 from array_vectorize import errors
-from array_vectorize.frontend import info, tables
+from array_vectorize.frontend import info
+from array_vectorize.frontend import tables
 
 __all__ = ["validate"]
 

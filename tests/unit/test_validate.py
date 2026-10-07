@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import ast
-import sys
 from collections.abc import Callable
+import sys
 from typing import Any
 
 import pytest

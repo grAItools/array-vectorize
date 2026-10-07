@@ -11,7 +11,8 @@ from array_vectorize import optimize as optimize_mod
 
 # optimize's documented submodule/function name collision (the NOTE in
 # optimize/__init__.py): the from-import is the supported spelling
-from array_vectorize.optimize import cse, dce  # cleanporter: ignore[CP002] name collision
+from array_vectorize.optimize import cse  # cleanporter: ignore[CP002] name collision
+from array_vectorize.optimize import dce  # cleanporter: ignore[CP002] name collision
 from array_vectorize.optimize import dce as dce_pass  # cleanporter: ignore[CP002] name collision
 
 

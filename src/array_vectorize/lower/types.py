@@ -8,8 +8,8 @@ uses to vectorize user helper functions on demand.
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Callable
+import dataclasses
 from typing import Any
 
 from array_vectorize import ir

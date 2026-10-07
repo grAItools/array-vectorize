@@ -11,7 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from array_vectorize.runtime import arith, minmax
+from array_vectorize.runtime import arith
+from array_vectorize.runtime import minmax
 
 # lowering goes through the registry seam (docs/architecture.md):
 # lower/expressions.py imports ArithOp from here, not from runtime.arith

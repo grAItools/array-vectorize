@@ -15,13 +15,15 @@ resolved scalar original — that memoization is what keeps
 
 from __future__ import annotations
 
-import types
-import warnings
 from collections.abc import Callable
+import types
 from typing import Any
+import warnings
 
-from array_vectorize import compat, errors, pipeline
+from array_vectorize import compat
+from array_vectorize import errors
 from array_vectorize import fallback as fallback_mod
+from array_vectorize import pipeline
 from array_vectorize import verify as verify_mod
 from array_vectorize.frontend import extract
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 import collections
 
 from array_vectorize import ir
-from array_vectorize.ir import ssa, walk
+from array_vectorize.ir import ssa
+from array_vectorize.ir import walk
 
 __all__ = ["cse"]
 

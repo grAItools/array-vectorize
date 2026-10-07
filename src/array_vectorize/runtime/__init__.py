@@ -7,7 +7,8 @@ only the stdlib. Generation-time loading lives in array_vectorize.emit.
 
 from __future__ import annotations
 
-from array_vectorize.runtime.arith import ArithOp, _vec_arith
+from array_vectorize.runtime.arith import _vec_arith
+from array_vectorize.runtime.arith import ArithOp
 from array_vectorize.runtime.dtype import _fits_dtype
 from array_vectorize.runtime.minmax import _vec_minmax
 from array_vectorize.runtime.registry import RUNTIME_HELPERS

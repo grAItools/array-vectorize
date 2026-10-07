@@ -9,9 +9,9 @@ isolated-probe bytecode comparison.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 import math
 import types
-from collections.abc import Iterator
 from typing import Any
 
 from array_vectorize import errors

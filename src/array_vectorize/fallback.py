@@ -8,9 +8,9 @@ slow and emits a ``UserWarning`` when used.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import functools
 import inspect
-from collections.abc import Callable
 from typing import Any
 
 import array_api_compat

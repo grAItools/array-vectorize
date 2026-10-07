@@ -10,11 +10,11 @@ All snippet files live in ``TMPDIR``, removed at interpreter exit.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import importlib.util
 import itertools
 import pathlib
 import tempfile
-from collections.abc import Callable
 from typing import Any
 
 import corpus

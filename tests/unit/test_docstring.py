@@ -6,7 +6,8 @@ import inspect
 
 import pytest
 
-from array_vectorize.codegen import docstring, emitter
+from array_vectorize.codegen import docstring
+from array_vectorize.codegen import emitter
 
 SOURCE = (
     "def clamp(x, lo=0.0, hi=1.0):\n"

@@ -137,6 +137,13 @@ aliases = { numpy = "np" }
 # holds the NumPy-style docstring subject
 "tests/behavior/test_docstrings.py" = ["D4"]
 
+[tool.ruff.lint.isort]
+# Google §3.13 import formatting
+force-single-line = true
+single-line-exclusions = ["typing", "collections.abc"]
+force-sort-within-sections = true
+order-by-type = false
+
 [tool.cleanporter]
 scope = "all"
 # golden cases are pinned compiler output; marimo owns the notebook format

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable
+import math
 from typing import Any
 
 import numpy as np
@@ -11,7 +11,8 @@ import pytest
 import support
 
 import array_vectorize
-from array_vectorize import errors, ir
+from array_vectorize import errors
+from array_vectorize import ir
 from array_vectorize import lower as lower_mod
 from array_vectorize.frontend import extract
 

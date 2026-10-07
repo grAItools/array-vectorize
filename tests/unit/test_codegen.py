@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import ast
 
-from array_vectorize import codegen, ir
+from array_vectorize import codegen
+from array_vectorize import ir
 from array_vectorize.frontend import info
 from array_vectorize.lower import types
 

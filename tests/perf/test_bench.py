@@ -24,7 +24,8 @@ import numpy as np
 import pytest
 
 import array_vectorize
-from array_vectorize.runtime import arith, minmax
+from array_vectorize.runtime import arith
+from array_vectorize.runtime import minmax
 
 pytestmark = pytest.mark.slow
 

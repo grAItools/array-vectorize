@@ -42,8 +42,8 @@ by :meth:`Kinds.restore_facts` un-blocks it again.
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Mapping
+import dataclasses
 
 from array_vectorize import ir
 

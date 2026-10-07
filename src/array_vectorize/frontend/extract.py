@@ -3,25 +3,25 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import inspect
 import linecache
 import math
 import textwrap
 import types
-from collections.abc import Callable
 from typing import Any
 
-from array_vectorize import compat, errors
+from array_vectorize import compat
+from array_vectorize import errors
 from array_vectorize.frontend import info as info_mod
-from array_vectorize.frontend import lambda_id, tables
+from array_vectorize.frontend import lambda_id
+from array_vectorize.frontend import tables
 
 # re-export for the module's public surface: __all__ names these, so the
 # from-import is what keeps them importable from frontend.extract
-from array_vectorize.frontend.info import (  # cleanporter: ignore[CP001]
-    FunctionInfo,
-    Param,
-    ParamKind,
-)
+from array_vectorize.frontend.info import FunctionInfo  # cleanporter: ignore[CP001]
+from array_vectorize.frontend.info import Param  # cleanporter: ignore[CP001]
+from array_vectorize.frontend.info import ParamKind  # cleanporter: ignore[CP001]
 
 __all__ = ["FunctionInfo", "Param", "ParamKind", "extract_function", "resolve_original"]
 

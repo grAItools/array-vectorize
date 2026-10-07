@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING
 
-from array_vectorize import errors, ir
+from array_vectorize import errors
+from array_vectorize import ir
 from array_vectorize.frontend import info
-from array_vectorize.lower import kinds, types
+from array_vectorize.lower import kinds
+from array_vectorize.lower import types
 from array_vectorize.runtime import registry
 
 __all__ = ["_LowererBase"]

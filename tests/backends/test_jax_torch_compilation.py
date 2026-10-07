@@ -21,9 +21,9 @@ exposed ``__array_namespace__``.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 import importlib.util
 import pathlib
-from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np

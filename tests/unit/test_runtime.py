@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from array_vectorize.runtime import arith, dtype, minmax
+from array_vectorize.runtime import arith
+from array_vectorize.runtime import dtype
+from array_vectorize.runtime import minmax
 
 # the array namespace passed to the runtime helpers, as generated code
 # binds it

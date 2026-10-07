@@ -14,9 +14,9 @@ Two gates:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import math
 import time
-from collections.abc import Callable
 
 import numpy as np
 import pytest
