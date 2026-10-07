@@ -191,9 +191,22 @@ def test_integer_division_matches_python_rounding(left_kind: str, right_kind: st
     def operands(kind: str) -> np.ndarray:
         info = np.iinfo(kind)
         values = rng.integers(info.min, info.max, size=128, endpoint=True, dtype=kind)
-        return np.concatenate((values, np.asarray([1, 2**53 + 1, info.max], dtype=kind)))
+        boundaries = {0, 1, info.min, info.max}
+        for power in range(64):
+            for delta in (-1, 0, 1):
+                value = (1 << power) + delta
+                if info.min <= value <= info.max:
+                    boundaries.add(value)
+                if info.min <= -value <= info.max:
+                    boundaries.add(-value)
+        edges = np.asarray(sorted(boundaries), dtype=kind)
+        rng.shuffle(edges)
+        return np.concatenate((values, edges))
 
     left, right = operands(left_kind), operands(right_kind)
+    # Signed and unsigned ranges have different numbers of boundaries.
+    size = max(len(left), len(right))
+    left, right = np.resize(left, size), np.resize(right, size)
     right[right == 0] = 1
     got = arith._vec_arith(xp, int(arith.ArithOp.DIV), left, right)
     expected = [int(a) / int(b) for a, b in zip(left, right, strict=True)]

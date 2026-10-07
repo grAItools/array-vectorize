@@ -106,6 +106,17 @@ def _u64_sub_exact(xp: Any, left: Any, right: Any) -> Any | None:
     return None
 
 
+def _integer_exponent(xp: Any, value: Any) -> Any:
+    """Highest set bit of an unsigned magnitude stored in int64; zero maps to zero."""
+    exponent = xp.zeros_like(value)
+    for shift in (32, 16, 8, 4, 2, 1):
+        higher = (value >> shift) & ((1 << (64 - shift)) - 1)
+        nonzero = higher != 0
+        exponent = exponent + xp.astype(nonzero, xp.int64) * shift
+        value = xp.where(nonzero, higher, value)
+    return exponent
+
+
 def _integer_true_divide(xp: Any, left: Any, right: Any) -> Any:
     """Correctly round ratios of 64-bit integers without rounding inputs.
 
@@ -125,14 +136,31 @@ def _integer_true_divide(xp: Any, left: Any, right: Any) -> Any:
     b = xp.where(r_neg, -b, b)
     zero_divisor = b == 0
     b = xp.where(zero_divisor, xp.asarray(1, dtype=xp.int64), b)
-    remainder = xp.zeros_like(a + b)
+    leading_position = _integer_exponent(xp, a) - _integer_exponent(xp, b)
+    one = xp.asarray(1, dtype=xp.int64)
+    zero = xp.asarray(0, dtype=xp.int64)
+    # Skip quotient-leading zeros exactly. The first quotient bit lies
+    # at leading_position or one place below it. For a nonnegative
+    # position, preconsume numerator bits above it; otherwise preconsume
+    # all numerator bits and the leading fractional zeros.
+    shift = xp.where(leading_position < 0, zero, leading_position + 1)
+    shift = xp.where(shift > 63, xp.asarray(63, dtype=xp.int64), shift)
+    mask = ((one << (63 - shift)) - 1) * 2 + 1
+    prefix = (a >> shift) & mask
+    prefix = xp.where(leading_position == 63, zero, prefix)
+    left_shift = xp.where(leading_position >= 0, zero, -leading_position - 1)
+    remainder = xp.where(leading_position >= 0, prefix, a << left_shift)
+    remainder = remainder + xp.zeros_like(a + b)
     mantissa = xp.zeros_like(remainder)
     count = xp.zeros_like(remainder)
     exponent = xp.zeros_like(remainder)
     guard = xp.zeros_like(remainder, dtype=xp.bool)
     sticky = xp.zeros_like(guard)
-    for position in range(63, -119, -1):
-        incoming = (a >> position) & 1 if position >= 0 else xp.asarray(0, dtype=xp.int64)
+    # 53 significand bits, one guard bit, and at most one leading zero.
+    for offset in range(55):
+        position = leading_position - offset
+        safe_position = xp.where(position < 0, zero, position)
+        incoming = xp.where(position >= 0, (a >> safe_position) & 1, zero)
         threshold = b - remainder - incoming
         # Unsigned comparison using signed storage: a set sign bit means
         # the unsigned value is larger than every nonnegative int64.
@@ -141,12 +169,12 @@ def _integer_true_divide(xp: Any, left: Any, right: Any) -> Any:
             bit, remainder - (b - remainder) + incoming, remainder + remainder + incoming
         )
         started = (count != 0) | bit
-        exponent = xp.where((count == 0) & bit, xp.asarray(position), exponent)
+        exponent = xp.where((count == 0) & bit, position, exponent)
         collect = started & (count < 53)
         mantissa = xp.where(collect, mantissa * 2 + xp.astype(bit, xp.int64), mantissa)
         rounding_bit = count == 53
         guard = xp.where(rounding_bit, bit, guard)
-        unconsumed = (a & ((1 << position) - 1)) != 0 if position > 0 else xp.asarray(False)
+        unconsumed = (a & ((one << safe_position) - 1)) != 0
         sticky = xp.where(rounding_bit, (remainder != 0) | unconsumed, sticky)
         count = xp.where(started, count + 1, count)
     round_up = guard & (sticky | ((mantissa & 1) != 0))
