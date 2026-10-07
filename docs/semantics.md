@@ -48,6 +48,8 @@ call and checked at runtime on the actual values:
 True division converts integer and boolean operands to floating arrays,
 including inputs whose dtype is known only at call time. Integer ratios
 round once to float64, without first rounding large integer operands.
+This includes the signed 64-bit minimum in either operand under JIT
+compilation, with the same rounding and sign of zero as scalar Python.
 This uses a fixed bit loop, which costs more at call time and first JIT
 compilation than floating-point division. Negative integer
 literals (also when assigned to local names) use the exact unsigned

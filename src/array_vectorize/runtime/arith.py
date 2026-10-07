@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Exact-semantics arithmetic helper (from _runtime).
 
 ``_vec_arith`` and its uint64-exactness primitives are injected into
@@ -133,8 +137,15 @@ def _integer_true_divide(xp: Any, left: Any, right: Any) -> Any:
     b = xp.astype(right_array, xp.int64)
     l_neg = a < 0 if "uint" not in str(left_array.dtype) else xp.asarray(False)
     r_neg = b < 0 if "uint" not in str(right_array.dtype) else xp.asarray(False)
-    a = xp.where(l_neg, -a, a)
-    b = xp.where(r_neg, -b, b)
+    # Preserve the minimum's unsigned magnitude bit pattern without negating
+    # it: scalar compiled kernels may treat signed overflow as undefined.
+    # Both where branches evaluate (design D1), so mask before negation.
+    a_min = a == -(2**63)
+    b_min = b == -(2**63)
+    safe_a = xp.where(a_min, xp.asarray(0, dtype=xp.int64), a)
+    safe_b = xp.where(b_min, xp.asarray(0, dtype=xp.int64), b)
+    a = xp.where(a_min, a, xp.where(l_neg, -safe_a, a))
+    b = xp.where(b_min, b, xp.where(r_neg, -safe_b, b))
     zero_divisor = b == 0
     b = xp.where(zero_divisor, xp.asarray(1, dtype=xp.int64), b)
     leading_position = _integer_exponent(xp, a) - _integer_exponent(xp, b)
