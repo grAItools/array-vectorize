@@ -79,13 +79,14 @@ conventions (`numpy` as `np`), absolute imports only (TID252,
 PGH003 and PGH004 (evaluated: zero violations).
 
 Imports follow Google §2.2 (import modules, not names), enforced by
-[cleanporter](https://pypi.org/project/cleanporter/) in `make lint` and
+[cleanporter](https://github.com/grAItools/cleanporter) in `make lint` and
 `make fmt` (scope `all`; the golden cases and the notebooks are excluded
 as generated and marimo-owned, `tests/corpus.py` is skipped as golden
 test data, and `treat_unresolved_as_error` is on, so an import
 cleanporter cannot classify fails the gate). The deliberate exceptions
 are inline `# cleanporter: ignore[...]` suppressions, each naming its
-finding code and carrying its reason on the import's line. One import
+finding code and carrying its reason in the suppression comment or the
+comment block above it. One import
 per line per §3.13 (ruff isort `force-single-line`).
 
 Evaluated and deliberately skipped: TD (conflicts with Google's current
