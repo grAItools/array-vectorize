@@ -125,7 +125,9 @@ class _LoopLowerer(statements._StatementLowerer):
             # scalar stays a raw scalar, so track that for call sites
             if self.kinds.is_scalar(pre_name):
                 self.kinds.mark_scalar(loop_carried_name)
-            if self.kinds.is_maybe_bool(pre_name):
+            if self.kinds.kind(pre_name) is None or self.kinds.is_maybe_bool(pre_name):
+                # Unknown entry values can be boolean arrays even when
+                # every body assignment has the same unknown static kind.
                 self.kinds.mark_maybe_bool(loop_carried_name)
 
         phi_end = len(self.bindings)

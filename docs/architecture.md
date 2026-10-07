@@ -33,7 +33,9 @@ flowchart LR
 - **optimize** (`optimize/`) — IR-level constant folding, dead-code
   elimination, and common-subexpression elimination on the scalar program.
 - **codegen** (`codegen/`) — emits readable Python source from the lowered
-  IR (SSA names, real loop structure).
+  IR (SSA names, real loop structure). Conditions proven to depend only
+  on loop indices select whole branches in Python; array conditions use
+  `xp.where`.
 - **exec + wrap** (`emit.py`) — compiles the source and wraps it so the
   namespace is taken from the call arguments
   (`array_api_compat.array_namespace`); `vec.source` and
@@ -57,7 +59,9 @@ generated code calls small runtime helpers injected into its globals:
   for boolean/maybe-boolean/uint64 operands: implements the layered
   [exactness lattice](semantics.md#integer-exactness-lattice), including
   per-lane-exact uint64 `mod`/`floordiv` formulas for negative divisors
-  and result-aware subtraction.
+  and result-aware subtraction. Integer true division uses binary long
+  division with guard/sticky bits for correctly rounded float64 ratios,
+  without extracting array values into Python.
 
 The helpers live in `array_vectorize/runtime/` (`minmax.py`, `arith.py`,
 `dtype.py`), a stdlib-only leaf (enforced, with the other import

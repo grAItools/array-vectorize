@@ -46,8 +46,8 @@ class _StatementLowerer(expressions._ExpressionLowerer):
         self.definite[var] = name
         kind = self._numeric_kind(value)
         self.kinds.set_kind(name, kind)
-        if isinstance(value, ir.Literal):
-            self.kinds.set_literal(name, value)
+        if (literal := self._literal_value(value)) is not None:
+            self.kinds.set_literal(name, literal)
         else:
             self.kinds.drop_literal(name)
         if self._possibly_scalar(value):

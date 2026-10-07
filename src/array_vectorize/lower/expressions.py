@@ -15,6 +15,7 @@ import ast
 from array_vectorize import ir
 from array_vectorize.frontend import tables
 from array_vectorize.lower import sanitize
+from array_vectorize.optimize import constfold
 from array_vectorize.runtime import registry
 
 __all__ = ["_ExpressionLowerer"]
@@ -344,22 +345,46 @@ class _ExpressionLowerer(sanitize._Sanitizer):
 
     def _lower_binop(self, op: ast.operator, left: ir.Node, right: ir.Node) -> ir.Node:
         """Build a BinOp with the exactness fixes shared by `a op b` and `a op= b`."""
+        if isinstance(op, ast.FloorDiv | ast.Mod):
+            literal_left, literal_right = self._literal_value(left), self._literal_value(right)
+            if literal_left is not None and literal_right is not None:
+                # Keep foldable constants usable as loop bounds, while
+                # zero divisors and overflow retain runtime dispatch.
+                folded = constfold._fold_binop(_BINOPS[type(op)], literal_left, literal_right)
+                if folded is not None:
+                    return folded
         # Python bool arithmetic is integer (True + True == 2), but array
         # backends either saturate (bool + bool == True) or reject bools in
-        # arithmetic outright (strict backends). Cast bool-typed operands to
-        # float64: exact for bools (0/1) and ints up to 2**53, and a no-op
-        # for floats — so loop-carried variables whose kind changes across
-        # iterations stay correct too.
+        # arithmetic outright (strict backends). Runtime dispatch chooses
+        # a numeric dtype without rounding integer operands, including
+        # loop-carried values whose kind changes across iterations.
         if isinstance(op, ast.Add | ast.Sub | ast.Mult | ast.Div | ast.FloorDiv | ast.Mod) and (
             "bool" in (self._numeric_kind(left), self._numeric_kind(right))
             or self._maybe_bool_result(left)
             or self._maybe_bool_result(right)
+            # True division requires floating operands even when input
+            # kinds are unknown. Negative integer literals cannot be
+            # promoted into uint64 by a bare backend operator.
+            or (
+                isinstance(op, ast.Div)
+                and (self._numeric_kind(left) != "float" or self._numeric_kind(right) != "float")
+            )
+            or (
+                isinstance(op, ast.FloorDiv | ast.Mod)
+                and (
+                    self._is_negative_int(self._literal_value(left) or left)
+                    or self._is_negative_int(self._literal_value(right) or right)
+                )
+            )
         ):
             # the whole operation goes through the runtime _vec_arith
             # helper: bools need a numeric representation, strict
             # backends require single-dtype or float operands, and the
             # uint64 integer paths are exact per lane (modular for
             # add/sub/mul; int64 magnitudes for negative divisors)
+            if isinstance(op, ast.FloorDiv | ast.Mod):
+                left = self._literal_value(left) or left
+                right = self._literal_value(right) or right
             ir_op = _BINOPS[type(op)]
             return ir.FuncCall(
                 self.arith_name,
