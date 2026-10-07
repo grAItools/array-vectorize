@@ -148,8 +148,11 @@ def protect_domains(program: Program) -> Program:
                 mark_fully_live(child)
 
     def rewrite_stmt(stmt: Stmt, ahead: set[str]) -> Stmt:
-        """Rewrite one binding; ``ahead`` holds the names bound AFTER this
-        statement (they are not yet assigned where this statement runs)."""
+        """Rewrite one binding.
+
+        ``ahead`` holds the names bound AFTER this statement (they are
+        not yet assigned where this statement runs).
+        """
         if isinstance(stmt, Binding):
             ctx = live.pop(stmt.name, None)
             record_ctx = ctx

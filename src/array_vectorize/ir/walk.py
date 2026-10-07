@@ -50,6 +50,7 @@ def rewrite(node: Node, fn: Callable[[Node], Node]) -> Node:
 
 
 def children(node: Node) -> tuple[Node, ...]:
+    """The direct operand sub-nodes of ``node`` (leaves have none)."""
     match node:
         case Literal() | Ref() | DType():
             return ()

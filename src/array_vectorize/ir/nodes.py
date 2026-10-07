@@ -58,11 +58,13 @@ class Literal:
     kind: Kind
 
     def __eq__(self, other: object) -> bool:
+        """Value equality that keeps signed zeros and NaNs distinct."""
         if not isinstance(other, Literal):
             return NotImplemented
         return self.kind == other.kind and _literal_key(self.value) == _literal_key(other.value)
 
     def __hash__(self) -> int:
+        """Hash consistent with ``__eq__``'s kind/value pair."""
         return hash((self.kind, self.value))
 
 
@@ -75,6 +77,8 @@ class Ref:
 
 @dataclass(frozen=True, slots=True)
 class BinOp:
+    """Binary operation, e.g. ``BinOp('add', x, y)`` -> x + y."""
+
     op: str  # add sub mul div pow floordiv mod and or xor lshift rshift
     left: Node
     right: Node
@@ -82,12 +86,16 @@ class BinOp:
 
 @dataclass(frozen=True, slots=True)
 class UnaryOp:
+    """Unary operation, e.g. ``UnaryOp('neg', x)`` -> -x."""
+
     op: str  # neg pos invert not
     operand: Node
 
 
 @dataclass(frozen=True, slots=True)
 class Compare:
+    """Comparison, e.g. ``Compare('lt', x, y)`` -> x < y."""
+
     op: str  # eq ne lt le gt ge
     left: Node
     right: Node
@@ -103,6 +111,8 @@ class Logical:
 
 @dataclass(frozen=True, slots=True)
 class Where:
+    """Branch merge: ``then`` where ``cond`` holds, ``other`` elsewhere."""
+
     cond: Node
     then: Node
     other: Node
@@ -163,6 +173,8 @@ type Stmt = Binding | Loop
 
 @dataclass(frozen=True, slots=True)
 class Program:
+    """A lowered function: parameters, top-level bindings, result."""
+
     params: tuple[str, ...]
     bindings: tuple[Stmt, ...]
     result: Node

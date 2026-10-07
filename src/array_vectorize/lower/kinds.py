@@ -75,10 +75,13 @@ class FactsSnapshot:
 
 
 class Kinds:
-    """Kind/literal/flag facts for every emitted name, plus the stack of
-    per-loop carried-assignment kind frames."""
+    """Kind/literal/flag facts for every emitted name.
+
+    Also holds the stack of per-loop carried-assignment kind frames.
+    """
 
     def __init__(self) -> None:
+        """Start with no facts and no active loop frames."""
         self._names: dict[str, VarInfo] = {}
         # names with an established kind fact (a None kind is a legitimate
         # "unknown" VALUE — presence is what setdefault consults)
@@ -101,6 +104,7 @@ class Kinds:
         return self._names[name].kind
 
     def set_kind(self, name: str, kind: Kind | None) -> None:
+        """Record ``name``'s kind, replacing any previous fact."""
         self._kind_established.add(name)
         self._entry(name).kind = kind
 
@@ -110,19 +114,23 @@ class Kinds:
             self.set_kind(name, kind)
 
     def update_kinds(self, labels: Mapping[str, Kind | None]) -> None:
+        """``set_kind`` for every name/kind entry at once."""
         for name, kind in labels.items():
             self.set_kind(name, kind)
 
     # --------------------------------------------------------- literal facts
 
     def literal(self, name: str) -> Literal | None:
+        """The name's recorded literal, or ``None``."""
         info = self._names.get(name)
         return info.literal if info is not None else None
 
     def set_literal(self, name: str, lit: Literal) -> None:
+        """Record ``name`` as holding the literal ``lit``."""
         self._entry(name).literal = lit
 
     def drop_literal(self, name: str) -> None:
+        """Forget ``name``'s literal fact, if any."""
         info = self._names.get(name)
         if info is not None:
             info.literal = None
@@ -130,25 +138,31 @@ class Kinds:
     # ----------------------------------------------------------------- flags
 
     def is_scalar(self, name: str) -> bool:
+        """True when the name may hold a raw Python scalar."""
         info = self._names.get(name)
         return info is not None and (info.maybe_scalar or info.literal is not None)
 
     def mark_scalar(self, name: str) -> None:
+        """Mark ``name`` as possibly holding a raw Python scalar."""
         self._entry(name).maybe_scalar = True
 
     def unmark_scalar(self, name: str) -> None:
+        """Clear the maybe-scalar mark on ``name``."""
         info = self._names.get(name)
         if info is not None:
             info.maybe_scalar = False
 
     def is_maybe_bool(self, name: str) -> bool:
+        """True when the name may hold a boolean."""
         info = self._names.get(name)
         return info is not None and info.maybe_bool
 
     def mark_maybe_bool(self, name: str) -> None:
+        """Mark ``name`` as possibly boolean."""
         self._entry(name).maybe_bool = True
 
     def unmark_maybe_bool(self, name: str) -> None:
+        """Clear the maybe-boolean mark on ``name``."""
         info = self._names.get(name)
         if info is not None:
             info.maybe_bool = False
@@ -156,9 +170,11 @@ class Kinds:
     # -------------------------------------------------------- carried frames
 
     def push_carried_frame(self) -> None:
+        """Enter a loop: body assignments record into a fresh frame."""
         self.carried_frames.append({})
 
     def pop_carried_frame(self) -> dict[str, set[Kind | None]]:
+        """Leave a loop, returning its carried-assignment frame."""
         return self.carried_frames.pop()
 
     def record_carried_kind(self, name: str, kind: Kind | None) -> None:

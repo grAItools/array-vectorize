@@ -133,9 +133,12 @@ class _LoopLowerer(_StatementLowerer):
         def union_labels(
             frame: dict[str, set[Kind | None]],
         ) -> tuple[dict[str, Kind | None], list[str]]:
-            """Per carried name: the final kind (union of the phi kind and
-            all body-assignment kinds) and the names whose kinds MIX across
-            iterations."""
+            """Per carried name: the final kind and the mixed names.
+
+            The final kind is the union of the phi kind and all
+            body-assignment kinds; a name is mixed when its kinds MIX
+            across iterations.
+            """
             labels: dict[str, Kind | None] = {}
             mixed: list[str] = []
             for loop_carried_name in carried.values():

@@ -44,4 +44,5 @@ class FunctionInfo:
 
     @property
     def param_names(self) -> list[str]:
+        """The parameter names, in signature order."""
         return [p.name for p in self.params]

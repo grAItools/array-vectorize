@@ -9,6 +9,7 @@ from array_vectorize import vectorize
 
 @vectorize
 def psi(x):
+    """Exponential decay on the positive half, zero below it."""
     if x < 0:
         return 0.0
     return x * math.exp(-x)
@@ -16,6 +17,7 @@ def psi(x):
 
 @vectorize
 def clamp(x, lo=0.0, hi=1.0):
+    """Clamp x into [lo, hi]."""
     if x < lo:
         return lo
     if x > hi:
@@ -24,6 +26,7 @@ def clamp(x, lo=0.0, hi=1.0):
 
 
 def main() -> None:
+    """Run the smoke checks and print the generated sources."""
     x = np.asarray([-2.0, -0.5, 0.0, 1.0, 3.0])
     expected = np.where(x < 0, 0.0, x * np.exp(-x))
     assert np.allclose(psi(x), expected), psi(x)

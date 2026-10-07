@@ -50,6 +50,7 @@ def _mark_live_stmt(stmt: Stmt, live: set[str]) -> Stmt | None:
 
 
 def dce(program: Program) -> Program:
+    """Drop bindings whose results are never used."""
     live: set[str] = set()
     _mark_live(program.result, live)
     kept: list[Stmt] = []

@@ -45,6 +45,9 @@ Invariants:
   `uv run pytest --update-golden` only when the generated code is meant to
   change, then review `git diff tests/golden/cases` line by line.
 
+The code follows the Google Python Style Guide, single deviation:
+100-column lines. Ruff enforces it via `make lint` / pre-commit.
+
 ## Tests
 
 The suite is organized by level and topic. Put each test in the file for

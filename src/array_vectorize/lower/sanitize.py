@@ -19,8 +19,11 @@ __all__ = ["_Sanitizer"]
 
 class _Sanitizer(_LowererBase):
     def _literal_value(self, arg: Node) -> Literal | None:
-        """The literal behind an arg: directly, as a negated literal
-        (``-1`` lowers to UnaryOp(neg, 1)), or via a literal binding."""
+        """The literal behind an arg, or ``None``.
+
+        Found directly, as a negated literal (``-1`` lowers to
+        UnaryOp(neg, 1)), or via a literal binding.
+        """
         if isinstance(arg, Literal):
             return arg
         if (
@@ -35,11 +38,13 @@ class _Sanitizer(_LowererBase):
         return None
 
     def _possibly_scalar(self, node: Node) -> bool:
-        """True when the node's runtime value may be a raw Python scalar:
-        it is a literal, a possibly-scalar name (parameter default, loop
+        """True when the node's runtime value may be a raw Python scalar.
+
+        It is a literal, a possibly-scalar name (parameter default, loop
         variable, literal binding), or an expression computed from one.
         Operators promote such scalars fine; xp.* function arguments do
-        not (strict backends reject plain scalars)."""
+        not (strict backends reject plain scalars).
+        """
 
         def walk(n: Node) -> bool:
             if isinstance(n, Literal):

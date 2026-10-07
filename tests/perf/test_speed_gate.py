@@ -27,9 +27,11 @@ pytestmark = pytest.mark.slow
 
 
 def _best_of(fn: Callable[[], object], repeats: int = 3) -> float:
-    """Best (minimum) wall time over repeats - the standard noise-robust
-    timing statistic: scheduler hiccups and cache pollution only ever make
-    a run slower."""
+    """Best (minimum) wall time over ``repeats`` runs.
+
+    The standard noise-robust timing statistic: scheduler hiccups and
+    cache pollution only ever make a run slower.
+    """
     best = math.inf
     for _ in range(repeats):
         t0 = time.perf_counter()

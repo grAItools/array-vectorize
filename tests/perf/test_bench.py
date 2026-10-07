@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 
-import corpus as CORPUS
+import corpus
 import numpy as np
 import pytest
 
@@ -32,11 +32,11 @@ pytestmark = pytest.mark.slow
 # representative kernels: plain arithmetic, branch-heavy, loop-accumulated
 # (name, function, positional argument count)
 KERNELS = [
-    ("add", CORPUS.add, 2),
-    ("arith_ops", CORPUS.arith_ops, 2),
-    ("relu", CORPUS.relu, 1),
-    ("psi", CORPUS.psi, 1),
-    ("clamp", CORPUS.clamp, 1),
+    ("add", corpus.add, 2),
+    ("arith_ops", corpus.arith_ops, 2),
+    ("relu", corpus.relu, 1),
+    ("psi", corpus.psi, 1),
+    ("clamp", corpus.clamp, 1),
 ]
 SIZES = [1_000, 100_000, 1_000_000]
 

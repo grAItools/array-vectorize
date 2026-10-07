@@ -86,30 +86,52 @@ extend-exclude = ["tests/golden/cases", "examples/notebooks"]
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "SIM", # flake8-simplify
-    "RUF", # ruff-specific
-    "C4",  # flake8-comprehensions
-    "PT",  # flake8-pytest-style
-    "TID252", # flake8-tidy-imports: absolute imports only
+    "E",       # pycodestyle errors
+    "W",       # pycodestyle warnings
+    "F",       # pyflakes
+    "I",       # isort
+    "UP",      # pyupgrade
+    "B",       # flake8-bugbear
+    "SIM",     # flake8-simplify
+    "RUF",     # ruff-specific
+    "C4",      # flake8-comprehensions
+    "PT",      # flake8-pytest-style
+    "TID252",  # flake8-tidy-imports: absolute imports only
+    "D",       # pydocstyle (google convention, see below)
+    "N",       # pep8-naming
+    "ICN",     # flake8-import-conventions
+    # evaluated on the tree: zero violations, kept as guards
+    "BLE001",  # blind except
+    "PLW0603", # global statement
+    "G004",    # logging f-strings
+    "PGH003",  # blanket type-ignore
+    "PGH004",  # blanket noqa
 ]
 # the TID252 fix is unsafe-only by default; make `ruff check --fix` apply it
 extend-safe-fixes = ["TID252"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.flake8-tidy-imports]
 # ruff's default ("parents") only flags `..` imports; every import in the
 # tree is absolute
 ban-relative-imports = "all"
 
+[tool.ruff.lint.flake8-import-conventions]
+# single source of truth for the import aliases
+aliases = { numpy = "np" }
+
 [tool.ruff.lint.per-file-ignores]
 # scalar functions written for vectorize loop over range(N) for its trip
 # count; the index is often unused by design
 "examples/*" = ["B007"]
+# test names are self-documenting
+"tests/**" = ["D1"]
+# corpus functions are golden-pinned test data
+"tests/corpus.py" = ["D"]
+# holds the NumPy-style docstring subject
+"tests/behavior/test_docstrings.py" = ["D4"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -213,9 +213,11 @@ class _ExpressionLowerer(_Sanitizer):
         raise self.error(node, f"unsupported function {name!r}")
 
     def _cast_call(self, arg: Node, dtype: str) -> Node:
-        """int()/float()/bool()/math.trunc-style casts: fold literal args
-        (exact), wrap raw loop-variable ints in asarray, pass arrays
-        through (params are preamble-normalized)."""
+        """Lower an int()/float()/bool()/math.trunc-style cast.
+
+        Literal args fold exactly, raw loop-variable ints wrap in asarray,
+        and arrays pass through (params are preamble-normalized).
+        """
         lit = self._literal_value(arg)
         if lit is not None:
             try:
@@ -254,8 +256,11 @@ class _ExpressionLowerer(_Sanitizer):
         )
 
     def _numeric_kind(self, node: Node) -> Kind | None:
-        """Best-effort numeric kind: literals, casts, bools, arithmetic, and
-        Refs whose binding kind was recorded are provable."""
+        """Best-effort numeric kind of ``node``.
+
+        Literals, casts, bools, arithmetic, and Refs whose binding kind
+        was recorded are provable; anything else reads as ``None``.
+        """
         match node:
             case Literal():
                 return node.kind
@@ -333,11 +338,13 @@ class _ExpressionLowerer(_Sanitizer):
                 return None
 
     def _maybe_bool_result(self, node: Node) -> bool:
-        """True for min/max results whose static kind is unknown: their
-        runtime dtype may be boolean (parameter operands), so arithmetic
-        must use the runtime-polymorphic intify — the _vec_arith_dtype
-        cast is a no-op for numeric dtypes and int64 for booleans."""
+        """True for min/max results whose static kind is unknown.
 
+        Their runtime dtype may be boolean (parameter operands), so
+        arithmetic must use the runtime-polymorphic intify — the
+        _vec_arith_dtype cast is a no-op for numeric dtypes and int64
+        for booleans.
+        """
         if isinstance(node, FuncCall) and node.fn == self.minmax_name:
             return self._numeric_kind(node) is None
         if isinstance(node, Ref):

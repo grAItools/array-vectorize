@@ -241,5 +241,6 @@ def _fold_stmt(stmt: Stmt) -> Stmt:
 
 
 def const_fold(program: Program) -> Program:
+    """Constant-fold every binding and the result expression."""
     bindings = tuple(_fold_stmt(s) for s in program.bindings)
     return Program(program.params, bindings, _const_fold_expr(program.result))

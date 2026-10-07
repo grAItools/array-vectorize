@@ -65,6 +65,25 @@ Warnings are errors in the test suite, except numpy's data-dependent
 numeric warnings (`overflow encountered`, `invalid value`,
 `divide by zero`) which are expected on documented divergence paths.
 
+## Style
+
+The code follows the [Google Python Style Guide]
+(https://google.github.io/styleguide/pyguide.html). Ruff enforces it in
+`make lint`: pydocstyle with the google convention, pep8-naming, import
+conventions (`numpy` as `np`), absolute imports only (TID252,
+`ban-relative-imports = "all"`), and additionally BLE001, PLW0603, G004,
+PGH003 and PGH004 (evaluated: zero violations).
+
+Evaluated and deliberately skipped: TD (conflicts with Google's current
+TODO format) and PLC0415 (import-inside-function is a deliberate pattern
+in this compiler's test subjects).
+
+The only deviation from the guide is the line length: 100 columns (the
+guide says 80). Tests relax D1 (missing docstring) — test names are
+self-documenting; `tests/corpus.py` ignores all D rules (golden-pinned
+test data), and `tests/behavior/test_docstrings.py` ignores D4 (it holds
+the NumPy-style docstring subject).
+
 ## CI
 
 - **check** — the full `make check` gate on Python 3.12–3.14

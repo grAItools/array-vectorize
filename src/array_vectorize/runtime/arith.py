@@ -61,8 +61,10 @@ def _is_u64(a: Any) -> bool:
 
 
 def _to_u64(xp: Any, a: Any) -> Any:
-    """Cast to uint64, wrapping negative int literals modularly (NumPy
-    rejects out-of-bounds Python ints in asarray)."""
+    """Cast to uint64, wrapping negative int literals modularly.
+
+    NumPy rejects out-of-bounds Python ints in asarray.
+    """
     if isinstance(a, int) and not isinstance(a, bool) and a < 0:
         a = a % 2**64
     return xp.asarray(a, dtype=xp.uint64)
@@ -105,8 +107,9 @@ def _u64_sub_exact(xp: Any, left: Any, right: Any) -> Any | None:
 
 
 def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
-    """Exact-semantics arithmetic for bool-intified operations (injected
-    into generated modules). ``op_id`` indexes _ARITH_OPS.
+    """Exact-semantics arithmetic for bool-intified operations.
+
+    Injected into generated modules; ``op_id`` indexes _ARITH_OPS.
 
     Bools are cast to a numeric dtype (int64 headroom; Python integers
     are unbounded). Floats keep their dtype; mixed int/float promotes to

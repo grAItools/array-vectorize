@@ -9,11 +9,14 @@ scalar semantics in the comments.
 from __future__ import annotations
 
 import numpy as np
-import numpy as xp
 
 from array_vectorize.runtime.arith import ArithOp, _vec_arith
 from array_vectorize.runtime.dtype import _describe_dtype, _fits_dtype
 from array_vectorize.runtime.minmax import _vec_minmax
+
+# the array namespace passed to the runtime helpers, as generated code
+# binds it
+xp = np
 
 U64_MAX = 2**64 - 1
 I64_MAX = 2**63 - 1

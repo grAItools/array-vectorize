@@ -121,6 +121,7 @@ def _statement(rng: random.Random, vars_: list[str], depth: int) -> list[str]:
 
 
 def make_program(rng: random.Random) -> str:
+    """Build the source of one random scalar function."""
     n_vars = rng.randint(1, 2)
     params = [f"x{i}" for i in range(n_vars)]
     vars_ = [*params]
@@ -201,6 +202,7 @@ def _check_case(rng: random.Random, src: str, fn: Any) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: parse arguments and run the fuzz loop."""
     parser = argparse.ArgumentParser(prog="array_vectorize.fuzz", description=__doc__)
     parser.add_argument("--seconds", type=float, default=60.0, help="time budget")
     parser.add_argument("--seed", type=int, default=None, help="random seed (reproducible)")
