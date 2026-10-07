@@ -14,7 +14,7 @@ def test_lambda_vectorize() -> None:
     vec = array_vectorize.vectorize(lambda x: x * 2.0)
     got = vec(np.asarray([1.0, 2.0]))
     assert np.allclose(got, [2.0, 4.0])
-    assert "def lambda_vec" in vec.source
+    assert "def lambda_vec" in support.with_metadata(vec).source
 
 
 # ------------------------------------------------------- lambda identification

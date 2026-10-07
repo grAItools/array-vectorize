@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import math
+from typing import Literal
 
 import pytest
+import support
 
 from array_vectorize import ir
 from array_vectorize import optimize as optimize_mod
@@ -16,7 +18,7 @@ from array_vectorize.optimize import dce  # cleanporter: ignore[CP002] name coll
 from array_vectorize.optimize import dce as dce_pass  # cleanporter: ignore[CP002] name collision
 
 
-def lit(v: float | int, kind: str = "auto") -> ir.Literal:
+def lit(v: float | int, kind: ir.Kind | Literal["auto"] = "auto") -> ir.Literal:
     if kind == "auto":
         kind = "bool" if isinstance(v, bool) else "int" if isinstance(v, int) else "float"
     return ir.Literal(v, kind)
@@ -57,7 +59,7 @@ def test_fold_pow_skipped() -> None:
 
 
 def test_fold_int64_overflow_skipped() -> None:
-    expr = ir.BinOp("mul", lit(2**62), lit(4))
+    expr: ir.Node = ir.BinOp("mul", lit(2**62), lit(4))
     assert optimize_mod.const_fold(ir.Program((), (), expr)).result == expr
     expr = ir.UnaryOp("neg", lit(-(2**63)))
     assert optimize_mod.const_fold(ir.Program((), (), expr)).result == expr
@@ -125,7 +127,7 @@ def test_dce_keeps_chains() -> None:
         ),
         ir.Ref("b"),
     )
-    assert [b.name for b in dce(p).bindings] == ["a", "b"]
+    assert [support.binding(b).name for b in dce(p).bindings] == ["a", "b"]
 
 
 def test_dce_single_reverse_pass_handles_late_uses() -> None:
@@ -137,7 +139,7 @@ def test_dce_single_reverse_pass_handles_late_uses() -> None:
         ),
         ir.Ref("b"),
     )
-    assert [b.name for b in dce(p).bindings] == ["a", "b"]
+    assert [support.binding(b).name for b in dce(p).bindings] == ["a", "b"]
 
 
 # ----------------------------------------------------------------------- CSE
@@ -151,8 +153,8 @@ def test_cse_hoists_duplicated_call() -> None:
         ir.BinOp("mul", inner, ir.Ref("a")),
     )
     out = cse(p, ir.SSAEnv(set()))
-    assert out.bindings[0].name == "t_1"
-    assert out.bindings[0].expr == inner
+    assert support.binding(out.bindings[0]).name == "t_1"
+    assert support.binding(out.bindings[0]).expr == inner
     assert out.bindings[1] == ir.Binding("a", ir.BinOp("add", ir.Ref("t_1"), ir.Ref("t_1")))
     assert out.result == ir.BinOp("mul", ir.Ref("t_1"), ir.Ref("a"))
 
@@ -179,7 +181,7 @@ def test_cse_nested_fixpoint() -> None:
     outer1 = ir.Where(ir.Compare("gt", inner, lit(0)), inner, lit(0.0, "float"))
     p = ir.Program(("x",), (), ir.BinOp("add", outer1, outer1))
     out = cse(p, ir.SSAEnv(set()))
-    names = [b.name for b in out.bindings]
+    names = [support.binding(b).name for b in out.bindings]
     # inner temp created first, then (next pass) the rebuilt outer
     assert names == ["t_1", "t_2"]
     assert out.result == ir.BinOp("add", ir.Ref("t_2"), ir.Ref("t_2"))
@@ -196,7 +198,7 @@ def test_cse_temp_inserted_before_first_user() -> None:
         ir.Ref("b"),
     )
     out = cse(p, ir.SSAEnv(set()))
-    assert [b.name for b in out.bindings] == ["a", "t_1", "b"]
+    assert [support.binding(b).name for b in out.bindings] == ["a", "t_1", "b"]
 
 
 # ----------------------------------------------------------------- composite
@@ -215,8 +217,8 @@ def test_optimize_pipeline() -> None:
     )
     out = optimize_mod.optimize(p, {"x", "dead", "a"})
     folded_sub = ir.BinOp("add", ir.Ref("x"), lit(6))
-    assert out.bindings[0].name == "t_1"
-    assert out.bindings[0].expr == ir.Call("abs", (folded_sub,))
+    assert support.binding(out.bindings[0]).name == "t_1"
+    assert support.binding(out.bindings[0]).expr == ir.Call("abs", (folded_sub,))
     assert out.bindings[1] == ir.Binding("a", ir.Ref("t_1"))
     assert out.result == ir.BinOp("add", ir.Ref("t_1"), ir.Ref("a"))
 
@@ -258,7 +260,7 @@ def test_fold_unary_ops_all() -> None:
 
 def test_fold_skips_bad_ops() -> None:
     # float bitwise -> TypeError at runtime -> no fold
-    expr = ir.BinOp("and", lit(1.5), lit(2.5))
+    expr: ir.Node = ir.BinOp("and", lit(1.5), lit(2.5))
     assert optimize_mod.const_fold(ir.Program((), (), expr)).result == expr
     # unary invert on float -> no fold
     expr = ir.UnaryOp("invert", lit(1.5))
@@ -274,7 +276,8 @@ def test_fold_skips_bad_ops() -> None:
 def test_fold_zero_times_infinity() -> None:
     # inf * 0 -> nan: exact IEEE fold
     out = optimize_mod.const_fold(ir.Program((), (), ir.BinOp("mul", lit(math.inf), lit(0.0))))
-    assert math.isnan(out.result.value)  # type: ignore[attr-defined]
+    assert isinstance(out.result, ir.Literal)
+    assert math.isnan(out.result.value)
 
 
 def test_dce_keeps_result_only_binding() -> None:

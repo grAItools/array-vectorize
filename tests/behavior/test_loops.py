@@ -19,7 +19,7 @@ def test_loop_with_start_stop_step() -> None:
     )
     got = vec(np.asarray([1.0]))
     assert np.allclose(got, [(1 + 3) * 1.0])
-    assert "for i in range(1, 5, 2):" in vec.source
+    assert "for i in range(1, 5, 2):" in support.with_metadata(vec).source
 
 
 def test_loop_negative_step() -> None:
@@ -29,7 +29,7 @@ def test_loop_negative_step() -> None:
         )
     )
     assert np.allclose(vec(np.asarray([1.0])), [6.0])
-    assert "for i in range(3, 0, -1):" in vec.source
+    assert "for i in range(3, 0, -1):" in support.with_metadata(vec).source
 
 
 def test_range_two_args() -> None:
@@ -52,7 +52,7 @@ def test_loop_bound_expression_folds() -> None:
     vec = array_vectorize.vectorize(
         support.make_fn("    s = 0.0\n    for i in range(1 + 2):\n        s = s + x\n    return s")
     )
-    assert "for i in range(0, 3):" in vec.source
+    assert "for i in range(0, 3):" in support.with_metadata(vec).source
 
 
 # --------------------------------------------------------- loop-carried values
@@ -64,8 +64,8 @@ def test_simple_accumulation() -> None:
     )
     got = vec(np.asarray([1.0, 2.0]))
     assert np.allclose(got, [3.0, 6.0])
-    assert "for i in range(0, 3):" in vec.source
-    assert "s_1 = s" in vec.source  # loop-carried phi
+    assert "for i in range(0, 3):" in support.with_metadata(vec).source
+    assert "s_1 = s" in support.with_metadata(vec).source  # loop-carried phi
 
 
 def test_loop_index_used() -> None:
@@ -179,7 +179,7 @@ def test_loop_dce_drops_dead_body_bindings() -> None:
     )
     vec = array_vectorize.vectorize(support.make_fn(body))
     # the original source in the docstring mentions 'dead' once; the code must not
-    assert vec.source.count("dead") == 1
+    assert support.with_metadata(vec).source.count("dead") == 1
 
 
 def test_loop_dce_keeps_cross_iteration_dependencies() -> None:

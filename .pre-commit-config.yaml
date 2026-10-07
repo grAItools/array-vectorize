@@ -42,6 +42,35 @@ repos:
         language: system
         files: ^(pyproject\.toml|uv\.lock)$
         pass_filenames: false
+      # Whole-project checks: scope belongs to pyproject.toml, commands to Make.
+      - id: mypy
+        name: mypy (strict)
+        entry: make type-mypy
+        language: system
+        files: \.(py|pyi)$|^(pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml)$
+        pass_filenames: false
+        require_serial: true
+      - id: pyright
+        name: pyright
+        entry: make type-pyright
+        language: system
+        files: \.(py|pyi)$|^(pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml)$
+        pass_filenames: false
+        require_serial: true
+      - id: zuban
+        name: zuban
+        entry: make type-zuban
+        language: system
+        files: \.(py|pyi)$|^(pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml)$
+        pass_filenames: false
+        require_serial: true
+      - id: pyrefly
+        name: pyrefly
+        entry: make type-pyrefly
+        language: system
+        files: \.(py|pyi)$|^(pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml)$
+        pass_filenames: false
+        require_serial: true
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:

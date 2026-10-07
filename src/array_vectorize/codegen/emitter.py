@@ -208,7 +208,7 @@ def _gen_stmt(stmt: ir.Stmt, ns: str) -> ast.stmt:
                 value=_gen_expr(stmt.expr, ns),
             )
         case ir.Loop():
-            body = [_gen_stmt(inner, ns) for inner in stmt.body]
+            body: list[ast.stmt] = [_gen_stmt(inner, ns) for inner in stmt.body]
             if not body:
                 # (15) a retained loop with a fully dead body still needs a statement
                 body = [ast.Pass()]

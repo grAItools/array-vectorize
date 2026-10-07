@@ -40,7 +40,8 @@ def make_fallback(
                 "Array API array argument"
             )
         arrays = [args[i] for i in positions] + [kwargs[k] for k in kw_positions]
-        xp = namespace if namespace is not None else array_api_compat.array_namespace(*arrays)
+        # The namespace is backend-dependent, including dynamically re-exported APIs.
+        xp: Any = namespace if namespace is not None else array_api_compat.array_namespace(*arrays)
         broadcast = xp.broadcast_arrays(*arrays)
         shape = broadcast[0].shape
         flat = [xp.reshape(a, (-1,)) for a in broadcast]
@@ -69,7 +70,8 @@ def make_fallback(
     # it is often unavailable here, which is a common fallback reason).
     # A pathological non-str __doc__ is left exactly as wraps left it.
     if isinstance(func.__doc__, str):
-        wrapper.__doc__ = docstring.prefixed_summary(func.__doc__)
+        # Zuban infers the nested wrapper's doc as None despite functools.wraps.
+        setattr(wrapper, "__doc__", docstring.prefixed_summary(func.__doc__))  # noqa: B010
     wrapper.source = (  # type: ignore[attr-defined]
         f"# fallback element-loop wrapper around {func.__name__!r}\n"
         f"# (source-to-source vectorization failed: {reason})"

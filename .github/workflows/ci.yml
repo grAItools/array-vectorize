@@ -15,6 +15,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  static:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked
+      - name: Lint and all four type checkers
+        run: make lint type
+
   check:
     runs-on: ubuntu-latest
     strategy:
@@ -29,8 +43,8 @@ jobs:
           enable-cache: true
       - name: Install
         run: uv sync --locked
-      - name: Check (lint + types + tests + coverage)
-        run: make check
+      - name: Tests and coverage
+        run: make coverage
         env:
           CI: "1"
       - name: Examples and notebooks
