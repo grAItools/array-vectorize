@@ -45,6 +45,7 @@ dev = [
     "numpy>=2.0",
     "array-api-strict>=2.3",
     "pre-commit>=3.5",
+    "cleanporter>=0.6",
 ]
 backends = [
     "jax>=0.4",
@@ -71,6 +72,9 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+# local stand-in pin for the PEP 695 type-alias fix; swap to the GitHub
+# URL + 0.6.0 tag when the upstream release is cut
+cleanporter = { git = "file:///tmp/opencode/cleanporter", rev = "e53776c" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/array_vectorize"]
@@ -132,6 +136,15 @@ aliases = { numpy = "np" }
 "tests/corpus.py" = ["D"]
 # holds the NumPy-style docstring subject
 "tests/behavior/test_docstrings.py" = ["D4"]
+
+[tool.cleanporter]
+scope = "all"
+# golden cases are pinned compiler output; marimo owns the notebook format
+exclude = ["tests/golden/cases/", "examples/notebooks/"]
+
+[[tool.cleanporter.skip]]
+file = 'tests/corpus\.py'
+reason = "golden test data: from-imports deliberately exercise the supported subset"
 
 [tool.mypy]
 python_version = "3.12"
