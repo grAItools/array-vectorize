@@ -6,6 +6,7 @@ generated modules and execute on the user's backend at call time.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import enum
 import operator
 from typing import Any
@@ -46,7 +47,7 @@ class ArithOp(enum.IntEnum):
 #: (generated code passes the id as an int literal)
 _ARITH_OPS = tuple(m.name.lower() for m in ArithOp)
 
-_ARITH_FNS = {
+_ARITH_FNS: dict[str, Callable[[Any, Any], Any]] = {
     "add": operator.add,
     "sub": operator.sub,
     "mul": operator.mul,
@@ -287,12 +288,24 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 return xp.where(
                     mag == 0, xp.asarray(0.0, dtype=xp.float64), -xp.astype(mag, xp.float64)
                 )
-            if op == "mod" and isinstance(left, int) and left < 0 and _is_u64(right):
+            if (
+                op == "mod"
+                and isinstance(left, int)
+                and left < 0
+                and right is not None
+                and _is_u64(right)
+            ):
                 # negative-literal % array: (v - |d| mod v) mod v — always
                 # in [0, v), exactly representable in uint64
                 d = xp.asarray(-left, dtype=right.dtype)
                 return (right - (d % right)) % right
-            if op == "floordiv" and isinstance(left, int) and left < 0 and _is_u64(right):
+            if (
+                op == "floordiv"
+                and isinstance(left, int)
+                and left < 0
+                and right is not None
+                and _is_u64(right)
+            ):
                 # negative-literal // array: -ceil(|d| / v), exact in int64
                 d = xp.asarray(-left, dtype=right.dtype)
                 mag = (d // right) + xp.astype((d % right) > 0, right.dtype)

@@ -931,7 +931,7 @@ def test_negative_integer_with_unsigned_input(op: str, bound: bool) -> None:
 @pytest.mark.parametrize("dtype", ["bool", "int64", "uint64"])
 def test_true_division_of_integer_inputs(dtype: str) -> None:
     scalar = support.make_fn("    return x / y", defaults="x, y")
-    values = [True, False] if dtype == "bool" else [1, 2, 3]
+    values: list[int] = [True, False] if dtype == "bool" else [1, 2, 3]
     if dtype == "uint64":
         values += [2**63, 2**64 - 1]
     denominator = True if dtype == "bool" else 3

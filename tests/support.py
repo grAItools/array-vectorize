@@ -15,15 +15,48 @@ import importlib.util
 import itertools
 import pathlib
 import tempfile
-from typing import Any
+from typing import Any, cast, Protocol
 
 import corpus
 
 import array_vectorize
+from array_vectorize import ir
 
 _tmp = tempfile.TemporaryDirectory(prefix="vec_support_")
 TMPDIR = pathlib.Path(_tmp.name)
 _seq = itertools.count()
+
+
+class Vectorized(Protocol):
+    """Metadata attached dynamically to compiled functions, for test assertions."""
+
+    source: str
+    _vectorized_original: Callable[..., Any]
+    __kwdefaults__: dict[str, Any] | None
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def with_namespace(self, xp: Any) -> Vectorized: ...
+
+
+def with_metadata(fn: Callable[..., Any]) -> Vectorized:
+    """Describe compiler-attached attributes without changing the public API.
+
+    Tests asserting metadata use this boundary; ordinary calls still retain
+    their callable types, and the assertions check the attributes at runtime.
+    """
+    return cast(Vectorized, fn)
+
+
+def binding(stmt: ir.Stmt) -> ir.Binding:
+    """Assert a statement is a binding before checking its name or expression."""
+    assert isinstance(stmt, ir.Binding)
+    return stmt
+
+
+def backref(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Read the dynamically attached vectorization marker on a scalar function."""
+    return cast(Callable[..., Any], getattr(fn, "__array_vectorized__"))  # noqa: B009
 
 
 def make_fn(body: str, extra: str = "", defaults: str = "x, y=2.0") -> Callable[..., Any]:
@@ -47,7 +80,7 @@ def make_fn(body: str, extra: str = "", defaults: str = "x, y=2.0") -> Callable[
     assert spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.subject
+    return cast(Callable[..., Any], mod.subject)
 
 
 def make_module(source: str) -> Any:

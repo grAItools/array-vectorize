@@ -73,7 +73,8 @@ def _defaults_match(node: ast.Lambda, target: object) -> bool:
         if d is not None
     )
     fn_defaults = tuple(getattr(target, "__defaults__", None) or ())
-    fn_kw_defaults = tuple(v for k, v in (getattr(target, "__kwdefaults__", None) or {}).items())
+    kw_defaults: dict[str, Any] = getattr(target, "__kwdefaults__", None) or {}
+    fn_kw_defaults = tuple(kw_defaults.values())
     same = _const_key(ast_defaults) == _const_key(fn_defaults) and _const_key(
         ast_kw_defaults
     ) == _const_key(fn_kw_defaults)

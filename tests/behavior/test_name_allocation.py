@@ -23,7 +23,7 @@ def test_reserved_xp_param_keyword_call() -> None:
     mod = support.make_module("import numpy as np\n\n\ndef subject(xp):\n    return xp + 1\n")
     vec = array_vectorize.vectorize(mod.subject)
     assert np.allclose(vec(xp=np.asarray([1.0])), [2.0])
-    assert "def subject_vec(xp):" in vec.source
+    assert "def subject_vec(xp):" in support.with_metadata(vec).source
 
 
 def test_namespace_var_rebinding_no_collision() -> None:

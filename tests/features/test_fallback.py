@@ -58,7 +58,7 @@ def test_fallback_signature_and_source() -> None:
     with pytest.warns(UserWarning, match="falling back"):
         vec = array_vectorize.vectorize(bad, fallback=True)
     assert list(inspect.signature(vec).parameters) == ["x", "scale"]
-    assert "fallback" in vec.source
+    assert "fallback" in support.with_metadata(vec).source
 
 
 def test_fallback_non_str_docstring_left_verbatim() -> None:
@@ -73,7 +73,7 @@ def test_fallback_non_str_docstring_left_verbatim() -> None:
     bad.__doc__ = 42  # type: ignore[assignment]
     with pytest.warns(UserWarning, match="falling back"):
         vec = array_vectorize.vectorize(bad, fallback=True)
-    assert vec.__doc__ == 42
+    assert getattr(vec, "__doc__") == 42  # noqa: B009 - deliberately non-string metadata
     assert np.allclose(vec(np.asarray([5.0, -2.0])), [0.0, -2.0])
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import numpy as np
 import pytest
@@ -182,7 +183,7 @@ def test_math_module_recorded() -> None:
 
 
 def test_closure_array_captured() -> None:
-    def f(x: float) -> float:
+    def f(x: float) -> Any:
         return x + ARR[0] * 0.0 + x * 0.0 + x * 1.0  # ARR referenced (subscript rejected later)
 
     info = extract.extract_function(f)
@@ -198,7 +199,7 @@ def test_unresolvable_global_rejected() -> None:
 
 
 def test_unbound_name_rejected() -> None:
-    def f(x: float) -> float:
+    def f(x: float) -> Any:
         return x + unknown_name  # type: ignore[name-defined] # noqa: F821
 
     with pytest.raises(errors.VectorizationError, match="not resolvable"):
@@ -228,7 +229,7 @@ def test_user_names_collects_source_names() -> None:
 def test_np_float64_is_scalar() -> None:
     c = np.float64(1.5)
 
-    def f(x: float) -> float:
+    def f(x: float) -> np.float64:
         return x * c
 
     info = extract.extract_function(f)

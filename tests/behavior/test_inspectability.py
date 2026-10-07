@@ -8,6 +8,7 @@ import pickle
 import traceback
 
 import pytest
+import support
 
 import array_vectorize
 
@@ -30,8 +31,8 @@ def sigmoid_like(x: float, alpha: float = 1.0) -> float:
 
 def test_source_attribute() -> None:
     vec = array_vectorize.vectorize(relu_fn)
-    assert isinstance(vec.source, str)
-    assert "xp.where" in vec.source
+    assert isinstance(support.with_metadata(vec).source, str)
+    assert "xp.where" in support.with_metadata(vec).source
 
 
 def test_getsource_returns_generated_not_original() -> None:
@@ -54,7 +55,9 @@ def test_linecache_survives_checkcache() -> None:
     filename = vec.__code__.co_filename
     assert filename == "<array_vectorize:relu_fn>"
     linecache.checkcache(filename)
-    assert linecache.cache[filename][2]  # still registered
+    entry = linecache.cache[filename]
+    assert len(entry) == 4  # populated entry, rather than the one-item lazy entry
+    assert entry[2]  # still registered
     assert "array_namespace" in "".join(linecache.getlines(filename))
 
 
@@ -74,7 +77,7 @@ def test_wrapped_points_to_original() -> None:
     # __wrapped__ is deliberately not set (it would hide the generated source
     # from inspect.getsourcelines, which unwraps unconditionally); the
     # original is reachable via the marker and drives the signature.
-    assert vec._vectorized_original is relu_fn
+    assert support.with_metadata(vec)._vectorized_original is relu_fn
     assert inspect.signature(vec) == inspect.signature(relu_fn)
 
 
@@ -109,7 +112,7 @@ def test_signature_preserved() -> None:
 
 def test_get_source_helper() -> None:
     vec = array_vectorize.vectorize(relu_fn)
-    assert array_vectorize.get_source(vec) == vec.source
+    assert array_vectorize.get_source(vec) == support.with_metadata(vec).source
     with pytest.raises(array_vectorize.VectorizationError, match="not a vectorized function"):
         array_vectorize.get_source(relu_fn)
 

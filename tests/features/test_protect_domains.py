@@ -15,7 +15,7 @@ import array_vectorize
 def test_protect_domains_clamps_dead_lanes() -> None:
     fn = support.make_fn("    if x > 0:\n        return math.sqrt(x)\n    return 0.0")
     vec = array_vectorize.vectorize(fn, protect_domains=True)
-    assert "xp.logical_not(x > 0)" in vec.source  # dead-lane guard
+    assert "xp.logical_not(x > 0)" in support.with_metadata(vec).source  # dead-lane guard
     xs = np.asarray([-1.0, 0.5, 4.0])
     with np.errstate(invalid="ignore", divide="ignore"):
         got = vec(xs)
@@ -53,8 +53,8 @@ def test_protect_domains_two_sided_clamp() -> None:
     fn = support.make_fn("    if x != 0:\n        return math.atanh(x)\n    return 0.0")
     vec = array_vectorize.vectorize(fn, protect_domains=True)
     # dead-lane where-clamps (preserve -0.0 and live values, unlike maximum)
-    assert "xp.logical_not" in vec.source
-    assert "xp.maximum" not in vec.source
+    assert "xp.logical_not" in support.with_metadata(vec).source
+    assert "xp.maximum" not in support.with_metadata(vec).source
     xs = np.asarray([0.5, 0.0])
     assert np.allclose(vec(xs), [math.atanh(0.5), 0.0])
 
@@ -101,13 +101,13 @@ def test_protect_domains_preserves_subnormal_live_lanes() -> None:
 def test_protect_domains_off_by_default() -> None:
     fn = support.make_fn("    if x > 0:\n        return math.sqrt(x)\n    return 0.0")
     vec = array_vectorize.vectorize(fn)
-    assert "xp.maximum(x, 0.0)" not in vec.source
+    assert "xp.maximum(x, 0.0)" not in support.with_metadata(vec).source
 
 
 def test_protect_domains_top_level_calls_not_clamped() -> None:
     fn = support.make_fn("    return math.sqrt(abs(x))")
     vec = array_vectorize.vectorize(fn, protect_domains=True)
-    assert "maximum" not in vec.source
+    assert "maximum" not in support.with_metadata(vec).source
 
 
 def test_protect_domains_conditions_not_clamped() -> None:

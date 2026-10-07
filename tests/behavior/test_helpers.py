@@ -27,7 +27,7 @@ def test_helper_call_composition() -> None:
     xs = np.asarray([3.0, 4.0])
     got = vec(xs)
     assert np.allclose(got, np.sqrt(2 * xs**2))
-    assert "square_vec(" in vec.source
+    assert "square_vec(" in support.with_metadata(vec).source
     # the helper itself is vectorized and memoized
     from array_vectorize import api
 
@@ -66,9 +66,9 @@ def test_helper_with_loop_calling_helper() -> None:
     # the loop lives in the helper's generated source, not the caller's
     from array_vectorize import api
 
-    helper_src = api._HELPER_CACHE[(mod.addmul, False, None)].source
+    helper_src = support.with_metadata(api._HELPER_CACHE[mod.addmul, False, None]).source
     assert "for i in range(0, 3):" in helper_src
-    assert "addmul_vec" in vec.source
+    assert "addmul_vec" in support.with_metadata(vec).source
 
 
 def test_same_named_helper_does_not_shadow_caller() -> None:

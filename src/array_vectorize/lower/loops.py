@@ -144,8 +144,10 @@ class _LoopLowerer(statements._StatementLowerer):
             labels: dict[str, ir.Kind | None] = {}
             mixed: list[str] = []
             for loop_carried_name in carried.values():
-                kinds = {phi_kinds.get(loop_carried_name)} | frame.get(loop_carried_name, set())
-                unique = {k for k in kinds if k is not None}
+                kinds = set[ir.Kind | None]((phi_kinds.get(loop_carried_name),)) | frame.get(
+                    loop_carried_name, set()
+                )
+                unique: set[ir.Kind] = {k for k in kinds if k is not None}
                 if (None in kinds and unique) or len(unique) > 1:
                     # mixed (or unknown-mixed) kinds across iterations:
                     # label 'bool' so exact-arithmetic intify kicks in at

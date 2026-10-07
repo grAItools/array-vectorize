@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Callable
 import sys
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import support
@@ -21,7 +21,7 @@ def make_fn(body: str, signature: str = "x", type_params: str = "") -> Callable[
     mod = support.make_module(
         "import math\n\n\ndef subject" + type_params + "(" + signature + "):\n" + body + "\n"
     )
-    return mod.subject
+    return cast(Callable[..., Any], mod.subject)
 
 
 def check(src: str) -> None:
@@ -194,7 +194,7 @@ def test_diagnostics_have_positions_and_caret() -> None:
 
 
 def test_all_violations_collected() -> None:
-    def subject(x: float) -> float:
+    def subject(x: Any) -> tuple[Any, Any]:
         y = x[0]
         while x > 0:
             x = x - 1

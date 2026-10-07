@@ -40,7 +40,8 @@ def verify_match(
             "verify= needs at least one Array API array in the example inputs"
         )
     arrays = [example_args[i] for i in positions]
-    xp = namespace if namespace is not None else array_api_compat.array_namespace(*arrays)
+    # The namespace is backend-dependent, including dynamically re-exported APIs.
+    xp: Any = namespace if namespace is not None else array_api_compat.array_namespace(*arrays)
     with warnings.catch_warnings():
         # out-of-domain lanes are expected (design D3); their warnings are noise
         # (including inf-inf in the comparison below)

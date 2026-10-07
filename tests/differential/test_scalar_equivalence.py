@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
+from typing import Any, cast
 
 import corpus
 import hypothesis
@@ -30,7 +31,7 @@ def arrays(
 def check(fn: Any, xs: np.ndarray, *rest: np.ndarray) -> None:
     vec = array_vectorize.vectorize(fn)
     got = vec(xs, *rest)
-    pairs = list(zip(xs, *rest, strict=True)) if rest else [(x,) for x in xs]
+    pairs: list[tuple[Any, ...]] = list(zip(xs, *rest, strict=True)) if rest else [(x,) for x in xs]
     expected = np.asarray([fn(*pair) for pair in pairs])
     assert np.allclose(got, expected, equal_nan=True, rtol=1e-12), (got, expected)
 
@@ -67,11 +68,18 @@ def test_ternary_diff(xs: np.ndarray) -> None:
     check(CORPUS.ternary, xs)
 
 
+def _nonsingular(pair: tuple[float, float]) -> bool:
+    return pair[0] * pair[0] + pair[1] * pair[1] > 1e-6
+
+
 #: lanes where arith_ops' denominator x*x + y*y is not ~0; filtering per
 #: lane (not assume() over all 12) keeps Hypothesis from discarding most
 #: examples, since it draws 0.0 often
+small_pairs: st.SearchStrategy[tuple[float, float]] = st.tuples(small, small)
 nonsingular_lanes = st.lists(
-    st.tuples(small, small).filter(lambda p: p[0] * p[0] + p[1] * p[1] > 1e-6),
+    # Hypothesis 6.100's conditional TypeVar definition confuses Pyrefly.
+    # Adapt only the callback boundary; the predicate keeps its tuple signature.
+    small_pairs.filter(cast(Callable[[Any], bool], _nonsingular)),
     min_size=12,
     max_size=12,
 )

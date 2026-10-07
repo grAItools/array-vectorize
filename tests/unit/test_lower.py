@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -31,7 +31,7 @@ def make_fn(body: str, extra_globals: str = "") -> Callable[..., Any]:
         + body
         + "\n"
     )
-    return mod.subject
+    return cast(Callable[..., Any], mod.subject)
 
 
 def lower(body: str) -> ir.Program:
@@ -205,8 +205,8 @@ def test_boolop_numeric_chain_uses_temp() -> None:
     p = lower("    return x and y and x")
     assert len(p.bindings) == 1
     temp = p.bindings[0]
-    assert temp.name == "v_1"
-    assert temp.expr == ir.Where(
+    assert support.binding(temp).name == "v_1"
+    assert support.binding(temp).expr == ir.Where(
         ir.Compare("ne", ir.Ref("x"), ir.Literal(0, "int")), ir.Ref("y"), ir.Ref("x")
     )
     assert p.result == ir.Where(
@@ -247,7 +247,7 @@ def test_augassign() -> None:
 
 def test_rebind_skips_user_names() -> None:
     p = lower("    x_1 = 0\n    x = x + 1\n    x = x + 1\n    return x + x_1")
-    names = [b.name for b in p.bindings]
+    names = [support.binding(b).name for b in p.bindings]
     assert names[1:] == ["x_2", "x_3"]  # x_1 taken by the user variable
 
 
@@ -316,7 +316,7 @@ def test_calling_variable_rejected() -> None:
 
 def test_if_else_merge() -> None:
     p = lower("    if x > 0:\n        r = x\n    else:\n        r = 0.0\n    return r")
-    assert [b.name for b in p.bindings] == ["r_1", "r_2", "r"]
+    assert [support.binding(b).name for b in p.bindings] == ["r_1", "r_2", "r"]
     assert p.bindings[0] == ir.Binding("r_1", ir.Ref("x"))
     assert p.bindings[1] == ir.Binding("r_2", ir.Literal(0.0, "float"))
     assert p.bindings[2] == ir.Binding(
@@ -328,15 +328,15 @@ def test_if_else_merge() -> None:
 
 def test_if_else_merge_with_prior_binding() -> None:
     p = lower("    r = 0.0\n    if x > 0:\n        r = x\n    else:\n        r = 1.0\n    return r")
-    assert [b.name for b in p.bindings] == ["r", "r_1", "r_2", "r_3"]
+    assert [support.binding(b).name for b in p.bindings] == ["r", "r_1", "r_2", "r_3"]
     assert p.result == ir.Ref("r_3")
 
 
 def test_if_without_else_and_prior_binding() -> None:
     p = lower("    r = 0.0\n    if x > 0:\n        r = x\n    return r")
     # then binds r_1; else keeps r; merge where(cond, r_1, r)
-    assert [b.name for b in p.bindings] == ["r", "r_1", "r_2"]
-    assert p.bindings[2].expr == ir.Where(
+    assert [support.binding(b).name for b in p.bindings] == ["r", "r_1", "r_2"]
+    assert support.binding(p.bindings[2]).expr == ir.Where(
         ir.Compare("gt", ir.Ref("x"), ir.Literal(0, "int")), ir.Ref("r_1"), ir.Ref("r")
     )
     assert p.result == ir.Ref("r_2")
@@ -352,7 +352,7 @@ def test_elif_chain() -> None:
         "        r = 0.0\n"
         "    return r"
     )
-    names = [b.name for b in p.bindings]
+    names = [support.binding(b).name for b in p.bindings]
     assert names == ["r_1", "r_2", "r_3", "r", "r_4"]
     assert p.result == ir.Ref("r_4")
 
@@ -508,7 +508,7 @@ def test_maybe_unbound_not_read_is_fine() -> None:
     p = lower("    if x > 0:\n        z = 1.0\n    return x")
     assert p.result == ir.Ref("x")
     # z_1 is dead; DCE (in _optimize) drops it later
-    assert [b.name for b in p.bindings] == ["z_1"]
+    assert [support.binding(b).name for b in p.bindings] == ["z_1"]
 
 
 def test_not_all_paths_return_rejected() -> None:

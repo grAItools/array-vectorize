@@ -14,7 +14,8 @@ def test_fuzzer_detects_mismatch(monkeypatch) -> None:  # type: ignore[no-untype
     # sabotage the oracle to prove the fuzzer fails loudly on mismatch
     import array_vectorize.fuzz as fz
 
-    original = fz.vectorize
+    # The imported binding is a monkeypatch seam, not an explicit module export.
+    original = getattr(fz, "vectorize")  # noqa: B009
 
     def lying_vectorize(fn, **kwargs):  # type: ignore[no-untyped-def]
         vec = original(fn, **kwargs)

@@ -12,9 +12,17 @@ Run everything through `make` or `uv run`. The system `python` may be
 older than the required 3.12; uv supplies the pinned interpreter and the
 locked environment (`uv.lock`).
 
-- `make check`: the gate (ruff, strict mypy, pytest, 95% branch coverage),
-  about 10 s. The work is done when it passes.
+- `make check`: the gate (cleanporter, ruff, mypy, pyright, zuban, pyrefly,
+  pytest, 95% branch coverage). The work is done when it passes.
 - `make lint type test`: the same gate without coverage, for the inner loop.
+- `make type`: all four blocking type checkers; `make type-mypy`,
+  `make type-pyright`, `make type-zuban`, `make type-pyrefly` run one.
+  Scope and settings live in `pyproject.toml`: mypy (strict) and pyright
+  (standard) check `src`; zuban (strict, test annotation requirements relaxed)
+  and pyrefly also check tests. Corpus input data, generated golden cases,
+  and optional JAX/PyTorch compilation tests are excluded from the wider pair.
+  Test helpers describe dynamic callable metadata and assert IR binding shapes;
+  use them instead of adding blanket type suppressions.
 - `make fmt`: format and autofix.
 - Area-specific: `make fuzz` (lowering, optimizer, runtime), `make backends`
   (codegen, namespace handling), `make docs` (anything in `docs/`),

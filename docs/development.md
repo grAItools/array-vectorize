@@ -22,9 +22,11 @@ dependency at its floor (`--resolution lowest-direct`) on Python 3.12.
 ## Commands
 
 ```bash
-make check        # cleanporter + ruff + mypy (strict) + pytest + coverage (gate: 95%)
+make check        # cleanporter + ruff + four type checkers + pytest + coverage (95%)
 make check PY=3.13    # any target on another Python (env: .venv-3.13)
 make lint type test   # the same gates without coverage
+make type         # mypy + pyright + zuban + pyrefly
+make type-mypy    # individual checker (also: type-pyright, type-zuban, type-pyrefly)
 make lowest       # the test suite at the minimum dependency versions
 make fmt          # cleanporter --fix, then ruff format / check --fix / format
 make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
@@ -46,6 +48,45 @@ plain `pytest` skips nothing but keeps benchmarks disabled
 `make lint` includes the cleanporter import gate, and `make fmt` runs the
 same check with `--fix`: cleanporter rewrites first, so ruff formats the
 already-wrapped lines (its module prefixes push lines past 100 columns).
+
+## Type checking
+
+All four checkers are blocking gates in `make type`, `make check`, git hooks,
+CI, and releases. Make owns their commands; `pyproject.toml` owns their scopes
+and settings. The recipes use `uv run --frozen`, so they run the locked versions
+without changing the lock. Hooks invoke the same Make targets and check the
+whole configured scope, even when only one file is staged. Python/stub files,
+the Makefile, hook configuration, and dependency/typing configuration trigger them.
+
+| Checker | Scope | Mode |
+|---|---|---|
+| mypy | `src` | strict |
+| Pyright | `src` | standard |
+| Zuban | `src` and maintained tests | strict, with test annotation requirements relaxed |
+| Pyrefly | `src` and maintained tests | default diagnostics, including unannotated bodies |
+
+All target Python 3.12. Zuban has its own configuration rather than inheriting
+mypy's source-only scope. The wider pair resolves `support` and `corpus` from
+the `tests` import root, like pytest. They exclude compiler input data
+(`tests/corpus.py`), generated golden cases, and the optional JAX/PyTorch
+compilation test module; the golden test harness and ordinary backend tests
+remain checked. JAX/PyTorch compilation tests run in the dedicated CI job.
+
+Pyrefly disables default hidden-path exclusions so checkouts inside `.paseo`
+or another hidden worktree directory still check tests. Run it in project
+mode: passing positional paths bypasses configured exclusions. Read checker
+output after changing configuration; some tools only warn about unknown keys.
+
+Pyright and Pyrefly receive uv's active interpreter, so `make type PY=3.13`
+and custom `UV_PROJECT_ENVIRONMENT` values resolve the correct environment.
+Pyright's PyPI wrapper downloads Node on its first run, which can take longer.
+
+Fix diagnostics with accurate annotations and narrowing. The compiler attaches
+metadata to functions dynamically: tests use `support.with_metadata` to describe
+that boundary without changing the public API. `support.binding` checks IR
+statement shapes before accessing binding-only fields. Deliberate invalid-input
+tests may need a narrowly documented typing boundary; do not hide ordinary code
+behind blanket suppressions.
 
 ## Testing layers
 
@@ -101,7 +142,8 @@ the NumPy-style docstring subject).
 
 ## CI
 
-- **check** — the full `make check` gate on Python 3.12–3.14
+- **static** — `make lint type` once on Python 3.12, including all four checkers.
+- **check** — `make coverage` on Python 3.12–3.14
   (Hypothesis derandomized), then `make smoke`.
 - **lowest** — `make lowest`: the suite at the declared dependency floors.
 - **fuzz** — the five fixed fuzzer seeds.
