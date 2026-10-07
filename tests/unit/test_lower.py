@@ -56,7 +56,15 @@ def test_arith_ops_map() -> None:
     assert p.result == ir.BinOp(
         "sub",
         ir.Ref("x"),
-        ir.BinOp("div", ir.BinOp("mul", ir.Ref("y"), ir.Literal(2, "int")), ir.Literal(3, "int")),
+        ir.FuncCall(
+            "_vec_arith",
+            (
+                ir.Ref("xp"),
+                ir.Literal(4, "int"),
+                ir.BinOp("mul", ir.Ref("y"), ir.Literal(2, "int")),
+                ir.Literal(3, "int"),
+            ),
+        ),
     )
 
 
@@ -589,3 +597,10 @@ def test_maybe_unbound_after_nested_branch() -> None:
                 "    return z"
             )
         )
+
+
+@pytest.mark.parametrize("op", ["%", "//"])
+def test_unfoldable_boolean_literals_keep_runtime_arithmetic(op: str) -> None:
+    p = lower(f"    return True {op} False")
+    assert isinstance(p.result, ir.FuncCall)
+    assert p.result.fn == "_vec_arith"

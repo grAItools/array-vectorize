@@ -436,3 +436,96 @@ def test_uint64_truediv_negative_divisor_strict() -> None:
     vec = array_vectorize.vectorize(support.make_fn("    a = max(x, True)\n    return a / -2"))
     got = vec(xps.asarray([3], dtype=xps.uint64))
     assert float(got[0]) == -1.5
+
+
+@pytest.mark.parametrize("op", ["%", "//"])
+@pytest.mark.parametrize("bound", [False, True])
+def test_negative_integer_with_unsigned_input(op: str, bound: bool) -> None:
+    import array_api_strict as xps
+
+    body = f"    return -7 {op} x"
+    if bound:
+        body = f"    n = -7\n    return n {op} x"
+    scalar = support.make_fn(body)
+    values = [1, 2, 2**63, 2**64 - 1]
+    got = array_vectorize.vectorize(scalar)(xps.asarray(values, dtype=xps.uint64))
+    assert [int(v) for v in got] == [scalar(v) for v in values]
+    assert np.asarray(got).dtype.kind == ("u" if op == "%" else "i")
+
+
+@pytest.mark.parametrize("dtype", ["bool", "int64", "uint64"])
+def test_true_division_of_integer_inputs(dtype: str) -> None:
+    import array_api_strict as xps
+
+    scalar = support.make_fn("    return x / y", defaults="x, y")
+    values: list[int] = [True, False] if dtype == "bool" else [1, 2, 3]
+    if dtype == "uint64":
+        values += [2**63, 2**64 - 1]
+    denominator = True if dtype == "bool" else 3
+    got = array_vectorize.vectorize(scalar)(
+        xps.asarray(values, dtype=getattr(xps, dtype)),
+        xps.asarray([denominator] * len(values), dtype=getattr(xps, dtype)),
+    )
+    assert [float(v) for v in got] == [scalar(v, denominator) for v in values]
+
+
+@pytest.mark.parametrize("assignment", ["y = y + 1", "y += 1", "y = y + y"])
+@pytest.mark.parametrize("trips", [0, 1, 3])
+def test_boolean_input_carried_through_loop(assignment: str, trips: int) -> None:
+    import array_api_strict as xps
+
+    scalar = support.make_fn(
+        f"    y = x\n    for i in range({trips}):\n        {assignment}\n    return y"
+    )
+    got = array_vectorize.vectorize(scalar)(xps.asarray([False, True]))
+    assert [int(v) for v in got] == [scalar(False), scalar(True)]
+    assert np.asarray(got).dtype.kind == ("b" if trips == 0 else "i")
+
+
+@pytest.mark.parametrize(
+    "condition", ["i == 0", "i == 0 and i < 2", "i == 0 or i < 0", "not (i != 0)", "i + 1 == 1"]
+)
+@pytest.mark.parametrize("statement", [False, True])
+@pytest.mark.parametrize("trips", [1, 3])
+def test_loop_index_selects_branch_without_dtype_promotion(
+    condition: str, statement: bool, trips: int
+) -> None:
+    import array_api_strict as xps
+
+    body = f"        y = x if {condition} else y + 1"
+    if statement:
+        body = f"        if {condition}:\n            y = x\n        else:\n            y = y + 1"
+    scalar = support.make_fn(f"    y = True\n    for i in range({trips}):\n{body}\n    return y")
+    values = [-0.0, 0.0, -1.0, 1.0, np.nextafter(0.0, 1.0), -np.inf, np.inf, np.nan]
+    got = array_vectorize.vectorize(scalar)(xps.asarray(values, dtype=xps.float64))
+    np.testing.assert_equal(np.asarray(got), [scalar(v) for v in values])
+    assert np.asarray(got).dtype.kind == "f"
+    if trips == 1:
+        np.testing.assert_equal(np.signbit(np.asarray(got)), np.signbit(values))
+
+
+def test_integer_division_does_not_round_the_denominator_first() -> None:
+    import array_api_strict as xps
+
+    scalar = support.make_fn("    return x / y", defaults="x, y")
+    left = [1, -1, -(2**63), 2**63 - 1, 0]
+    right = [2**53 + 1, 2**53 + 1, -1, 3, -1]
+    got = array_vectorize.vectorize(scalar)(
+        xps.asarray(left, dtype=xps.int64),
+        xps.asarray(right, dtype=xps.int64),
+    )
+    expected = [a / b for a, b in zip(left, right, strict=True)]
+    np.testing.assert_array_equal(np.asarray(got), expected)
+    np.testing.assert_array_equal(np.signbit(np.asarray(got)), np.signbit(expected))
+
+
+def test_unsigned_floor_division_preserves_unrepresentable_negative_sign() -> None:
+    import array_api_strict as xps
+
+    scalar = support.make_fn("    return x // -1")
+    values = [0, 1, 2**63, 2**63 + 1, 2**64 - 1]
+    got = array_vectorize.vectorize(scalar)(xps.asarray(values, dtype=xps.uint64))
+    # No integer array dtype holds these results; the lattice uses float64.
+    assert np.asarray(got).dtype.kind == "f"
+    np.testing.assert_array_equal(np.asarray(got), [float(-v) for v in values])
+    np.testing.assert_array_equal(np.signbit(np.asarray(got)), [v != 0 for v in values])

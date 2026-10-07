@@ -260,3 +260,50 @@ def test_closure_captured_jax_array() -> None:
     assert vec.__kwdefaults__["T"] is mod.T
     got = vec(mod.T * 10.0)
     assert np.allclose(np.asarray(got), [11.0, 22.0, 33.0])
+
+
+@pytest.mark.timeout(600)
+@pytest.mark.parametrize("backend", ["jax", "torch"])
+def test_compiled_integer_division_preserves_python_rounding(backend: str) -> None:
+    scalar = support.make_fn("    return x / y", defaults="x, y")
+    left = [1, -1, -(2**63), 2**63 - 1, 0]
+    right = [2**53 + 1, 2**53 + 1, -1, 3, -1]
+    if backend == "jax":
+        jax = pytest.importorskip("jax")
+        jax.config.update("jax_enable_x64", True)
+        import jax.numpy as jnp
+
+        vec = array_vectorize.vectorize(scalar, namespace=jnp)
+        got = jax.jit(vec)(jnp.asarray(left, dtype=jnp.int64), jnp.asarray(right, dtype=jnp.int64))
+    else:
+        torch = pytest.importorskip("torch")
+        import array_api_compat.torch
+
+        vec = array_vectorize.vectorize(scalar, namespace=array_api_compat.torch)
+        got = torch.compile(vec)(
+            torch.tensor(left, dtype=torch.int64), torch.tensor(right, dtype=torch.int64)
+        )
+    expected = [a / b for a, b in zip(left, right, strict=True)]
+    np.testing.assert_array_equal(np.asarray(got), expected)
+    np.testing.assert_array_equal(np.signbit(np.asarray(got)), np.signbit(expected))
+
+
+@pytest.mark.timeout(600)
+def test_scalar_compiled_integer_division_preserves_minimum_magnitudes() -> None:
+    torch = pytest.importorskip("torch")
+    import array_api_compat.torch
+    import torch._inductor.config as inductor_config
+
+    scalar = support.make_fn("    return x / y", defaults="x, y")
+    minimum = -(2**63)
+    left = [minimum, minimum, minimum, 1, -1, 0, 2**63 - 1]
+    right = [-1, 1, minimum, minimum, minimum, minimum, 3]
+    vec = array_vectorize.vectorize(scalar, namespace=array_api_compat.torch)
+    # Force the scalar C++ kernel even on hosts with vector instructions.
+    with inductor_config.patch({"cpp.simdlen": 1}):
+        got = torch.compile(vec)(
+            torch.tensor(left, dtype=torch.int64), torch.tensor(right, dtype=torch.int64)
+        )
+    expected = [a / b for a, b in zip(left, right, strict=True)]
+    np.testing.assert_array_equal(np.asarray(got), expected)
+    np.testing.assert_array_equal(np.signbit(np.asarray(got)), np.signbit(expected))

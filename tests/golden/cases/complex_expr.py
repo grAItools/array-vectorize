@@ -17,4 +17,4 @@ def complex_expr_vec(x, y):
     """
     xp = array_namespace(x, y)
     t = xp.exp(xp.astype(xp.asarray(-(x * x + y * y)), xp.float64))
-    return t / (1.0 + t)
+    return _vec_arith(xp, 4, t, 1.0 + t)

@@ -21,8 +21,8 @@ lowerer previously smeared this state across:
   Python scalar (parameter default, loop variable, literal binding, or a
   local computed from one). Operators promote scalars fine; ``xp.*``
   function arguments do not (strict backends reject plain scalars).
-- ``maybe_bool`` (was ``_maybe_bool_names``): the value is a min/max
-  result with unknown static kind whose runtime dtype may be boolean, so
+- ``maybe_bool`` (was ``_maybe_bool_names``): an unknown min/max result
+  or loop-carried entry value may have boolean dtype at runtime, so
   arithmetic must use the runtime-polymorphic intify.
 - carried-assign kinds (was ``_carried_assign_kinds``): per active loop,
   the kinds assigned to loop-carried names in the body; a carried

@@ -15,6 +15,11 @@ enclosing where-select) and out of domain — live lanes are never touched
 disappear. Loop bodies and cross-function (helper) dead lanes are not
 tracked (conservative).
 
+Conditions built only from constant-trip loop indices and literals select
+one whole-array branch using Python selection. They do not promote the
+selected branch to the unused branch's dtype. Array-dependent conditions
+continue to select per lane with `xp.where`.
+
 ### `and`/`or`/`not` are exact
 
 Numeric operands lower to value-selects
@@ -40,6 +45,17 @@ call and checked at runtime on the actual values:
 4. **float64** only when per-lane results fit no single dtype (a huge
    uint64 plus a negative signed value, or mixed-magnitude differences).
 
+True division converts integer and boolean operands to floating arrays,
+including inputs whose dtype is known only at call time. Integer ratios
+round once to float64, without first rounding large integer operands.
+This includes the signed 64-bit minimum in either operand under JIT
+compilation, with the same rounding and sign of zero as scalar Python.
+This uses a fixed bit loop, which costs more at call time and first JIT
+compilation than floating-point division. Negative integer
+literals (also when assigned to local names) use the exact unsigned
+remainder and floor-division paths. Unknown loop-carried entry values may
+be boolean, so their arithmetic also uses runtime dtype dispatch.
+
 ### Reject over miscompile
 
 Anything not provably translatable raises `VectorizationError` with all
@@ -63,4 +79,4 @@ values. These are deliberate, tested, and inherent:
 | bool arithmetic is integer (`True + True == 2`) | exact: bool operands are cast to float64 (strict backends reject bool arithmetic) |
 | scalar exceptions inside `verify=` | expected `NaN` lanes |
 | mixed int/float `min`/`max` siblings | strict backends require matching array dtypes; literals adopt a provably-int sibling's dtype, else float64 |
-| uint64 + signed arrays with mixed-sign per-lane results | float64 approximation (no single dtype holds both operand ranges) |
+| integer arithmetic with results outside every integer array dtype | float64 approximation (including uint64 divided by a negative literal below int64-min) |
