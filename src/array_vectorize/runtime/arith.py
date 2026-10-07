@@ -6,6 +6,7 @@ generated modules and execute on the user's backend at call time.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import enum
 import operator
 from typing import Any
@@ -46,7 +47,7 @@ class ArithOp(enum.IntEnum):
 #: (generated code passes the id as an int literal)
 _ARITH_OPS = tuple(m.name.lower() for m in ArithOp)
 
-_ARITH_FNS = {
+_ARITH_FNS: dict[str, Callable[[Any, Any], Any]] = {
     "add": operator.add,
     "sub": operator.sub,
     "mul": operator.mul,
@@ -197,12 +198,24 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                 r = left % d
                 mag = q + xp.astype(r > 0, left.dtype)  # ceil(a / |d|)
                 return -xp.astype(mag, xp.int64)
-            if op == "mod" and isinstance(left, int) and left < 0 and _is_u64(right):
+            if (
+                op == "mod"
+                and isinstance(left, int)
+                and left < 0
+                and right is not None
+                and _is_u64(right)
+            ):
                 # negative-literal % array: (v - |d| mod v) mod v — always
                 # in [0, v), exactly representable in uint64
                 d = xp.asarray(-left, dtype=right.dtype)
                 return (right - (d % right)) % right
-            if op == "floordiv" and isinstance(left, int) and left < 0 and _is_u64(right):
+            if (
+                op == "floordiv"
+                and isinstance(left, int)
+                and left < 0
+                and right is not None
+                and _is_u64(right)
+            ):
                 # negative-literal // array: -ceil(|d| / v), exact in int64
                 d = xp.asarray(-left, dtype=right.dtype)
                 mag = (d // right) + xp.astype((d % right) > 0, right.dtype)
@@ -222,9 +235,8 @@ def _vec_arith(xp: Any, op_id: Any, left: Any, right: Any = None) -> Any:
                     return -xp.astype(left, xp.int64)
                 return -xp.astype(left, xp.float64)
         if op == "div":
-            return operator.truediv(
-                xp.asarray(left, dtype=xp.float64), xp.asarray(right, dtype=xp.float64)
-            )
+            divide: Callable[[Any, Any], Any] = operator.truediv
+            return divide(xp.asarray(left, dtype=xp.float64), xp.asarray(right, dtype=xp.float64))
     # generic: cast to the common dtype and compute
     classes = [dtype._describe_dtype(a) for a in args]
     has_float = any(f for f, _ in classes)

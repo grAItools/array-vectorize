@@ -38,7 +38,8 @@ def test_round_decimals_kwarg_is_not_standard() -> None:
     # array-api-strict is the conformance reference; it must reject it.
     x = xps.asarray([1.23456])
     try:
-        xps.round(x, decimals=2)
+        # Deliberately call an unsupported backend keyword to test its rejection.
+        getattr(xps, "round")(x, decimals=2)  # noqa: B009
     except TypeError:
         pass
     else:

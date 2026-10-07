@@ -28,11 +28,12 @@ Y = np.asarray([3.0, 1.5, 1.0, 0.5, -1.0, -3.0])
 
 def test_pinned_source_shape() -> None:
     vec = array_vectorize.vectorize(corpus.add, namespace=np)
-    assert "def add_vec(x, y, *, _namespace=None):" in vec.source
-    assert "xp = _namespace" in vec.source
+    assert "def add_vec(x, y, *, _namespace=None):" in support.with_metadata(vec).source
+    assert "xp = _namespace" in support.with_metadata(vec).source
     # pinned generated source has zero imports and no namespace extraction
-    assert "import" not in vec.source
-    assert "array_namespace" not in vec.source
+    assert "import" not in support.with_metadata(vec).source
+    assert "array_namespace" not in support.with_metadata(vec).source
+    assert vec.__kwdefaults__ is not None
     assert vec.__kwdefaults__["_namespace"] is np
 
 
@@ -41,15 +42,16 @@ def test_unpinned_source_unchanged() -> None:
     pinned = array_vectorize.vectorize(corpus.add, namespace=np)
     # byte-identical to the pre-pin generated source (the golden snapshot)
     golden = (pathlib.Path(__file__).parent.parent / "golden" / "cases" / "add.py").read_text()
-    assert unpinned.source == golden
-    assert pinned.source != unpinned.source
-    assert "xp = _namespace" not in unpinned.source
-    assert "_namespace=None" not in unpinned.source
+    assert support.with_metadata(unpinned).source == golden
+    assert support.with_metadata(pinned).source != support.with_metadata(unpinned).source
+    assert "xp = _namespace" not in support.with_metadata(unpinned).source
+    assert "_namespace=None" not in support.with_metadata(unpinned).source
 
 
 def test_pinned_closure_array_still_hidden_param() -> None:
     vec = array_vectorize.vectorize(corpus.closure_array, namespace=np)
-    assert "*, ARR=None, _namespace=None" in vec.source
+    assert "*, ARR=None, _namespace=None" in support.with_metadata(vec).source
+    assert vec.__kwdefaults__ is not None
     assert vec.__kwdefaults__["_namespace"] is np
     assert np.allclose(vec(np.asarray([0.0, 1.0, 2.0])), [1.0, 3.0, 5.0])
 
@@ -107,12 +109,14 @@ def test_all_scalar_call_without_pin_raises() -> None:
 
 def test_with_namespace_equivalent_results() -> None:
     vf = array_vectorize.vectorize(corpus.psi)
-    assert np.allclose(vf.with_namespace(np)(X), vf(X))
+    assert np.allclose(support.with_metadata(vf).with_namespace(np)(X), vf(X))
 
 
 def test_with_namespace_identity_stable() -> None:
     vf = array_vectorize.vectorize(corpus.psi)
-    assert vf.with_namespace(np) is vf.with_namespace(np)
+    assert support.with_metadata(vf).with_namespace(np) is support.with_metadata(vf).with_namespace(
+        np
+    )
 
 
 def test_with_namespace_memoized_across_compilations() -> None:
@@ -121,15 +125,17 @@ def test_with_namespace_memoized_across_compilations() -> None:
     vf1 = array_vectorize.vectorize(corpus.psi, protect_domains=True)
     vf2 = array_vectorize.vectorize(corpus.psi, protect_domains=True)
     assert vf1 is not vf2
-    assert vf1.with_namespace(np) is vf2.with_namespace(np)
+    assert support.with_metadata(vf1).with_namespace(np) is support.with_metadata(
+        vf2
+    ).with_namespace(np)
 
 
 def test_with_namespace_does_not_mutate() -> None:
     vf = array_vectorize.vectorize(corpus.psi)
-    w = vf.with_namespace(np)
+    w = support.with_metadata(vf).with_namespace(np)
     assert w is not vf
     # the original stays unpinned: no hidden namespace parameter at all
-    assert "_namespace=None" not in vf.source
+    assert "_namespace=None" not in support.with_metadata(vf).source
     assert (vf.__kwdefaults__ or {}).get("_namespace") is None
 
 
@@ -138,16 +144,20 @@ def test_with_namespace_chaining_replaces_pin() -> None:
 
     vf = array_vectorize.vectorize(corpus.psi)
     a = xps.asarray([-2.0, 0.5, 3.0])
-    chained = vf.with_namespace(np).with_namespace(xps)
+    chained = support.with_metadata(vf).with_namespace(np).with_namespace(xps)
     assert list(map(float, chained(a))) == list(map(float, vf(a)))
 
 
 def test_with_namespace_preserves_contract() -> None:
     vf = array_vectorize.vectorize(corpus.psi)
-    w = vf.with_namespace(np)
+    w = support.with_metadata(vf).with_namespace(np)
     assert w._vectorized_original is corpus.psi  # the true scalar original
     assert inspect.signature(w) == inspect.signature(corpus.psi)
-    assert w.source == array_vectorize.vectorize(corpus.psi, namespace=np).source
+    assert (
+        w.source
+        == support.with_metadata(array_vectorize.vectorize(corpus.psi, namespace=np)).source
+    )
+    assert w.__kwdefaults__ is not None
     assert w.__kwdefaults__["_namespace"] is np
     assert "psi_vec" in inspect.getsource(w)  # linecache registration intact
 
@@ -163,7 +173,7 @@ def test_with_namespace_does_not_rerun_verify(monkeypatch: pytest.MonkeyPatch) -
     vec = array_vectorize.vectorize(fn, verify=(np.asarray([1.0]),))
     assert calls  # the initial decoration-time verify ran
     calls.clear()
-    vec.with_namespace(np)
+    support.with_metadata(vec).with_namespace(np)
     assert not calls  # variants reuse verified body code, no re-verification
 
 
@@ -199,8 +209,8 @@ def test_pinned_and_unpinned_helpers_are_distinct() -> None:
     unpinned = api._HELPER_CACHE[(mod.helper_inner, False, None)]
     pinned = api._HELPER_CACHE[(mod.helper_inner, False, np)]
     assert unpinned is not pinned
-    assert "xp = _namespace" in pinned.source
-    assert "array_namespace" in unpinned.source
+    assert "xp = _namespace" in support.with_metadata(pinned).source
+    assert "array_namespace" in support.with_metadata(unpinned).source
 
 
 # ---- name collisions
@@ -210,8 +220,11 @@ def test_user_param_named_namespace_is_kept() -> None:
     fn = support.make_fn("    return x + _namespace", defaults="x, _namespace")
     vec = array_vectorize.vectorize(fn, namespace=np)
     # the user's parameter keeps its name; ours is mangled
-    assert "def subject_vec(x, _namespace, *, _namespace_1=None):" in vec.source
-    assert "xp = _namespace_1" in vec.source
+    assert (
+        "def subject_vec(x, _namespace, *, _namespace_1=None):" in support.with_metadata(vec).source
+    )
+    assert "xp = _namespace_1" in support.with_metadata(vec).source
+    assert vec.__kwdefaults__ is not None
     assert vec.__kwdefaults__["_namespace_1"] is np
     assert np.allclose(vec(np.asarray([1.0]), np.asarray([5.0])), [6.0])
     # user keyword calls keep working
@@ -221,8 +234,8 @@ def test_user_param_named_namespace_is_kept() -> None:
 def test_user_local_named_namespace_is_kept() -> None:
     fn = support.make_fn("    _namespace = x + 1\n    return _namespace * 2", defaults="x")
     vec = array_vectorize.vectorize(fn, namespace=np)
-    assert "_namespace = x + 1" in vec.source
-    assert "xp = _namespace_1" in vec.source
+    assert "_namespace = x + 1" in support.with_metadata(vec).source
+    assert "xp = _namespace_1" in support.with_metadata(vec).source
     assert np.allclose(vec(np.asarray([1.0])), [4.0])
 
 
@@ -244,7 +257,7 @@ def test_fallback_with_namespace() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         vec = array_vectorize.vectorize(fn, fallback=True)
-    pinned = vec.with_namespace(xps)
+    pinned = support.with_metadata(vec).with_namespace(xps)
     assert list(map(float, pinned(xps.asarray([3.0])))) == [0.0]
 
 
@@ -268,7 +281,7 @@ def test_invalid_namespace_at_vectorize() -> None:
 def test_invalid_namespace_at_with_namespace() -> None:
     vf = array_vectorize.vectorize(support.make_fn("    return x + 1.0", defaults="x"))
     with pytest.raises(TypeError, match="not an Array API namespace"):
-        vf.with_namespace(object())
+        support.with_metadata(vf).with_namespace(object())
 
 
 # ---- verify= with a pin

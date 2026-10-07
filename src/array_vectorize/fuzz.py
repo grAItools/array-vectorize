@@ -24,7 +24,7 @@ import numpy as np
 # load-bearing re-export: tests/unit/test_fuzz.py monkeypatches
 # array_vectorize.fuzz.vectorize, so the name must stay bound here
 from array_vectorize import errors
-from array_vectorize import vectorize  # cleanporter: ignore[CP003] load-bearing
+from array_vectorize import vectorize  # cleanporter: ignore[CP001] load-bearing re-export
 
 _UNARY_MATH = [
     f"math.{name}"

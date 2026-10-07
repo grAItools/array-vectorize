@@ -186,7 +186,7 @@ class Kinds:
 
     def snapshot_facts(self) -> FactsSnapshot:
         """Capture kind + literal facts ONLY — never flags."""
-        kinds = {
+        kinds: dict[str, ir.Kind | None] = {
             name: info.kind for name, info in self._names.items() if name in self._kind_established
         }
         literals = {

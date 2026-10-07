@@ -12,7 +12,7 @@ export UV_PROJECT_ENVIRONMENT := .venv-$(PY)
 endif
 PY_PATHS := src tests scripts examples .claude/hooks
 
-.PHONY: install fmt lint type test coverage check lowest smoke fuzz bench backends docs docs-serve notebook release
+.PHONY: install fmt lint type type-mypy type-pyright type-zuban type-pyrefly test coverage check lowest smoke fuzz bench backends docs docs-serve notebook release
 
 install:
 	$(UV) sync
@@ -38,8 +38,20 @@ lint:
 	# makes unclassifiable imports fail too
 	$(RUN) cleanporter $(PY_PATHS)
 
-type:
-	$(RUN) mypy
+type: type-mypy type-pyright type-zuban type-pyrefly
+
+type-mypy:
+	$(RUN) --frozen mypy
+
+# Query uv's interpreter so PY= and UV_PROJECT_ENVIRONMENT work too.
+type-pyright:
+	$(RUN) --frozen pyright --pythonpath "$$($(RUN) --frozen python -c 'import sys; print(sys.executable)')"
+
+type-zuban:
+	$(RUN) --frozen zuban mypy
+
+type-pyrefly:
+	$(RUN) --frozen pyrefly check --python-interpreter-path "$$($(RUN) --frozen python -c 'import sys; print(sys.executable)')"
 
 test:
 	$(RUN) pytest

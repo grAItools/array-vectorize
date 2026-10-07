@@ -8,6 +8,7 @@ import pathlib
 import corpus
 import numpy as np
 import pytest
+import support
 
 import array_vectorize
 
@@ -20,12 +21,12 @@ PINNED_GOLDEN_NAMES = ["add"]
 
 def _generated_source(name: str) -> str:
     fn = getattr(corpus, name)
-    return array_vectorize.vectorize(fn).source
+    return support.with_metadata(array_vectorize.vectorize(fn)).source
 
 
 def _generated_pinned_source(name: str) -> str:
     fn = getattr(corpus, name)
-    return array_vectorize.vectorize(fn, namespace=np).source
+    return support.with_metadata(array_vectorize.vectorize(fn, namespace=np)).source
 
 
 def _golden_path(name: str) -> pathlib.Path:

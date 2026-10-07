@@ -41,6 +41,9 @@ dev = [
     "hypothesis>=6.100",
     "ruff>=0.15",
     "mypy>=1.20",
+    "pyright>=1.1.411",
+    "zuban>=0.9.2",
+    "pyrefly>=1.2",
     "coverage[toml]>=7.6",
     "numpy>=2.0",
     "array-api-strict>=2.3",
@@ -162,6 +165,61 @@ files = ["src"]
 [[tool.mypy.overrides]]
 module = "array_api_compat"
 ignore_missing_imports = true
+
+# All four checkers are gates; Make owns commands and these sections own scope.
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[tool.zuban]
+files = ["src", "tests"]
+mypy_path = ["src", "tests"]
+python_version = "3.12"
+strict = true
+check_untyped_defs = true
+# Compiler input data and optional heavyweight integration tests are not
+# maintained test harness code. Zuban matches names during recursive discovery,
+# so patterns must also match the basename, not just a repository-relative path.
+exclude = [
+    '(^|/)cases(/|$)',
+    '(^|/)corpus\.py$',
+    '(^|/)test_jax_torch_compilation\.py$',
+]
+
+[[tool.zuban.overrides]]
+module = [
+    "tests.*", "unit.*", "behavior.*", "features.*", "backends.*",
+    "differential.*", "golden.*", "perf.*", "test_*", "support", "conftest",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+
+[[tool.zuban.overrides]]
+# Excluding discovery alone does not prevent imports from following corpus data.
+module = ["corpus", "tests.corpus"]
+follow_imports = "skip"
+
+[[tool.zuban.overrides]]
+module = "array_api_compat"
+ignore_missing_imports = true
+
+[tool.pyrefly]
+project-includes = ["src", "tests"]
+project-excludes = [
+    "tests/golden/cases/**",
+    "tests/corpus.py",
+    "tests/backends/test_jax_torch_compilation.py",
+    "**/__pycache__/**",
+]
+search-path = ["src", "tests"]
+python-version = "3.12"
+check-unannotated-defs = true
+# This checkout can live under .paseo: default hidden-path exclusions skip tests.
+disable-project-excludes-heuristics = true
+replace-imports-with-any = ["corpus"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

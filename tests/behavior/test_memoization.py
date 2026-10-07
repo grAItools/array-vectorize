@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import support
 
 import array_vectorize
 
@@ -34,12 +35,12 @@ def helper_outer_fn(x: float) -> float:
 
 def test_backref_on_canonical_vectorization() -> None:
     vec = array_vectorize.vectorize(sigmoid_like)
-    assert sigmoid_like.__array_vectorized__ is vec
+    assert support.backref(sigmoid_like) is vec
 
 
 def test_vectorize_memoized_per_original() -> None:
     assert array_vectorize.vectorize(sigmoid_like) is array_vectorize.vectorize(sigmoid_like)
-    assert array_vectorize.vectorize(sigmoid_like) is sigmoid_like.__array_vectorized__
+    assert array_vectorize.vectorize(sigmoid_like) is support.backref(sigmoid_like)
 
 
 def test_revectorization_returns_same_object() -> None:
@@ -56,9 +57,9 @@ def test_verify_runs_on_cache_hit() -> None:
 def test_backref_not_overwritten_by_variants() -> None:
     vec = array_vectorize.vectorize(sigmoid_like)
     array_vectorize.vectorize(sigmoid_like, protect_domains=True)
-    assert sigmoid_like.__array_vectorized__ is vec
+    assert support.backref(sigmoid_like) is vec
     array_vectorize.vectorize(sigmoid_like, namespace=np)
-    assert sigmoid_like.__array_vectorized__ is vec
+    assert support.backref(sigmoid_like) is vec
 
 
 def test_backref_on_fallback_wrapper() -> None:
@@ -69,7 +70,7 @@ def test_backref_on_fallback_wrapper() -> None:
 
     with pytest.warns(UserWarning, match="falling back"):
         vec = array_vectorize.vectorize(bad, fallback=True)
-    assert bad.__array_vectorized__ is vec
+    assert support.backref(bad) is vec
 
 
 def test_helpers_do_not_get_backref() -> None:
@@ -77,7 +78,7 @@ def test_helpers_do_not_get_backref() -> None:
     # must not grow an __array_vectorized__ marker
     array_vectorize.vectorize(helper_outer_fn)
     assert not hasattr(helper_inner_fn, "__array_vectorized__")
-    assert helper_outer_fn.__array_vectorized__ is not None
+    assert support.backref(helper_outer_fn) is not None
 
 
 def test_idempotent_revectorization() -> None:
@@ -85,7 +86,7 @@ def test_idempotent_revectorization() -> None:
     vec2 = array_vectorize.vectorize(vec1)
     x = np.asarray([-1.0, 2.0])
     assert np.allclose(vec1(x), vec2(x))
-    assert "xp.where" in vec2.source
+    assert "xp.where" in support.with_metadata(vec2).source
     # canonical calls are memoized per scalar original: re-vectorizing
     # returns the very same object
     assert vec2 is vec1
