@@ -19,13 +19,14 @@ install:
 	$(RUN) pre-commit install
 
 # fixers run to completion whatever findings remain; `make lint` stays
-# the gate. `-` on cleanporter: it exits 1 whenever anything remains it
-# will not rewrite (no exit-zero flag). ruff check --fix gets
-# --exit-zero: ruff cannot fix E501 itself, and cleanporter's module
-# prefixes push lines past 100 columns; ruff format runs first and last
-# so the fixes land on wrapped code
+# the gate. cleanporter gets `test $$? -le 1`: it exits 1 whenever
+# anything remains it will not rewrite (no exit-zero flag), but exit 2
+# is an operational error and must fail the recipe. ruff check --fix
+# gets --exit-zero: ruff cannot fix E501 itself, and cleanporter's
+# module prefixes push lines past 100 columns; ruff format runs first
+# and last so the fixes land on wrapped code
 fmt:
-	-$(RUN) cleanporter --fix $(PY_PATHS)
+	$(RUN) cleanporter --fix $(PY_PATHS); test $$? -le 1
 	$(RUN) ruff format $(PY_PATHS)
 	$(RUN) ruff check --fix --exit-zero $(PY_PATHS)
 	$(RUN) ruff format $(PY_PATHS)
