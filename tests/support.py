@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Shared test helpers (importable as ``support`` via pytest's pythonpath).
 
 Black-box tests build their subjects from source snippets so each case is a

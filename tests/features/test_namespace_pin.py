@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """namespace= pinning and with_namespace variants (Strategy A).
 
 A pinned vectorized function binds ``xp`` directly to the provided

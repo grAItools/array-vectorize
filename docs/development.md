@@ -28,7 +28,9 @@ make lint type test   # the same gates without coverage
 make type         # mypy + pyright + zuban + pyrefly
 make type-mypy    # individual checker (also: type-pyright, type-zuban, type-pyrefly)
 make lowest       # the test suite at the minimum dependency versions
-make fmt          # cleanporter --fix, then ruff format / check --fix / format
+make fmt          # headers, cleanporter --fix, then ruff format / check --fix / format
+make headers      # check canonical headers, including untracked Python files
+make headers-fix  # apply canonical headers without changing source bodies
 make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
 make fuzz         # grammar fuzzer on the CI seeds
 make bench        # pytest-benchmark suite (timings + dispatch gates)
@@ -60,10 +62,10 @@ the Makefile, hook configuration, and dependency/typing configuration trigger th
 
 | Checker | Scope | Mode |
 |---|---|---|
-| mypy | `src` | strict |
-| Pyright | `src` | standard |
-| Zuban | `src` and maintained tests | strict, with test annotation requirements relaxed |
-| Pyrefly | `src` and maintained tests | default diagnostics, including unannotated bodies |
+| mypy | `src` and `scripts` | strict |
+| Pyright | `src` and `scripts` | standard |
+| Zuban | `src`, `scripts`, and maintained tests | strict, with test annotation requirements relaxed |
+| Pyrefly | `src`, `scripts`, and maintained tests | default diagnostics, including unannotated bodies |
 
 All target Python 3.12. Zuban has its own configuration rather than inheriting
 mypy's source-only scope. The wider pair resolves `support` and `corpus` from
@@ -111,6 +113,17 @@ numeric warnings (`overflow encountered`, `invalid value`,
 `divide by zero`) which are expected on documented divergence paths.
 
 ## Style
+
+Repository-owned Python and stub files carry the canonical template in
+`.license-header.txt`, followed by one blank line. This includes golden snapshots,
+marimo notebooks, tests, and hidden scripts. The notice identifies grAItools,
+2026, and BSD-3-Clause; its year is updated centrally rather than per file.
+`make headers` checks tracked and nonignored untracked files without writing;
+`make headers-fix` applies the template, preserving shebangs, encoding declarations,
+line endings, and source bodies. Conflicting ownership or license notices and source
+symlinks are refused. Ignored environments, downloaded code, and embedded snippets
+are outside the policy. The whole-tree hook runs even on template-only commits.
+Golden snapshot writers preserve the header; generated function source is unchanged.
 
 The code follows the [Google Python Style Guide]
 (https://google.github.io/styleguide/pyguide.html). Ruff enforces it in

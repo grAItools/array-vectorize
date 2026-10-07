@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """CALL-TIME runtime library injected into generated modules (from _runtime).
 
 Executes on the user's backend when a vectorized function is called.

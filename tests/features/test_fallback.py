@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """fallback=True / strict=False element-loop fallback behavior."""
 
 from __future__ import annotations

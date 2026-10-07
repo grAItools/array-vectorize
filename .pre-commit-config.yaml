@@ -18,6 +18,12 @@ repos:
   # never disagree on the ruff version
   - repo: local
     hooks:
+      - id: license-headers
+        name: canonical license headers
+        entry: make headers
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: cleanporter-fix
         name: cleanporter fix
         entry: uv run --frozen cleanporter --fix --whole-project

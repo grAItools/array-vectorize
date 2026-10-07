@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Coding-agent configuration layout (see "Agent configuration" in AGENTS.md).
 
 The harness-agnostic sources are AGENTS.md and .agents/; harness

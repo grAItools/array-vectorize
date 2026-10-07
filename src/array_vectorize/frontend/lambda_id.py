@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Lambda identification subsystem: pair a function object with its AST node.
 
 Grew out of the review-round fix ``5ebff7d`` (raw ``co_code`` is not stable

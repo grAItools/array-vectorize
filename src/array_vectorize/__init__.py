@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """vectorize(f): compile a scalar Python function into an Array API vectorized function.
 
 Public API re-export only — implementation lives in ``array_vectorize.api``

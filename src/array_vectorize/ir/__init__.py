@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """The array_vectorize IR: node dataclasses, SSA naming, and the tree algebra."""
 
 from __future__ import annotations

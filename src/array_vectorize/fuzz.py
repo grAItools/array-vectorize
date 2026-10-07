@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Grammar fuzzer CLI: ``python -m array_vectorize.fuzz``.
 
 Generates random programs from the supported grammar, vectorizes them, and

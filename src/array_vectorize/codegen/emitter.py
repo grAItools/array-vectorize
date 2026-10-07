@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """IR -> readable Python source.
 
 Builds an ``ast.Module`` and uses ``ast.unparse``: correct docstring/literal

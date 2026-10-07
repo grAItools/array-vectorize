@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Exact-semantics arithmetic helper (from _runtime).
 
 ``_vec_arith`` and its uint64-exactness primitives are injected into

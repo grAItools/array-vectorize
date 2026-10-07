@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Docstrings on vectorized functions: summary prefix, source round trip, Notes merging."""
 
 from __future__ import annotations

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Generic IR tree algebra: child enumeration and bottom-up rebuilding.
 
 ``children``/``rewrite`` moved from ``_optimize`` (restructure phase 2): the

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Corpus of scalar functions for golden-source tests.
 
 Every function here must be defined at module level in this real file so

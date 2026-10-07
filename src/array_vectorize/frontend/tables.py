@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Scalar-name -> Array API mapping tables.
 
 All ``MATH_FUNCS`` targets must exist on every Array API backend; this is

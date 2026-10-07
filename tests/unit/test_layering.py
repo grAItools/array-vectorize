@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Import-layering rules of the package, checked statically.
 
 These encode the boundaries described in docs/architecture.md so a move

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Exact-semantics min/max helper (from _runtime).
 
 ``_vec_minmax`` is injected into generated modules and executes on the

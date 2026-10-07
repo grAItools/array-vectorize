@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Codegen tests: IR -> source text via ast.unparse."""
 
 from __future__ import annotations

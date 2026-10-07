@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Direct unit tests for the call-time runtime library.
 
 runtime/arith, runtime/minmax and runtime/dtype are normally exercised

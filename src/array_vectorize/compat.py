@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Shared backend-detection helpers for verify and fallback.
 
 ``_is_array``/``_py_scalar`` are the two leaves both the differential

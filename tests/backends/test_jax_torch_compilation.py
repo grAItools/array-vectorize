@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """jax.jit / torch.compile compatibility + backend-detection regression tests.
 
 JAX and PyTorch trace and introspect the Python they compile — ``jax.jit``

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """IR node dataclasses and the is_bool lattice.
 
 IR: frozen, hashable dataclasses. Hashability enables structural

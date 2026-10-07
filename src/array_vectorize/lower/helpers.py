@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """User-helper lowering: vectorizing and calling other scalar functions.
 
 Calls to functions in the enclosing scope (``info.user_funcs``) are

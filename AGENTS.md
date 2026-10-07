@@ -105,6 +105,12 @@ then link it for Claude:
 
 ## Docs and commits
 
+- Python and stub files, including golden snapshots, notebooks, and hidden scripts,
+  carry the canonical `.license-header.txt` notice. `make headers` checks the entire
+  Git-owned tree plus nonignored untracked files; `make headers-fix` applies it.
+  Never replace conflicting ownership or license notices. Golden writers add the
+  header only to snapshots, not to generated function source.
+
 - `docs/` is the single source for the supported subset, semantics,
   divergences, and API. `README.md` only links to it. A user-visible
   change updates the matching page in the same commit; moving modules

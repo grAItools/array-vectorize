@@ -1,3 +1,7 @@
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Math and builtin calls, casts, pow, floor-mod, abs/round, scalar-argument math."""
 
 from __future__ import annotations

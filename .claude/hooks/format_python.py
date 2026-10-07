@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """PostToolUse hook: format an edited Python file with the locked ruff.
 
 Only formatting and import sorting run here. Other autofixes would delete
