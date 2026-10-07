@@ -92,7 +92,7 @@ backends = [
 ]
 dev = [
     { name = "array-api-strict", specifier = ">=2.3" },
-    { name = "cleanporter", git = "file:///tmp/opencode/cleanporter?rev=e53776c" },
+    { name = "cleanporter", git = "https://github.com/grAItools/cleanporter?tag=v0.6.0" },
     { name = "coverage", extras = ["toml"], specifier = ">=7.6" },
     { name = "hypothesis", specifier = ">=6.100" },
     { name = "mypy", specifier = ">=1.20" },
@@ -271,7 +271,7 @@ wheels = [
 [[package]]
 name = "cleanporter"
 version = "0.6.0"
-source = { git = "file:///tmp/opencode/cleanporter?rev=e53776c#e53776c0898cf3fe0ac141fa2ce3ff4655213520" }
+source = { git = "https://github.com/grAItools/cleanporter?tag=v0.6.0#61d18ec658e7e4a200ea18621d5734b6938c4c4c" }
 dependencies = [
     { name = "libcst" },
 ]

@@ -72,9 +72,8 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
-# local stand-in pin for the PEP 695 type-alias fix; swap to the GitHub
-# URL + 0.6.0 tag when the upstream release is cut
-cleanporter = { git = "file:///tmp/opencode/cleanporter", rev = "e53776c" }
+# 0.6.0 is the first release carrying the PEP 695 type-alias fix
+cleanporter = { git = "https://github.com/grAItools/cleanporter", tag = "v0.6.0" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/array_vectorize"]
