@@ -48,7 +48,7 @@ dev = [
     "numpy>=2.0",
     "array-api-strict>=2.3",
     "prek>=0.5",
-    "pyyaml>=6.0",  # repository workflow and hook configuration tests
+    "pyyaml>=6.0.1",  # first Python 3.12 wheels; workflow and hook configuration tests
     "cleanporter>=0.6",
 ]
 backends = [

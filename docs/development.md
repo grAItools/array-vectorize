@@ -39,7 +39,8 @@ make backends     # jax.jit / torch.compile compatibility tests
 make docs         # build this site (zensical, --strict)
 make docs-serve   # live-reload preview
 make notebook     # open the marimo example notebooks
-make release VERSION=0.1.0    # verify + gate + build dist/ for a release
+make release VERSION=0.1.0    # validate + gate + build + installed artifact checks
+make package-smoke VERSION=0.1.0    # test wheel and sdist already in dist/
 uv run pytest --update-golden    # regenerate golden source snapshots
 uv run python -m array_vectorize.fuzz --seconds 60 --seed 0    # fuzz longer
 ```
@@ -170,9 +171,13 @@ the NumPy-style docstring subject).
 - **docs** — builds this site with `--strict`.
 - **pages** — after CI passes on a push to `main`, deploys this site to
   [GitHub Pages](https://grAItools.github.io/array-vectorize/).
-- **release** — on a pushed `v*` tag, re-runs the gate, builds the sdist
-  and wheel with `uv build`, and publishes them as a GitHub release
-  generated from the tag (`.github/workflows/release.yml`).
+- **release** — on a pushed `v*` tag, validates the version, lock, changelog,
+  clean checkout and ancestry on `origin/main`, then runs the full gate. It builds
+  once with `uv build --no-sources` and tests the wheel and sdist installed into
+  independent temporary environments. A separate publishing job creates the GitHub
+  release from those exact artifacts, with generated notes and prerelease marking.
+  Build permissions are read-only; only publishing can write repository contents.
+  Runs for the same tag queue rather than cancel during publishing.
 
 ## Releases
 
@@ -192,9 +197,18 @@ git tag -a v0.1.0 -m "v0.1.0"
 git push origin main --tags
 ```
 
-`make release` refuses to run when the two version declarations disagree
-or the lock is stale; tagging stays a manual step so a re-run of the
-target can never move a tag.
+`make release` and the workflow share a stdlib validator. The tag must be `v`
+plus the exact normalized public Python package version in `pyproject.toml`,
+`__version__`, and the project entry in `uv.lock`; local version suffixes and
+noncanonical spellings are refused. The changelog must contain that version.
+The working tree must be clean, the lock fresh, and HEAD merged into `origin/main`
+(fetch origin before releasing). Cleanliness is checked again immediately before
+building. Keep `dist/` empty before building: artifact checks require exactly one
+wheel and one sdist, preventing upload of leftovers from an earlier release.
+Each artifact is installed separately outside the checkout; imports must come
+from that environment, match the requested version, carry `py.typed`, and compile
+and run a source-backed function correctly. Tagging remains manual; PyPI publishing
+and workflow dispatch are not configured.
 
 ## Commit messages
 

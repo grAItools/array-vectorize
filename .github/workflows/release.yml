@@ -5,25 +5,61 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - name: Install
         run: uv sync --locked
+      - name: Validate release
+        run: uv run --frozen python scripts/release.py --tag "$GITHUB_REF_NAME"
+      - name: Determine release kind
+        id: version
+        run: echo "prerelease=$(uv run --frozen python scripts/release.py --tag "$GITHUB_REF_NAME" --prerelease)" >> "$GITHUB_OUTPUT"
       - name: Check (lint + types + tests + coverage)
         run: make check
         env:
           CI: "1"
+      - name: Recheck cleanliness
+        run: uv run --frozen python scripts/release.py --check-clean
       - name: Build sdist and wheel
-        run: uv build
+        run: uv build --no-sources
+      - name: Smoke-test installed artifacts
+        run: make package-smoke VERSION="${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distributions
+          path: dist/*
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist
       - name: GitHub release
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag "${flags[@]}"
         env:
           GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
