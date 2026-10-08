@@ -94,7 +94,6 @@ def test_fix_preserves_source_and_is_idempotent(
         HEADER.replace(b"Copyright (c)", b"copyright   (c)").replace(b"# SPDX", b"#SPDX"),
         HEADER.replace(b"See LICENSE for the full license text.", b"See LICENSE for license text."),
         b"# Copyright (c) 2026 grAItools\n",
-        b"# See LICENSE for the full license text.\n",
     ],
 )
 def test_normalize_owned_headers(repository: pathlib.Path, old: bytes) -> None:
@@ -179,6 +178,32 @@ def test_unrelated_copyright_comment_is_preserved(repository: pathlib.Path) -> N
     path.write_bytes(raw)
     assert _run(repository, "--fix").returncode == 0
     assert path.read_bytes() == HEADER + raw
+
+
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n"])
+@pytest.mark.parametrize("existing_header", [False, True])
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"# See LICENSE for details\nx = 1\n",
+        b"# See LICENSE for the full license text.\nx = 1\n",
+        b"# Module explanation.\n# See LICENSE for details\n\nx = 1\n",
+    ],
+)
+def test_license_references_outside_owned_header_are_preserved(
+    repository: pathlib.Path, newline: bytes, existing_header: bool, body: bytes
+) -> None:
+    path = repository / "reference.py"
+    header = HEADER.replace(b"\n", newline)
+    body = body.replace(b"\n", newline)
+    raw = (header if existing_header else b"") + body
+    path.write_bytes(raw)
+    assert _run(repository, "--check").returncode == (0 if existing_header else 1)
+    assert path.read_bytes() == raw
+    for _ in range(2):
+        assert _run(repository, "--fix").returncode == 0
+        assert path.read_bytes() == header + body
+        assert _run(repository, "--check").returncode == 0
 
 
 def test_source_symlinks_are_rejected(repository: pathlib.Path, tmp_path: pathlib.Path) -> None:

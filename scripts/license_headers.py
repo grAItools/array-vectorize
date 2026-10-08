@@ -86,12 +86,18 @@ def _without_header(lines: list[bytes]) -> list[bytes]:
         raise ValueError(msg)
     remaining: list[bytes] = []
     after_header = False
+    in_owned_header = False
     for line in prefix:
-        if _NOTICE.search(line) or _REFERENCE.fullmatch(line.strip()):
+        if _NOTICE.search(line):
+            in_owned_header = in_owned_header or bool(_OWNED.fullmatch(line.strip()))
             after_header = True
-        elif line.strip() or not after_header:
-            remaining.append(line)
-            after_header = False
+        elif in_owned_header and _REFERENCE.fullmatch(line.strip()):
+            after_header = True
+        else:
+            in_owned_header = False
+            if line.strip() or not after_header:
+                remaining.append(line)
+                after_header = False
     # Normalize the separator without changing substantive source content.
     while remaining and not remaining[0].strip():
         remaining.pop(0)
