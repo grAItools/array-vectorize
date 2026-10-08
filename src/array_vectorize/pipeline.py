@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """The vectorization pipeline: extract -> validate -> lower -> optimize -> codegen -> compile.
 
 This module owns the strict (non-fallback) compilation stages only; option

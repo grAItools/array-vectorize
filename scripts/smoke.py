@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """End-to-end smoke test (run directly)."""
 
 import math
@@ -8,7 +13,7 @@ import array_vectorize
 
 
 @array_vectorize.vectorize
-def psi(x):
+def psi(x: float) -> float:
     """Exponential decay on the positive half, zero below it."""
     if x < 0:
         return 0.0
@@ -16,7 +21,7 @@ def psi(x):
 
 
 @array_vectorize.vectorize
-def clamp(x, lo=0.0, hi=1.0):
+def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     """Clamp x into [lo, hi]."""
     if x < lo:
         return lo
@@ -35,8 +40,8 @@ def main() -> None:
     assert np.allclose(clamp(x), expected_clamp), clamp(x)
     assert np.allclose(clamp(x, -1.0, 0.5), np.clip(x, -1.0, 0.5))
 
-    print(psi.source)
-    print(clamp.source)
+    print(array_vectorize.get_source(psi))
+    print(array_vectorize.get_source(clamp))
     print("smoke ok")
 
 

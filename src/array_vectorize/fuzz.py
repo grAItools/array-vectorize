@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Grammar fuzzer CLI: ``python -m array_vectorize.fuzz``.
 
 Generates random programs from the supported grammar, vectorizes them, and
@@ -143,7 +148,7 @@ def _run_one(rng: random.Random) -> str:
     # vectorize() requires inspectable source: define the case in a real file
     case_dir = pathlib.Path(tempfile.mkdtemp(prefix="array_vectorize_fuzz_"))
     path = case_dir / "fuzz_case_mod.py"
-    path.write_text("import math\n\n\n" + src)
+    path.write_text("import math\n\n\n" + src, encoding="utf-8", newline="\n")
     spec = importlib.util.spec_from_file_location("fuzz_case_mod", path)
     assert spec is not None
     assert spec.loader is not None

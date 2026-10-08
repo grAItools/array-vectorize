@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Shared test helpers (importable as ``support`` via pytest's pythonpath).
 
 Black-box tests build their subjects from source snippets so each case is a
@@ -73,7 +78,9 @@ def make_fn(body: str, extra: str = "", defaults: str = "x, y=2.0") -> Callable[
         + defaults
         + "):\n"
         + body
-        + "\n"
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None
@@ -86,7 +93,7 @@ def make_fn(body: str, extra: str = "", defaults: str = "x, y=2.0") -> Callable[
 def make_module(source: str) -> Any:
     """Write a standalone module from ``source`` and return the module."""
     path = TMPDIR / f"module_{next(_seq)}.py"
-    path.write_text(source)
+    path.write_text(source, encoding="utf-8", newline="\n")
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None
     assert spec.loader is not None

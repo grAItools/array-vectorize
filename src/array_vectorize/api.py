@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Public entry points: ``vectorize``, ``get_source``, and the helper cache.
 
 Option handling and the fallback decision live here; the strict compilation

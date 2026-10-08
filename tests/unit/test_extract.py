@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Tests for source extraction and closure capture."""
 
 from __future__ import annotations
@@ -249,7 +254,9 @@ def test_lambda_probe_fallback_identifies_sibling() -> None:
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     path = tmp / "probe_siblings.py"
-    path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\n")
+    path.write_text(
+        "f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\n", encoding="utf-8", newline="\n"
+    )
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None
     assert spec.loader is not None
@@ -280,7 +287,9 @@ def test_lambda_probe_fallback_interchangeable() -> None:
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     path = tmp / "probe_twin.py"
-    path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 1)\n")
+    path.write_text(
+        "f1, f2 = (lambda x: x + 1), (lambda x: x + 1)\n", encoding="utf-8", newline="\n"
+    )
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None
     assert spec.loader is not None
@@ -303,7 +312,11 @@ def test_lambda_probe_fallback_rejects_unidentifiable() -> None:
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     path = tmp / "probe_none.py"
-    path.write_text("f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\nf3 = lambda x: x + 3\n")
+    path.write_text(
+        "f1, f2 = (lambda x: x + 1), (lambda x: x + 2)\nf3 = lambda x: x + 3\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None
     assert spec.loader is not None

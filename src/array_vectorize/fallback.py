@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Opt-in element-loop fallback.
 
 When ``vectorize(f, fallback=True)`` (or ``strict=False``) cannot vectorize

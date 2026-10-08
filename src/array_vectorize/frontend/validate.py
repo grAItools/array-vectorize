@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """Supported-subset checking with linter-style diagnostics (design D5).
 
 Structural checks only (AST shape); semantic checks (name resolution, call

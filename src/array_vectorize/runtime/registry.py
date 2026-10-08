@@ -1,3 +1,8 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
+# Copyright (c) 2026 grAItools
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE for the full license text.
+
 """The runtime-helper registry: the seam between lowering and emitted calls.
 
 Lowering decides WHERE a runtime helper is needed; this registry is the

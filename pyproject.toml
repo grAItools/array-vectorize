@@ -47,7 +47,8 @@ dev = [
     "coverage[toml]>=7.6",
     "numpy>=2.0",
     "array-api-strict>=2.3",
-    "pre-commit>=3.5",
+    "prek>=0.5",
+    "pyyaml>=6.0.1",  # first Python 3.12 wheels; workflow and hook configuration tests
     "cleanporter>=0.6",
 ]
 backends = [
@@ -160,7 +161,7 @@ reason = "golden test data: from-imports deliberately exercise the supported sub
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src"]
+files = ["src", "scripts"]
 
 [[tool.mypy.overrides]]
 module = "array_api_compat"
@@ -168,12 +169,12 @@ ignore_missing_imports = true
 
 # All four checkers are gates; Make owns commands and these sections own scope.
 [tool.pyright]
-include = ["src"]
+include = ["src", "scripts"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
 [tool.zuban]
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 mypy_path = ["src", "tests"]
 python_version = "3.12"
 strict = true
@@ -207,7 +208,7 @@ module = "array_api_compat"
 ignore_missing_imports = true
 
 [tool.pyrefly]
-project-includes = ["src", "tests"]
+project-includes = ["src", "tests", "scripts"]
 project-excludes = [
     "tests/golden/cases/**",
     "tests/corpus.py",

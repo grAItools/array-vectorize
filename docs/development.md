@@ -8,7 +8,7 @@ are locked in `uv.lock`, the development Python version is pinned in
 virtualenv needs to be activated.
 
 ```bash
-make install      # uv sync (dev group) + pre-commit hooks
+make install      # uv sync (dev group) + prek hooks
 ```
 
 Optional dependency groups: `backends` (jax, CPU torch), `docs`
@@ -22,13 +22,16 @@ dependency at its floor (`--resolution lowest-direct`) on Python 3.12.
 ## Commands
 
 ```bash
+make hooks        # all Git-tracked files through prek, with diffs on failure
 make check        # cleanporter + ruff + four type checkers + pytest + coverage (95%)
 make check PY=3.13    # any target on another Python (env: .venv-3.13)
 make lint type test   # the same gates without coverage
 make type         # mypy + pyright + zuban + pyrefly
 make type-mypy    # individual checker (also: type-pyright, type-zuban, type-pyrefly)
 make lowest       # the test suite at the minimum dependency versions
-make fmt          # cleanporter --fix, then ruff format / check --fix / format
+make fmt          # headers, cleanporter --fix, then ruff format / check --fix / format
+make headers      # check canonical headers, including untracked Python files
+make headers-fix  # apply canonical headers without changing source bodies
 make smoke        # run scripts/smoke.py, examples/demo.py, the notebooks
 make fuzz         # grammar fuzzer on the CI seeds
 make bench        # pytest-benchmark suite (timings + dispatch gates)
@@ -36,7 +39,8 @@ make backends     # jax.jit / torch.compile compatibility tests
 make docs         # build this site (zensical, --strict)
 make docs-serve   # live-reload preview
 make notebook     # open the marimo example notebooks
-make release VERSION=0.1.0    # verify + gate + build dist/ for a release
+make release VERSION=0.1.0    # validate + gate + build + installed artifact checks
+make package-smoke VERSION=0.1.0    # test wheel and sdist already in dist/
 uv run pytest --update-golden    # regenerate golden source snapshots
 uv run python -m array_vectorize.fuzz --seconds 60 --seed 0    # fuzz longer
 ```
@@ -60,10 +64,10 @@ the Makefile, hook configuration, and dependency/typing configuration trigger th
 
 | Checker | Scope | Mode |
 |---|---|---|
-| mypy | `src` | strict |
-| Pyright | `src` | standard |
-| Zuban | `src` and maintained tests | strict, with test annotation requirements relaxed |
-| Pyrefly | `src` and maintained tests | default diagnostics, including unannotated bodies |
+| mypy | `src` and `scripts` | strict |
+| Pyright | `src` and `scripts` | standard |
+| Zuban | `src`, `scripts`, and maintained tests | strict, with test annotation requirements relaxed |
+| Pyrefly | `src`, `scripts`, and maintained tests | default diagnostics, including unannotated bodies |
 
 All target Python 3.12. Zuban has its own configuration rather than inheriting
 mypy's source-only scope. The wider pair resolves `support` and `corpus` from
@@ -112,6 +116,17 @@ numeric warnings (`overflow encountered`, `invalid value`,
 
 ## Style
 
+Repository-owned Python and stub files carry the canonical template in
+`.license-header.txt`, followed by one blank line. This includes golden snapshots,
+marimo notebooks, tests, and hidden scripts. The notice identifies grAItools,
+2026, and BSD-3-Clause; its year is updated centrally rather than per file.
+`make headers` checks tracked and nonignored untracked files without writing;
+`make headers-fix` applies the template, preserving shebangs, encoding declarations,
+line endings, and source bodies. Conflicting ownership or license notices and source
+symlinks are refused. Ignored environments, downloaded code, and embedded snippets
+are outside the policy. The whole-tree hook runs even on template-only commits.
+Golden snapshot writers preserve the header; generated function source is unchanged.
+
 The code follows the [Google Python Style Guide]
 (https://google.github.io/styleguide/pyguide.html). Ruff enforces it in
 `make lint`: pydocstyle with the google convention, pep8-naming, import
@@ -145,6 +160,10 @@ the NumPy-style docstring subject).
 - **static** — `make lint type` once on Python 3.12, including all four checkers.
 - **check** — `make coverage` on Python 3.12–3.14
   (Hypothesis derandomized), then `make smoke`.
+- **windows** — correctness tests on Python 3.12 and 3.14 with locked dependencies
+  and the deterministic Hypothesis profile. Git symlink support is configured before
+  checkout so agent-layout checks remain enabled. Timing-sensitive performance tests
+  stay on Linux; optional JAX/PyTorch compilation stays in its dedicated job.
 - **lowest** — `make lowest`: the suite at the declared dependency floors.
 - **fuzz** — the five fixed fuzzer seeds.
 - **compile** — proves the generated source traces correctly under
@@ -156,9 +175,13 @@ the NumPy-style docstring subject).
 - **docs** — builds this site with `--strict`.
 - **pages** — after CI passes on a push to `main`, deploys this site to
   [GitHub Pages](https://grAItools.github.io/array-vectorize/).
-- **release** — on a pushed `v*` tag, re-runs the gate, builds the sdist
-  and wheel with `uv build`, and publishes them as a GitHub release
-  generated from the tag (`.github/workflows/release.yml`).
+- **release** — on a pushed `v*` tag, validates the version, lock, changelog,
+  clean checkout and ancestry on `origin/main`, then runs the full gate. It builds
+  once with `uv build --no-sources` and tests the wheel and sdist installed into
+  independent temporary environments. A separate publishing job creates the GitHub
+  release from those exact artifacts, with generated notes and prerelease marking.
+  Build permissions are read-only; only publishing can write repository contents.
+  Runs for the same tag queue rather than cancel during publishing.
 
 ## Releases
 
@@ -178,9 +201,18 @@ git tag -a v0.1.0 -m "v0.1.0"
 git push origin main --tags
 ```
 
-`make release` refuses to run when the two version declarations disagree
-or the lock is stale; tagging stays a manual step so a re-run of the
-target can never move a tag.
+`make release` and the workflow share a stdlib validator. The tag must be `v`
+plus the exact normalized public Python package version in `pyproject.toml`,
+`__version__`, and the project entry in `uv.lock`; local version suffixes and
+noncanonical spellings are refused. The changelog must contain that version.
+The working tree must be clean, the lock fresh, and HEAD merged into `origin/main`
+(fetch origin before releasing). Cleanliness is checked again immediately before
+building. Keep `dist/` empty before building: artifact checks require exactly one
+wheel and one sdist, preventing upload of leftovers from an earlier release.
+Each artifact is installed separately outside the checkout; imports must come
+from that environment, match the requested version, carry `py.typed`, and compile
+and run a source-backed function correctly. Tagging remains manual; PyPI publishing
+and workflow dispatch are not configured.
 
 ## Commit messages
 
@@ -205,8 +237,13 @@ to the new format like this:
 | `ci: x` | `ci: x` (type, no scope) |
 | `build: x` | `build: x` (type, no scope) |
 
-Existing clones must re-run `make install` once to pick up the new
-commit-msg hook.
+The hook runner is `prek`; the configuration filename and Git's `pre-commit`
+and `commit-msg` stage names stay unchanged. Existing clones must rerun
+`make install` after switching runners to replace both installed hooks.
+`make hooks` checks all Git-tracked files; staged-only runs and untracked new
+files can be silently skipped by filename-filtered hooks. `make lint type`
+walks maintained code directly, and the header hook additionally discovers
+nonignored untracked Python files. CI uses the same Make checks without autofixing.
 
 ## Coding agents
 
@@ -225,7 +262,7 @@ harness's own directory only forwards to them:
 Edit the shared files; the adapters pick up changes through the import
 and the symlinks. `tests/test_agent_layout.py` fails when a skill uses
 harness-specific frontmatter or lacks its `.claude/skills` link. On
-Windows, the symlinks need `git config core.symlinks true` (and Developer
+Windows, the symlinks need `git config core.symlinks true` before checkout (and Developer
 Mode or an elevated shell) to check out as links.
 
 ## History
@@ -234,3 +271,11 @@ The original design document, the restructuring plan, and the log of
 the 26-round adversarial review loop that drove the exactness work live
 in git history; the design decisions that still hold are summarized in
 [Architecture](architecture.md#design-decisions).
+
+## Portable source files
+
+Git checkouts use LF through `.gitattributes`. Repository text I/O names UTF-8
+explicitly; generated snippet and snapshot writers name LF explicitly. Tests also
+write CRLF and Unicode paths deliberately to verify source inspection on Windows.
+No Make installation is required for Windows correctness testing: use
+`uv run --frozen pytest -m "not slow" -ra` with `CI=1`.

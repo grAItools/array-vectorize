@@ -1,7 +1,7 @@
 # default_stages keeps the file-filtered hooks above from running at the
-# commit-msg stage, where pre-commit would otherwise feed them
+# commit-msg stage, where the hook runner would otherwise feed them
 # .git/COMMIT_EDITMSG; default_install_hook_types makes
-# `pre-commit install` install both hook types.
+# `prek install` install both hook types. Git stage names stay unchanged.
 default_install_hook_types: [pre-commit, commit-msg]
 default_stages: [pre-commit]
 repos:
@@ -18,6 +18,12 @@ repos:
   # never disagree on the ruff version
   - repo: local
     hooks:
+      - id: license-headers
+        name: canonical license headers
+        entry: make headers
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: cleanporter-fix
         name: cleanporter fix
         entry: uv run --frozen cleanporter --fix --whole-project
