@@ -1,3 +1,4 @@
+# array-vectorize: compile scalar Python functions into exact Array API functions.
 # Copyright (c) 2026 grAItools
 # SPDX-License-Identifier: BSD-3-Clause
 # See LICENSE for the full license text.
@@ -90,6 +91,8 @@ def test_fix_preserves_source_and_is_idempotent(
         HEADER + HEADER,
         HEADER.rstrip(b"\n") + b"\n",
         HEADER + b"\n\n",
+        HEADER.split(b"\n", 1)[1],
+        b"# array-vectorize: Previous project description.\n" + HEADER.split(b"\n", 1)[1],
         HEADER.replace(b"2026", b"2025"),
         HEADER.replace(b"Copyright (c)", b"copyright   (c)").replace(b"# SPDX", b"#SPDX"),
         HEADER.replace(b"See LICENSE for the full license text.", b"See LICENSE for license text."),
@@ -178,6 +181,16 @@ def test_unrelated_copyright_comment_is_preserved(repository: pathlib.Path) -> N
     path.write_bytes(raw)
     assert _run(repository, "--fix").returncode == 0
     assert path.read_bytes() == HEADER + raw
+
+
+def test_standalone_project_description_is_preserved(repository: pathlib.Path) -> None:
+    path = repository / "description.py"
+    raw = HEADER.split(b"\n", 1)[0] + b"\nx = 1\n"
+    path.write_bytes(raw)
+    for _ in range(2):
+        assert _run(repository, "--fix").returncode == 0
+        assert path.read_bytes() == HEADER + raw
+        assert _run(repository, "--check").returncode == 0
 
 
 @pytest.mark.parametrize("newline", [b"\n", b"\r\n"])

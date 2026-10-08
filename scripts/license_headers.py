@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# array-vectorize: compile scalar Python functions into exact Array API functions.
 # Copyright (c) 2026 grAItools
 # SPDX-License-Identifier: BSD-3-Clause
 # See LICENSE for the full license text.
@@ -39,6 +40,7 @@ _OWNED = re.compile(
 )
 _LICENSE = re.compile(rb"^#\s*SPDX-License-Identifier:\s*BSD-3-Clause$", re.IGNORECASE)
 _REFERENCE = re.compile(rb"^# See LICENSE\b.*$", re.IGNORECASE)
+_PROJECT = re.compile(rb"^# array-vectorize: .+$")
 
 
 def _files(root: pathlib.Path) -> list[pathlib.Path]:
@@ -87,11 +89,15 @@ def _without_header(lines: list[bytes]) -> list[bytes]:
     remaining: list[bytes] = []
     after_header = False
     in_owned_header = False
-    for line in prefix:
+    for index, line in enumerate(prefix):
         if _NOTICE.search(line):
             in_owned_header = in_owned_header or bool(_OWNED.fullmatch(line.strip()))
             after_header = True
-        elif in_owned_header and _REFERENCE.fullmatch(line.strip()):
+        elif (in_owned_header and _REFERENCE.fullmatch(line.strip())) or (
+            _PROJECT.fullmatch(line.strip())
+            and index + 1 < len(prefix)
+            and _OWNED.fullmatch(prefix[index + 1].strip())
+        ):
             after_header = True
         else:
             in_owned_header = False

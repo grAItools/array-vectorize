@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# array-vectorize: compile scalar Python functions into exact Array API functions.
 # Copyright (c) 2026 grAItools
 # SPDX-License-Identifier: BSD-3-Clause
 # See LICENSE for the full license text.
