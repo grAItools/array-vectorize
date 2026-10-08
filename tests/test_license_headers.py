@@ -52,6 +52,10 @@ def _run(root: pathlib.Path, *args: str) -> subprocess.CompletedProcess[str]:
     [
         (b"", b""),
         (b"", b"x = 1"),
+        (b"", b"\n\nx = 1\n"),
+        (b"", b"\r\n\r\nx = 1\r\n"),
+        (b"", b"\n\n"),
+        (b"#!/usr/bin/env python\n", b"\n\nx = 1\n"),
         (
             b"",
             b'"""Module documentation."""\nfrom __future__ import annotations\nx = "caf\xc3\xa9"\n',
@@ -90,7 +94,6 @@ def test_fix_preserves_source_and_is_idempotent(
     [
         HEADER + HEADER,
         HEADER.rstrip(b"\n") + b"\n",
-        HEADER + b"\n\n",
         HEADER.split(b"\n", 1)[1],
         b"# array-vectorize: Previous project description.\n" + HEADER.split(b"\n", 1)[1],
         HEADER.replace(b"2026", b"2025"),

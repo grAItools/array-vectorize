@@ -86,6 +86,10 @@ def _without_header(lines: list[bytes]) -> list[bytes]:
     if any(not (_OWNED.fullmatch(line) or _LICENSE.fullmatch(line)) for line in notices):
         msg = "conflicting or unrecognized license notice"
         raise ValueError(msg)
+    if not notices:
+        return lines
+    while prefix and not prefix[0].strip():
+        prefix.pop(0)
     remaining: list[bytes] = []
     after_header = False
     in_owned_header = False
@@ -103,10 +107,8 @@ def _without_header(lines: list[bytes]) -> list[bytes]:
             in_owned_header = False
             if line.strip() or not after_header:
                 remaining.append(line)
-                after_header = False
-    # Normalize the separator without changing substantive source content.
-    while remaining and not remaining[0].strip():
-        remaining.pop(0)
+            # Consume one header separator; retain subsequent source blank lines.
+            after_header = False
     return remaining + lines[end:]
 
 
