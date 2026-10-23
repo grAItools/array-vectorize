@@ -21,7 +21,7 @@ The compiler base is `0e4bb6b64ae72ae369bbd61c921cf8673ec8d1a4`.
 Run the additional probe from the repository root:
 
 ```bash
-uv run python review-artifacts/reconciliation/probes/reconcile_additional_probes.py
+uv run python reviews/2026-10-23/review-artifacts/reconciliation/probes/reconcile_additional_probes.py
 ```
 
 These exploratory probes print observations; exit zero is not a correctness verdict.

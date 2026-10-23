@@ -25,7 +25,7 @@ The review covered the compiler pipeline, runtime helpers, public API, source
 inspection, verification and fallback, test organization and oracles, fuzzing,
 benchmarks, user/developer documentation, Make targets, hooks, CI, packaging and
 release scripts. It used the repository's
-[semantics-review skill](.agents/skills/semantics-review/SKILL.md), including a fresh
+[semantics-review skill](../../.agents/skills/semantics-review/SKILL.md), including a fresh
 independent compiler review, followed by rerunning the consolidated repros.
 
 The strict semantic baseline is `docs/semantics.md`. In particular, NaN propagation
