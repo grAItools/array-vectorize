@@ -1,0 +1,122 @@
+uv run --group docs zensical build --strict
+Downloading zensical (17.7MiB)
+ Downloaded zensical
+Installed 8 packages in 133ms
+Build started
+No issues found
+Build finished in 0.24s
+uv run python scripts/smoke.py
+from array_api_compat import array_namespace
+
+def psi_vec(x):
+    '''
+    (array-vectorized) Exponential decay on the positive half, zero below it.
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            @array_vectorize.vectorize
+            def psi(x: float) -> float:
+                """Exponential decay on the positive half, zero below it."""
+                if x < 0:
+                    return 0.0
+                return x * math.exp(-x)
+    '''
+    xp = array_namespace(x)
+    return xp.where(x < 0, 0.0, x * xp.exp(xp.astype(xp.asarray(-x), xp.float64)))
+
+from array_api_compat import array_namespace
+
+def clamp_vec(x, lo=0.0, hi=1.0):
+    '''
+    (array-vectorized) Clamp x into [lo, hi].
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            @array_vectorize.vectorize
+            def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
+                """Clamp x into [lo, hi]."""
+                if x < lo:
+                    return lo
+                if x > hi:
+                    return hi
+                return x
+    '''
+    xp = array_namespace(x, lo, hi)
+    return xp.where(x < lo, lo, xp.where(x > hi, hi, x))
+
+smoke ok
+uv run python examples/demo.py
+sigmoid: [0.04742587 0.26894142 0.5        0.73105858 0.95257413]
+gelu:    [-0.00363739 -0.15880801  0.          0.84119199  2.99636261]
+l2:      [8.66025404 2.59807621 0.8660254  0.8660254  1.73205081]
+strict:  [0.04742587317756679, 0.2689414213699951, 0.5, 0.7310585786300049, 0.9525741268224334]
+
+--- gelu.source ---
+from array_api_compat import array_namespace
+
+def gelu_vec(x):
+    '''
+    (array-vectorized) GELU activation (tanh approximation).
+
+    Notes:
+        Vectorized by array-vectorize from this scalar original::
+
+            @array_vectorize.vectorize
+            def gelu(x):
+                """GELU activation (tanh approximation)."""
+                return 0.5 * x * (1.0 + math.tanh(0.7978845608028654 * (x + 0.044715 * x * x * x)))
+    '''
+    xp = array_namespace(x)
+    return 0.5 * x * (1.0 + xp.tanh(xp.astype(xp.asarray(0.7978845608028654 * (x + 0.044715 * x * x * x)), xp.float64)))
+
+for nb in examples/notebooks/*.py; do \
+	uv run --group notebooks python $nb > /dev/null || exit 1; \
+done
+Downloading jedi (4.7MiB)
+Downloading loro (3.4MiB)
+Downloading marimo (48.5MiB)
+ Downloaded loro
+ Downloaded jedi
+ Downloaded marimo
+Installed 18 packages in 71ms
+for seed in 42 7 123 999 2024; do \
+	uv run python -m array_vectorize.fuzz --seed $seed --cases 400 || exit 1; \
+done
+array_vectorize.fuzz: seed=42 seconds=60.0 cases=400
+done: 291 ok, 1 rejected, 108 edge-skipped
+array_vectorize.fuzz: seed=7 seconds=60.0 cases=400
+done: 301 ok, 1 rejected, 98 edge-skipped
+array_vectorize.fuzz: seed=123 seconds=60.0 cases=400
+done: 288 ok, 0 rejected, 112 edge-skipped
+array_vectorize.fuzz: seed=999 seconds=60.0 cases=400
+done: 293 ok, 0 rejected, 107 edge-skipped
+array_vectorize.fuzz: seed=2024 seconds=60.0 cases=400
+done: 309 ok, 0 rejected, 91 edge-skipped
+uv run --group backends pytest tests/backends/test_jax_torch_compilation.py -v -rs
+Downloading torch (187.2MiB)
+Downloading networkx (2.0MiB)
+Downloading sympy (6.0MiB)
+Downloading scipy (33.7MiB)
+Downloading jax (3.2MiB)
+Downloading jaxlib (85.7MiB)
+ Downloaded torch
+ Downloaded networkx
+ Downloaded jax
+ Downloaded sympy
+ Downloaded scipy
+ Downloaded jaxlib
+Installed 12 packages in 80ms
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
+benchmark: 5.3.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose
+configfile: pyproject.toml
+plugins: benchmark-5.3.0, anyio-4.15.1, hypothesis-6.168.5, timeout-2.4.0
+collected 96 items
+
+tests/backends/test_jax_torch_compilation.py ........................... [ 28%]
+.....................................................................    [100%]
+
+======================== 96 passed in 115.02s (0:01:55) ========================

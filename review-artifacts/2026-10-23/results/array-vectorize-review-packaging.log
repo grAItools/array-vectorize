@@ -1,0 +1,29 @@
+Building source distribution...
+Building wheel from source distribution...
+Successfully built dist/array_vectorize-0.1.0.tar.gz
+Successfully built dist/array_vectorize-0.1.0-py3-none-any.whl
+uv run --frozen python scripts/package_smoke.py --version "0.1.0"
+Using CPython 3.12.13 interpreter at: /home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/bin/python
+Creating virtual environment at: venv
+Activate with: source venv/bin/activate
+Using Python 3.12.13 environment at: venv
+Resolved 3 packages in 81ms
+Downloading numpy (16.0MiB)
+ Downloaded numpy
+Prepared 2 packages in 454ms
+Installed 3 packages in 12ms
+ + array-api-compat==1.15.0
+ + array-vectorize==0.1.0 (from file:///home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/dist/array_vectorize-0.1.0-py3-none-any.whl)
+ + numpy==2.5.4
+Using CPython 3.12.13 interpreter at: /home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/bin/python
+Creating virtual environment at: venv
+Activate with: source venv/bin/activate
+Using Python 3.12.13 environment at: venv
+Resolved 3 packages in 13ms
+   Building array-vectorize @ file:///home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/dist/array_vectorize-0.1.0.tar.gz
+      Built array-vectorize @ file:///home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/dist/array_vectorize-0.1.0.tar.gz
+Prepared 1 package in 277ms
+Installed 3 packages in 10ms
+ + array-api-compat==1.15.0
+ + array-vectorize==0.1.0 (from file:///home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/dist/array_vectorize-0.1.0.tar.gz)
+ + numpy==2.5.4
