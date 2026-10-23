@@ -1,0 +1,44 @@
+
+BACKEND numpy
+runtime negative a + -1 => array([18446744073709551615], dtype=uint64)
+runtime negative a * -1 => array([18446744073709551615], dtype=uint64)
+not numeric => array([ True, False])
+loop raw scalar => array([7.])
+scalar flag => array([1., 2.])
+floor large integer => array([9.00719925e+15])
+abs int64 minimum => array([-9223372036854775808])
+integer remainder zero => array([0])
+integer floordiv zero => array([0])
+decorated scalar expected106 => 106.0
+decorated actual => array([6.])
+verify complex-producing pow => TypeError float() argument must be a string or a real number, not 'complex'
+verify zero division documented nan expectation => VectorizationError verification failed: vectorized output differs from the scalar original on the provided example inputs (got [inf], expected [nan])
+
+BACKEND array_api_strict
+runtime negative a + -1 => Array([18446744073709551615], dtype=array_api_strict.uint64)
+runtime negative a * -1 => Array([18446744073709551615], dtype=array_api_strict.uint64)
+not numeric => TypeError Only boolean dtypes are allowed in logical_not; got array_api_strict.float64.
+loop raw scalar => TypeError Two scalars not allowed, got type(x1) = <class 'int'> and type(x2) =<class 'int'>
+scalar flag => TypeError `condition` must be an Array; got <class 'bool'>
+floor large integer => Array([9.00719925e+15], dtype=array_api_strict.float64)
+abs int64 minimum => Array([-9223372036854775808], dtype=array_api_strict.int64)
+integer remainder zero => Array([0], dtype=array_api_strict.int64)
+integer floordiv zero => Array([0], dtype=array_api_strict.int64)
+decorated scalar expected106 => 106.0
+decorated actual => Array([6.], dtype=array_api_strict.float64)
+verify complex-producing pow => TypeError float() argument must be a string or a real number, not 'complex'
+verify zero division documented nan expectation => VectorizationError verification failed: vectorized output differs from the scalar original on the provided example inputs (got Array([inf], dtype=array_api_strict.float64), expected Array([nan], dtype=array_api_strict.float64))
+correct huge FLOAT oracle => 1e+30
+correct huge FLOAT vector => array([1.e+30])
+literal -9223372036854775808 => VectorizationError cannot vectorize 'f': 1 unsupported construct found
+  line 2, col 12: int literals outside the int64 range are not supported
+          return -9223372036854775808
+                  ^
+literal 9223372036854775808 => VectorizationError cannot vectorize 'f': 1 unsupported construct found
+  line 2, col 11: int literals outside the int64 range are not supported
+          return 9223372036854775808
+                 ^
+cast float result fits uint64 => array([-9223372036854775808])
+fallback callable object => AttributeError 'ScalarCallable' object has no attribute '__name__'
+concurrent independent compile => VectorizationError cannot vectorize 'helper': recursive helper calls are not supported
+first compile completes => array([2])

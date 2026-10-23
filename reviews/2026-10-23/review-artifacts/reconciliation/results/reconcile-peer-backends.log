@@ -1,0 +1,30 @@
+/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/lib/python3.12/site-packages/array_api_strict/_elementwise_functions.py:36: RuntimeWarning: divide by zero encountered in remainder
+  return Array._new(np_func(x1._array, x2._array), device=x1.device)
+/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/lib/python3.12/site-packages/array_api_strict/_elementwise_functions.py:36: RuntimeWarning: divide by zero encountered in floor_divide
+  return Array._new(np_func(x1._array, x2._array), device=x1.device)
+[DEFECT] loop-index xp calls accept Python ints
+    actual:   ('error', "TypeError: Two scalars not allowed, got type(x1) = <class 'int'> and type(x2) =<class 'int'>")
+    expected: ('ok', [7.0])
+[DEFECT] scalar flag condition reaches xp.where as an array
+    actual:   ('error', "TypeError: `condition` must be an Array; got <class 'bool'>")
+    expected: ('ok', [1.0, 2.0])
+[DEFECT] not numeric is x == 0
+    actual:   ('error', 'TypeError: Only boolean dtypes are allowed in logical_not; got array_api_strict.float64.')
+    expected: ('ok', [True, False])
+[DEFECT] bool + bool is integer
+    actual:   ('error', 'TypeError: Only numeric dtypes are allowed in __add__')
+    expected: ('ok', [2, 1])
+[DEFECT] captured numpy array works with another backend
+    actual:   ('error', "TypeError: Multiple namespaces for array inputs: [<module 'array_api_strict' from '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/lib/python3.12/site-packages/array_api_strict/__init__.py'>, <module 'array_api_compat.numpy' from '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/lib/python3.12/site-packages/array_api_compat/numpy/__init__.py'>]")
+    expected: ('ok', [2.0, 4.0])
+[DEFECT] captured NumPy scalar works with another backend
+    actual:   ('error', "TypeError: Multiple namespaces for array inputs: [<module 'array_api_strict' from '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/lib/python3.12/site-packages/array_api_strict/__init__.py'>, <module 'array_api_compat.numpy' from '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/.venv/lib/python3.12/site-packages/array_api_compat/numpy/__init__.py'>]")
+    expected: ('ok', [3.0, 6.0])
+[DEFECT] integer x % 0 is NaN as documented
+    actual:   False
+    expected: True
+[DEFECT] integer x // 0 is inf as documented
+    actual:   False
+    expected: True
+
+8 backend-neutrality defect(s) reproduced

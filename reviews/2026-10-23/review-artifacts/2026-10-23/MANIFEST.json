@@ -1,0 +1,166 @@
+{
+  "reviewed_commit": "0e4bb6b64ae72ae369bbd61c921cf8673ec8d1a4",
+  "artifacts": [
+    {
+      "path": "probes/semantics_review_repros.py",
+      "source": "/tmp/semantics_review_repros.py",
+      "source_sha256": "713dd908df556769f622af79892561bbf709c1c83c9df5193cb2d812aeafac5c",
+      "sha256": "02fd4a2ffcb89a8104d04092a2e9c31f263a416bb84e554f02f9b14c920e1b27",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_matrix.py",
+      "source": "/tmp/probe_matrix.py",
+      "source_sha256": "a1a1cd74dc66a3198a3e5d6083eef0f339ce605b7245a08a54eae12d9c9ca1af",
+      "sha256": "4c17c3514ceb5b512c4ad83e6fe4bc13a343865acc6144e626467cb3a9076350",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_matrix_functions.py",
+      "source": "/tmp/probe_matrix_functions.py",
+      "source_sha256": "876c09c6f4ed5f47f2de3a25926241275105ed6ebc77fd597093b52203d3aed9",
+      "sha256": "a8fb1a3c0b88ef62826582877e61059e7eb0b3fa33d46cfddddb7d3db00099b5",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_helper_literal.py",
+      "source": "/tmp/probe_helper_literal.py",
+      "source_sha256": "ad5dd06d4161ce878f1c419f55de53a57e7968c409f659f814e529f3e6f38cf0",
+      "sha256": "75a900aeec361facf99d576cc0e0b120eec1aa811c5326722dacfe32f76e7954",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_project_api_review.py",
+      "source": "/tmp/probe_project_api_review.py",
+      "source_sha256": "2bbea520cf6f8862f734d9573991b928aa6120a9fd1eaaa044968c5432f54926",
+      "sha256": "c00f9d5fe58d7d4b8f5f1a6200d84b8ea071f2dc09496e8108f4aaa80c62c77a",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_project_quality_review.py",
+      "source": "/tmp/probe_project_quality_review.py",
+      "source_sha256": "d4ce715f4bb4860b9d2662159ac682a3607f65f85c4ba43e4b2223cb92004192",
+      "sha256": "097ffd97fe9edccc648356fc9ec8c6520d56a3194873c14f626a2b39beb1b4de",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_project_additional_review.py",
+      "source": "/tmp/probe_project_additional_review.py",
+      "source_sha256": "ff2c743fdf213fa92a7b52ab181e57a9e43a64cd88171cce18c7986b116d65c7",
+      "sha256": "ab8963957ac2729decf6e071b130ca04d20a7507f5a5b1ee6d532c0deecf5e91",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_semantics.py",
+      "source": "/tmp/probe_semantics.py",
+      "source_sha256": "303fb79444266940b02fbd37fbd9a261e88caf474d410ecf6849601fa46e37a6",
+      "sha256": "03958b712c905cb49b2cea107c35a153496fd54a157a064660f97b013a647edf",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_boolean.py",
+      "source": "/tmp/probe_boolean.py",
+      "source_sha256": "09fb5483e65d74736a3302dda5d9a36c5b351c83ff711b79b51e3ff92c8dbd95",
+      "sha256": "b34b5194bacd79844559505f5660052f255c23b1b2ab21ed08d6054619c0a297",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_more.py",
+      "source": "/tmp/probe_more.py",
+      "source_sha256": "bb0a835fa8b2b4b20a4b2b411f470443480afee5cf8f8483194e297ea6f93836",
+      "sha256": "f07a7d6893905b788c4cf6ed4d781cb1c7ef08a722142d1b69e8ec631f2d36ff",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_minmax.py",
+      "source": "/tmp/probe_minmax.py",
+      "source_sha256": "f52f01888331962ebefd89f61520999a20f6b5efc6196fd36f8616ce89be1d16",
+      "sha256": "3c3daec52f9029a589b6c73266e66e6a12d766b19c4eca84e8210a2f79d9a7c2",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_protect.py",
+      "source": "/tmp/probe_protect.py",
+      "source_sha256": "c10e4e53bbe103f682e4002252118d12a5059d4830d910d3f6774e0a98f7308e",
+      "sha256": "9c6fc1e90e2781e3232365345b71a00ef948b9a161f41d1fb99443bb4d592120",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_range.py",
+      "source": "/tmp/probe_range.py",
+      "source_sha256": "872ecb9495c2e09937aafdf21ad71d32b3a96eca90844133d3bf51187568c4bf",
+      "sha256": "b4eaf274326df1cbc1a9bfdbd9bc769fd764091dd3dd9160eafbe2b80aa3c497",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_constants.py",
+      "source": "/tmp/probe_constants.py",
+      "source_sha256": "5e08732e850f8785a8e9bdb9bb75ab92ffd8363c56eddd1a9338ee58db50d877",
+      "sha256": "1920fb628faf5b1ebd89a155526e67670fc683241f580435420417dc2cedc575",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/probe_rejections.py",
+      "source": "/tmp/probe_rejections.py",
+      "source_sha256": "239036620a07079d0aea35f8815a5d8382ef3742a19e3c3359fd7d5ebca3f123",
+      "sha256": "d83734e917fe76d738bc1e39571de7a96acf3ea165b5e1df4eeb8f60ea802c3e",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "probes/rejection_functions.py",
+      "source": "/tmp/rejection_functions.py",
+      "source_sha256": "9b23ceaa94bf4b691a5dab6d7a9d84853967552c86f0656f3e06e63a8f17668f",
+      "sha256": "f2d6cc070cef0ec0490183724c6020a6a823a1b3f1f39699297eec511e0630e1",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "results/probe_matrix_results.txt",
+      "source": "/tmp/probe_matrix_results.txt",
+      "source_sha256": "c3115d2540fb989cdc197bc43360104c8bd6c72a3a05ca32546dfbe6e7665e5a",
+      "sha256": "c3115d2540fb989cdc197bc43360104c8bd6c72a3a05ca32546dfbe6e7665e5a",
+      "transformation": "none"
+    },
+    {
+      "path": "results/array-vectorize-review-extra-checks.log",
+      "source": "/tmp/array-vectorize-review-extra-checks.log",
+      "source_sha256": "1b7edd666b5946882d3e7f563bb448701c156aac3e6a1341eeab107f1ef5f2d3",
+      "sha256": "1b7edd666b5946882d3e7f563bb448701c156aac3e6a1341eeab107f1ef5f2d3",
+      "transformation": "none"
+    },
+    {
+      "path": "results/array-vectorize-review-lowest.log",
+      "source": "/tmp/array-vectorize-review-lowest.log",
+      "source_sha256": "85248b300d0299761490316e48820f84328442d08586be3a94de33fdd79227a4",
+      "sha256": "85248b300d0299761490316e48820f84328442d08586be3a94de33fdd79227a4",
+      "transformation": "none"
+    },
+    {
+      "path": "results/array-vectorize-review-packaging.log",
+      "source": "/tmp/array-vectorize-review-packaging.log",
+      "source_sha256": "70f5246ae88875ec3e5e599bbac73dcef01b1bcc715fd88f7bf807654ceb2da4",
+      "sha256": "70f5246ae88875ec3e5e599bbac73dcef01b1bcc715fd88f7bf807654ceb2da4",
+      "transformation": "none"
+    },
+    {
+      "path": "results/array-vectorize-review-benchmark.json",
+      "source": "/tmp/array-vectorize-review-benchmark.json",
+      "source_sha256": "daa70eba05996313eeeba3b7eca2c24158b7009c9ff12c64b674fb2714fc8bb1",
+      "sha256": "daa70eba05996313eeeba3b7eca2c24158b7009c9ff12c64b674fb2714fc8bb1",
+      "transformation": "none"
+    },
+    {
+      "path": "distributions/array_vectorize-0.1.0-py3-none-any.whl",
+      "source": "dist/array_vectorize-0.1.0-py3-none-any.whl",
+      "source_sha256": "d575a1182b13b0c187a1bcb8187a19b2d9bfb7f1956b4a336fdf4e8398aa7671",
+      "sha256": "d575a1182b13b0c187a1bcb8187a19b2d9bfb7f1956b4a336fdf4e8398aa7671",
+      "transformation": "none"
+    },
+    {
+      "path": "distributions/array_vectorize-0.1.0.tar.gz",
+      "source": "dist/array_vectorize-0.1.0.tar.gz",
+      "source_sha256": "161c36e38077662f0b8731dc524c1a742ba090f024dbb9a73cf28bee0e63fc23",
+      "sha256": "161c36e38077662f0b8731dc524c1a742ba090f024dbb9a73cf28bee0e63fc23",
+      "transformation": "none"
+    }
+  ]
+}

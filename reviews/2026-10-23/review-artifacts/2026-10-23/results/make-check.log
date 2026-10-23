@@ -1,0 +1,91 @@
+uv run --frozen python scripts/license_headers.py --check
+uv run ruff check src tests scripts examples .claude/hooks
+All checks passed!
+uv run ruff format --check src tests scripts examples .claude/hooks
+92 files already formatted
+# the import gate: exits 0 only when clean -- treat_unresolved_as_error
+# makes unclassifiable imports fail too
+uv run cleanporter src tests scripts examples .claude/hooks
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/backends'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/behavior'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/differential'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/features'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/golden'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/perf'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+cleanporter: warning: import roots nest: '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests' contains '/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/tests/unit'; each file is qualified against the most specific root that can hold it, and a declared root beats an inferred one
+
+checked 92 file(s): 0 violation(s), 0 not rewritten, 0 unresolved, 11 skipped by config
+uv run --frozen mypy
+Success: no issues found in 45 source files
+uv run --frozen pyright --pythonpath "$(uv run --frozen python -c 'import sys; print(sys.executable)')"
+0 errors, 0 warnings, 0 informations
+uv run --frozen zuban mypy
+Success: no issues found in 87 source files
+uv run --frozen pyrefly check --python-interpreter-path "$(uv run --frozen python -c 'import sys; print(sys.executable)')"
+ INFO Checking project configured at `/home/enriqueg/.paseo/worktrees/3sc9xbde/skinny-goose/pyproject.toml`
+ INFO 0 errors (34 suppressed, 3 warnings not shown)
+uv run coverage run -m pytest
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 24%]
+........................................................................ [ 31%]
+........................................................................ [ 37%]
+........................................................................ [ 43%]
+........................................................................ [ 49%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+........................................................................ [ 68%]
+........................................................................ [ 74%]
+........................................................................ [ 80%]
+........................................................................ [ 86%]
+........................................................................ [ 93%]
+.................................................................s...... [ 99%]
+.........                                                                [100%]
+1160 passed, 1 skipped in 38.76s
+uv run coverage report
+Name                                              Stmts   Miss Branch BrPart  Cover   Missing
+---------------------------------------------------------------------------------------------
+src/array_vectorize/__init__.py                       6      0      0      0   100%
+src/array_vectorize/api.py                           81      0     24      1    99%   124->exit
+src/array_vectorize/codegen/__init__.py               3      0      0      0   100%
+src/array_vectorize/codegen/docstring.py            115      0     46      0   100%
+src/array_vectorize/codegen/emitter.py              159      3     82      1    98%   229, 301-302
+src/array_vectorize/compat.py                        28      3     10      3    84%   81, 83, 85
+src/array_vectorize/emit.py                          27      0      4      0   100%
+src/array_vectorize/errors.py                        24      0      2      0   100%
+src/array_vectorize/fallback.py                      42      1     10      1    96%   79
+src/array_vectorize/frontend/__init__.py             13      0      0      0   100%
+src/array_vectorize/frontend/extract.py             102      2     38      1    98%   143-144, 147->149
+src/array_vectorize/frontend/info.py                 31      1      0      0    97%   53
+src/array_vectorize/frontend/lambda_id.py            90      8     54      7    90%   110, 123, 128, 143->148, 154-155, 160, 172, 201
+src/array_vectorize/frontend/tables.py                9      0      0      0   100%
+src/array_vectorize/frontend/validate.py            172      6    112      6    96%   91, 161, 183, 223, 232, 257
+src/array_vectorize/fuzz.py                         149      8     42      2    95%   168-171, 199-200, 203, 240
+src/array_vectorize/ir/__init__.py                   24      0      0      0   100%
+src/array_vectorize/ir/nodes.py                      88      1     14      1    98%   68
+src/array_vectorize/ir/ssa.py                        42      1     10      0    98%   51
+src/array_vectorize/ir/walk.py                       40      0     28      0   100%
+src/array_vectorize/lower/__init__.py                69      1     30      1    98%   67
+src/array_vectorize/lower/env.py                     98      9     40      3    88%   132-136, 147-148, 181-182
+src/array_vectorize/lower/expressions.py            223      8    142      7    96%   80, 104-107, 198, 260, 273, 280, 301
+src/array_vectorize/lower/helpers.py                 20      1      6      1    92%   28
+src/array_vectorize/lower/kinds.py                   87      0     26      3    97%   140->exit, 157->exit, 172->exit
+src/array_vectorize/lower/loops.py                  129      0     54      4    98%   70->69, 73->67, 131->133, 177->213
+src/array_vectorize/lower/sanitize.py                43      0     24      0   100%
+src/array_vectorize/lower/statements.py              86      2     34      2    97%   38, 146
+src/array_vectorize/lower/types.py                   21      0      0      0   100%
+src/array_vectorize/optimize/__init__.py             13      0      0      0   100%
+src/array_vectorize/optimize/constfold.py           141     16     80      5    88%   71-72, 154-155, 178->180, 192, 195->199, 206-219
+src/array_vectorize/optimize/cse.py                  54      1     24      1    97%   94
+src/array_vectorize/optimize/dce.py                  44      0     20      0   100%
+src/array_vectorize/optimize/protect_domains.py     103      3     44      2    95%   168->167, 179-181
+src/array_vectorize/pipeline.py                      27      0      6      0   100%
+src/array_vectorize/runtime/__init__.py               7      0      0      0   100%
+src/array_vectorize/runtime/arith.py                168      0     62      1    99%   259->275
+src/array_vectorize/runtime/dtype.py                 59      0     28      0   100%
+src/array_vectorize/runtime/minmax.py                71      0     42      1    99%   82->100
+src/array_vectorize/runtime/registry.py               8      0      0      0   100%
+src/array_vectorize/verify.py                        47      1     12      1    97%   66
+---------------------------------------------------------------------------------------------
+TOTAL                                              2763     76   1150     55    96%
