@@ -1,0 +1,34 @@
+[DEFECT] same-named functions have distinct generated filenames
+    detail:       return x * 100 + 7
+    actual:   True
+    expected: False
+[DEFECT] option variants do not overwrite the canonical source
+    actual:   True
+    expected: False
+[DEFECT] decorated target keeps the wrapper's behavior
+    actual:   [6.0]
+    expected: [106.0]
+[DEFECT] verify= accepts the documented 1/0 -> inf divergence
+    actual:   True
+    expected: False
+[DEFECT] verify= detects a large-int off-by-one
+    actual:   False
+    expected: True
+[DEFECT] verify= on a cache hit follows the frozen environment
+    actual:   True
+    expected: False
+[DEFECT] a shadowed range() is not treated as the builtin
+    actual:   [2.0]
+    expected: [3.0]
+[DEFECT] reserved parameter names still accept keyword calls
+    actual:   TypeError: f() got an unexpected keyword argument 'array_namespace'
+    expected: [2.0]
+[DEFECT] protect_domains does not multiply generated code size
+    detail:   plain=569, protected=1456
+    actual:   False
+    expected: True
+[DEFECT] the int64 minimum literal is supported
+    actual:   True
+    expected: False
+
+10 defect(s) reproduced

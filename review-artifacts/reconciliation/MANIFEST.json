@@ -1,0 +1,69 @@
+{
+  "reviewed_compiler_commit": "0e4bb6b64ae72ae369bbd61c921cf8673ec8d1a4",
+  "peer_review_commit": "a531fe0",
+  "primary_review_commit": "33efb77",
+  "artifacts": [
+    {
+      "path": "peer-review/2026-10-23-architecture-and-exactness-review.md",
+      "source_commit": "a531fe0",
+      "sha256": "a534180e6c440662b0c4bbcc612b7d4b299dcae0f784f9131313ba8ea35caa17"
+    },
+    {
+      "path": "peer-review/artifacts/README.md",
+      "source_commit": "a531fe0",
+      "sha256": "91a72714e08e203c3263b29fd785d99dec491ed0e3d4278616d4cc2a09621c01"
+    },
+    {
+      "path": "peer-review/artifacts/repro_backend_neutrality.py",
+      "source_commit": "a531fe0",
+      "sha256": "c433bf4e1623e1621666887f427d6ef206551ac72e3c3a808d5377674732b9f0"
+    },
+    {
+      "path": "peer-review/artifacts/repro_dtype_contract.py",
+      "source_commit": "a531fe0",
+      "sha256": "ed3f253f484dd142e0a5eec738483c4725c9d79a45229b71c9c1d49b3735a492"
+    },
+    {
+      "path": "peer-review/artifacts/repro_emit_verify.py",
+      "source_commit": "a531fe0",
+      "sha256": "780d112be09dc71bef7f29f84dcc6479039d7db2cd66ce49147d3308366d3bfa"
+    },
+    {
+      "path": "probes/reconcile_additional_probes.py",
+      "sha256": "ef16eeaa229ef3706033ad1a403c7fb75718dd59980a51e84d2274c3c0998409",
+      "transformation": "canonical license header prepended"
+    },
+    {
+      "path": "results/reconcile-peer-dtypes.log",
+      "sha256": "6d14f7ba6a5d901a565c0d4009b64cb2003454e512dd6adafd35aed6dd7a8fb8"
+    },
+    {
+      "path": "results/reconcile-peer-backends.log",
+      "sha256": "6f8ab77c4235ecbea608bc8ab7bd6b4384e0e10f88d7bb0f31e20d0071dc3fe7"
+    },
+    {
+      "path": "results/reconcile-peer-api.log",
+      "sha256": "91ab853f76beb3826bf1df0a7b62e98cd8a0a52b323e33d67231036fd8c5dded"
+    },
+    {
+      "path": "results/reconcile-additional-results.log",
+      "sha256": "17ea93bbdf91c85d95c83ca6ff05c250d25b61e4c7b707620e0d22b997ef3dd1"
+    },
+    {
+      "path": "peer-reconciliation-response.md",
+      "source_agent": "3dd792b2-ca06-4084-911e-c74113895e1e",
+      "sha256": "b337b73feba574dfbc3e6299beece5e15e8782e5a97dc869e8734c6be64c2242"
+    },
+    {
+      "path": "results/make-check.log",
+      "command": "make check",
+      "sha256": "58490bb6e222de7eecbf6f8282f5be86333a0f2d445bbf07d86272600d85650e"
+    },
+    {
+      "path": "peer-approval.md",
+      "source_agent": "3dd792b2-ca06-4084-911e-c74113895e1e",
+      "source_message_id": "c662f072-56cc-4a3d-a1b4-5fd15a14b0fb",
+      "sha256": "5a48964f602c2be84f2213f4bb7905cb1b041e9c085a0db5744ae73b200836ec"
+    }
+  ]
+}

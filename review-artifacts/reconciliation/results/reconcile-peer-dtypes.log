@@ -1,0 +1,53 @@
+[DEFECT] bool + bool is integer
+    actual:   ('ok', [True, True, True])
+    expected: ('ok', [2, 1, 1])
+[DEFECT] ~bool is integer complement
+    actual:   ('ok', [False, True])
+    expected: ('ok', [-2, -1])
+[DEFECT] abs(bool) is an int
+    actual:   ('ok', [True, False])
+    expected: ('ok', [2, 0])
+[DEFECT] uint64-int64 subtraction is exact
+    actual:   ('ok', [9.223372036854776e+18])
+    expected: ('ok', [9223372036854775810])
+[DEFECT] uint64-int64 remainder is exact
+    actual:   ('ok', [1.0])
+    expected: ('ok', [0])
+[DEFECT] uint64-int64 bitwise does not raise
+    actual:   ('error', "TypeError: ufunc 'bitwise_and' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''")
+    expected: ('ok', [1])
+[DEFECT] uint64 + negative literal (per-lane negative result)
+    actual:   ('ok', [18446744073709551615])
+    expected: ('ok', [-1])
+[DEFECT] uint64 * negative literal (per-lane negative result)
+    actual:   ('ok', [18446744073709551615])
+    expected: ('ok', [-1])
+[DEFECT] if/else merge keeps uint64/int64 lanes exact
+    actual:   ('ok', [9.223372036854776e+18, -5.0])
+    expected: ('ok', [9223372036854775809, -5])
+[DEFECT] ternary merge keeps uint64/int64 lanes exact
+    actual:   ('ok', [9.223372036854776e+18, -5.0])
+    expected: ('ok', [9223372036854775809, -5])
+[DEFECT] abs(int64 minimum) is exact
+    actual:   ('ok', [-9223372036854775808])
+    expected: ('ok', [9223372036854775808])
+[DEFECT] math.floor of a large int is exact
+    actual:   ('ok', [9007199254740992.0])
+    expected: ('ok', [9007199254740993])
+[DEFECT] int(uint64 above int64 max) is exact
+    actual:   ('ok', [-9223372036854775807])
+    expected: ('ok', [9223372036854775809])
+[DEFECT] int ** -1 is true division
+    actual:   ('error', 'ValueError: Integers to negative integer powers are not allowed.')
+    expected: ('ok', [0.5])
+[DEFECT] int(1e30) + array must not round
+    actual:   ('ok', [1e+30])
+    expected: ('ok', [1000000000000000019884624838657])
+[DEFECT] int(1e30) literal stays within int64
+    actual:   True
+    expected: False
+[DEFECT] defaults are range-checked
+    actual:   False
+    expected: True
+
+17 dtype-contract defect(s) reproduced
